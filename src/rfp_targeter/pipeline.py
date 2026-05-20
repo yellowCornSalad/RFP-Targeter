@@ -1,0 +1,75 @@
+"""파이프라인 오케스트레이션: 크롤링 → 보안 필터 → DB 저장 → 점수 산정 → (선택) 초안 생성."""
+from __future__ import annotations
+
+import logging
+from dataclasses import dataclass
+
+from rfp_targeter.config import settings
+from rfp_targeter.crawlers import enabled_crawlers
+from rfp_targeter.db.models import (
+    get_conn, init_db, log_fetch_finish, log_fetch_start,
+    upsert_announcement, upsert_score,
+)
+from rfp_targeter.filters.security_filter import SecurityFilter
+from rfp_targeter.scoring import compute_score
+
+log = logging.getLogger(__name__)
+
+
+@dataclass
+class RunStats:
+    source: str
+    new: int = 0
+    updated: int = 0
+    filtered_in: int = 0
+    error: str | None = None
+
+
+def run_once() -> list[RunStats]:
+    """모든 활성 크롤러 1회 실행."""
+    init_db()
+    sec_filter = SecurityFilter()
+    stats: list[RunStats] = []
+
+    for crawler in enabled_crawlers(settings()):
+        s = RunStats(source=crawler.source)
+        with get_conn() as conn:
+            log_id = log_fetch_start(conn, crawler.source)
+
+        try:
+            for a in crawler.list_announcements():
+                # 본문 보강 — 어댑터에 따라 무시될 수 있음
+                a = crawler.fetch_detail(a)
+
+                # 1차: 보안 키워드 필터
+                fr = sec_filter.check(a.title, a.summary, a.body)
+                a.is_security = fr.passed
+                a.matched_keywords = fr.matched + fr.boost_matched
+
+                # 보안 필터 통과한 것만 점수 산정. 미통과도 DB에 저장 (감사 추적)
+                with get_conn() as conn:
+                    is_new = upsert_announcement(conn, a)
+                    if is_new:
+                        s.new += 1
+                    else:
+                        s.updated += 1
+                    if a.is_security:
+                        s.filtered_in += 1
+                        score = compute_score(a)
+                        upsert_score(conn, score)
+
+            with get_conn() as conn:
+                log_fetch_finish(conn, log_id, s.new, s.updated)
+        except Exception as e:
+            log.exception("Pipeline error in %s", crawler.source)
+            s.error = str(e)
+            with get_conn() as conn:
+                log_fetch_finish(conn, log_id, s.new, s.updated, error=str(e))
+
+        log.info(
+            "[%s] 신규 %d / 업데이트 %d / 보안통과 %d",
+            crawler.source, s.new, s.updated, s.filtered_in,
+        )
+        stats.append(s)
+
+    return stats

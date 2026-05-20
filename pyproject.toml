@@ -1,0 +1,34 @@
+[project]
+name = "rfp-targeter"
+version = "0.1.0"
+description = "엔키화이트햇 RFP 자동 탐색 + 점수 산정 + 초안 생성"
+requires-python = ">=3.11"
+dependencies = [
+    "requests>=2.32",
+    "beautifulsoup4>=4.12",
+    "lxml>=5.0",
+    "pyyaml>=6.0",
+    "apscheduler>=3.10",
+    "streamlit>=1.36",
+    "plotly>=5.22",
+    "pandas>=2.2",
+    "python-dateutil>=2.9",
+    "pypdf>=4.2",
+    "tenacity>=8.5",
+    "rapidfuzz>=3.9",
+    "rich>=13.7",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.2", "ruff>=0.5"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"

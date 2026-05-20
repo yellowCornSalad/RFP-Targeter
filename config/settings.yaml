@@ -1,0 +1,61 @@
+# 시스템 전반 설정
+database:
+  path: data/rfp.db
+
+crawl:
+  # 폴링 주기 (분)
+  interval_minutes: 30
+  # 사이트별 요청 간격 (초) — 부하 방지
+  request_delay_seconds: 2
+  # 한 번에 가져올 최대 공고 수
+  max_per_source: 50
+  # 요청 타임아웃 (초)
+  timeout_seconds: 30
+  # User-Agent (예의상)
+  user_agent: "RFP-Targeter/0.1 (research; contact: rfp@enkiwhitehat.com)"
+
+# 활성화할 소스
+sources:
+  # 파이프라인 검증용 샘플 데이터 (실데이터 크롤러 완성되면 false)
+  mock:
+    enabled: false
+    base_url: "https://example.test"
+
+  # 실데이터 크롤러
+  bizinfo:
+    enabled: true
+    base_url: "https://www.bizinfo.go.kr"
+  kisa:
+    enabled: true
+    base_url: "https://www.kisa.or.kr"
+
+  # IITP는 robots.txt 전면 금지. data.go.kr 공식 API 경유 (config/secrets.yaml 에 키 필요)
+  iitp:
+    enabled: true
+    base_url: "https://apis.data.go.kr"      # 실제 endpoint는 secrets.yaml 또는 어댑터 기본값
+
+  # 미구현 / 검증 대기
+  ntis:
+    enabled: false
+    base_url: "https://www.ntis.go.kr"       # Open API 키 발급 또는 RSS 검증 필요
+  krit:
+    enabled: false
+    base_url: "https://www.krit.re.kr"       # 어댑터 미구현
+
+# 점수 가중치 (합 1.0)
+scoring_weights:
+  keyword: 0.30        # 보안 키워드 매칭도
+  budget: 0.15         # 회사 적정 예산 범위 일치도
+  consortium: 0.20     # 컨소시엄 구성 부담
+  competitor: 0.20     # 경쟁자 적은 정도(난이도)
+  trl: 0.15            # 회사 기술 TRL 적합
+
+# 초안 자동 생성 임계점
+auto_draft:
+  enabled: true
+  min_total_score: 70  # 100점 만점 기준
+
+# 회사 프로필 추출 대상
+profile_extraction:
+  homepage_url: "https://www.enkiwhitehat.com"
+  extra_urls: []

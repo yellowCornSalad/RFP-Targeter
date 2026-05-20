@@ -1,0 +1,61 @@
+# 엔키화이트햇 프로필 — 점수 산정의 기반 데이터
+# scripts/init_profile.py 로 enkiwhitehat.com에서 자동 추출 후 사람이 검수
+#
+# *** 이 파일은 예시. 실제 사용 시 profile.yaml 로 복사해서 채울 것 ***
+
+company:
+  name: "엔키화이트햇"
+  english_name: "ENKI WhiteHat"
+  homepage: "https://www.enkiwhitehat.com"
+  established_year: 2020  # ???
+  size: "중소"            # 중소 / 중견 / 대기업
+
+# 회사의 핵심 키워드 (가중치 1.0 기준)
+core_keywords:
+  - 화이트해커
+  - 모의해킹
+  - 취약점 분석
+  - 침투시험
+  - 레드팀
+  - 보안 자동화
+
+# 보유 기술 / 강점 분야
+technologies:
+  - name: "공격 시뮬레이션 엔진"
+    trl: 7
+    keywords: [BAS, breach attack simulation, 모의해킹]
+  - name: "취약점 분석 자동화"
+    trl: 7
+    keywords: [SAST, DAST, fuzzing]
+  - name: "AI 기반 위협 분석"
+    trl: 5
+    keywords: [AI 보안, 머신러닝 보안, 이상 탐지]
+
+# 적정 예산 범위 (단위: 백만원)
+budget_range:
+  min: 300         # 너무 작으면 ROI 낮음
+  sweet_spot_min: 800
+  sweet_spot_max: 3000
+  max: 5000        # 너무 크면 컨소시엄 부담
+
+# 컨소시엄 구성 능력
+consortium:
+  preferred_role: "주관"     # 주관 / 공동 / 위탁
+  max_partners: 3
+  existing_partners:
+    - "???"  # 자주 함께하는 대학/연구소
+  university_partner_available: false
+
+# 과거 수주 이력 (있으면 추가)
+track_record:
+  past_awards: []   # [{ year: 2024, title: "...", agency: "IITP", budget_mw: 1200 }]
+  reject_patterns: # 과거 떨어진 패턴 (피하고 싶은 것)
+    - "???"
+
+# 경쟁사 인식 (전형적 경쟁 구도 — 점수 보정용)
+competitors:
+  - 안랩
+  - SK쉴더스
+  - 이글루코퍼레이션
+  - 시큐아이
+  - 윈스

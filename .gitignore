@@ -1,0 +1,39 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+.env
+.env.local
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Local data (never commit)
+data/*.db
+data/*.db-journal
+data/attachments/
+drafts/
+templates/*/
+!templates/.gitkeep
+
+# Config secrets
+config/profile.yaml
+config/secrets.yaml
+config/*.local.yaml
+
+# Build
+build/
+dist/
+*.egg-info/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
