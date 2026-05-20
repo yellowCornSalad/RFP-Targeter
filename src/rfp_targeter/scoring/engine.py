@@ -30,6 +30,14 @@ def compute_score(a: Announcement) -> Score:
 
     theme, theme_why = score_theme_fit(a, p)
 
+    # theme_fit 보너스: 회사 테마와 강하게 매칭되면 가산
+    if theme >= 80:
+        total = min(100.0, total + 10)
+    elif theme >= 60:
+        total = min(100.0, total + 5)
+    elif theme < 30:
+        total = max(0.0, total - 5)
+
     rationale = {
         "keyword": kw_why,
         "budget": bg_why,

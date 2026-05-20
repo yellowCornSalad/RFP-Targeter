@@ -41,8 +41,8 @@ def run_once() -> list[RunStats]:
                 # 본문 보강 — 어댑터에 따라 무시될 수 있음
                 a = crawler.fetch_detail(a)
 
-                # 1차: 보안 키워드 필터
-                fr = sec_filter.check(a.title, a.summary, a.body)
+                # 1차: 보안 키워드 필터 (제목·요약·본문 + 부서명 화이트리스트)
+                fr = sec_filter.check(a.title, a.summary, a.body, agency=a.agency)
                 a.is_security = fr.passed
                 a.matched_keywords = fr.matched + fr.boost_matched
 

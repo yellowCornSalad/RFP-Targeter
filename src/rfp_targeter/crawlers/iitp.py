@@ -21,9 +21,11 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Iterator
 from urllib.parse import unquote, urlencode
 
+from rfp_targeter.attachments import classify, download_file, extract_text, priority
 from rfp_targeter.config import secrets
 from rfp_targeter.crawlers.base import BaseCrawler
 from rfp_targeter.db.models import Announcement
@@ -35,17 +37,19 @@ log = logging.getLogger(__name__)
 # 주의: 'AnnouncMent' 의 M 이 대문자 (오타 아님)
 DEFAULT_ENDPOINT = "https://apis.data.go.kr/1721000/msitannouncementinfo/businessAnnouncMentList"
 
-# 응답 필드명 후보 (공공데이터포털 일반 패턴 + IITP 특화 추측)
-# 실제 응답 보고 _FIELD_MAP 수정
+# 실제 응답 필드명 (data.go.kr 15074634, 검증 2026-05-20)
+# response.body.items.item 안의 태그명
 _FIELD_MAP = {
-    "external_id": ["bsnsAncmSeq", "ancmId", "seqNo", "id"],
-    "title": ["bsnsAncmNm", "bsnsAncmTitle", "title", "ancmTitle"],
-    "agency": ["jrsdInstNm", "ministryNm", "instNm", "agency"],
-    "posted_at": ["bsnsAncmYmd", "ancmDt", "postDate", "regDt"],
+    "external_id": ["nttSeqNo", "bsnsAncmSeq", "ancmId", "seqNo", "id"],
+    "title": ["subject", "bsnsAncmNm", "title"],
+    "agency": ["deptName", "jrsdInstNm", "ministryNm", "instNm", "agency"],
+    "posted_at": ["pressDt", "bsnsAncmYmd", "postDate", "regDt"],
     "deadline_at": ["rcptEndYmd", "rcptEndDt", "endDate", "deadline"],
-    "url": ["bsnsAncmDtlUrl", "detailUrl", "url", "linkUrl"],
+    "url": ["viewUrl", "bsnsAncmDtlUrl", "detailUrl", "url"],
     "summary": ["bsnsAncmCn", "bsnsSumry", "summary", "ancmCn"],
-    "department": ["chrgDeptNm", "deptNm", "department"],
+    "department": ["deptName", "chrgDeptNm", "deptNm"],
+    "manager": ["managerName", "chrgPsnNm"],
+    "manager_tel": ["managerTel", "chrgTelNo"],
 }
 
 
@@ -78,7 +82,8 @@ class IITPCrawler(BaseCrawler):
             )
             return
 
-        rows_per_page = 50
+        # API가 numOfRows 지정에도 페이지당 10건만 반환 — 여러 페이지 돌면서 누적
+        rows_per_page = 10
         max_pages = max(1, (self.max_per_source + rows_per_page - 1) // rows_per_page)
         seen = 0
 
@@ -101,12 +106,11 @@ class IITPCrawler(BaseCrawler):
             data = self._parse_response(r)
             items = self._extract_items(data)
             if not items:
-                # JSON 실패 시 XML 한 번 더 시도
-                if page == 1 and "<" in r.text[:100]:
-                    items = self._extract_items_from_xml(r.text)
-                if not items:
-                    log.info("iitp: 항목 없음 (page %d). 응답 첫 300자: %s", page, r.text[:300])
-                    break
+                # JSON 실패 또는 XML 응답 — 모든 페이지에서 폴백 시도
+                items = self._extract_items_from_xml(r.text)
+            if not items:
+                log.info("iitp: 항목 없음 (page %d). 응답 첫 300자: %s", page, r.text[:300])
+                break
 
             for item in items:
                 a = self._to_announcement(item)
@@ -143,33 +147,155 @@ class IITPCrawler(BaseCrawler):
             return []
 
     def _extract_items_from_xml(self, text: str) -> list[dict]:
-        """XML 응답 파싱 (JSON 미지원 시)."""
+        """XML 응답 파싱 (JSON 미지원 시). files 도 함께 추출."""
         try:
             from xml.etree import ElementTree as ET
             root = ET.fromstring(text)
             items = []
             for item in root.iter("item"):
-                items.append({child.tag: (child.text or "").strip() for child in item})
+                d = {}
+                file_list = []
+                for child in item:
+                    if child.tag == "files":
+                        for f in child.iter("file"):
+                            fname = (f.findtext("fileName") or "").strip()
+                            furl = (f.findtext("fileUrl") or "").strip()
+                            if fname and furl:
+                                file_list.append({"name": fname, "url": furl})
+                    else:
+                        d[child.tag] = (child.text or "").strip()
+                if file_list:
+                    d["_files"] = file_list
+                items.append(d)
             return items
         except Exception as e:
             log.debug("xml parse fail: %s", e)
             return []
 
     def _to_announcement(self, item: dict) -> Announcement | None:
-        external_id = _pick(item, _FIELD_MAP["external_id"])
+        import re as _re
         title = _pick(item, _FIELD_MAP["title"])
+        url = _pick(item, _FIELD_MAP["url"]) or ""
+        external_id = _pick(item, _FIELD_MAP["external_id"])
+
+        # external_id 폴백: viewUrl 안의 nttSeqNo 또는 bbsSeqNo 추출
+        if not external_id and url:
+            m = _re.search(r"nttSeqNo=(\d+)", url)
+            if m:
+                external_id = m.group(1)
+            else:
+                m = _re.search(r"bbsSeqNo=(\d+)", url)
+                if m:
+                    external_id = m.group(1)
+
         if not external_id or not title:
             return None
+
+        # summary 없는 응답이 많음 — 담당부서+담당자+연락처를 보조 정보로 합쳐 본문 생성
+        dept = _pick(item, _FIELD_MAP["department"]) or ""
+        mgr = _pick(item, _FIELD_MAP["manager"]) or ""
+        tel = _pick(item, _FIELD_MAP["manager_tel"]) or ""
+        contact_line = " · ".join(filter(None, [dept, mgr, tel]))
+
+        # 첨부 파일 메타 (다운로드는 fetch_detail에서, 분류는 즉시)
+        attachments = []
+        for f in item.get("_files", []):
+            attachments.append({
+                "name": f["name"], "url": f["url"], "local_path": None,
+                "category": classify(f["name"]),
+            })
+
         return Announcement(
             source=self.source,
             external_id=external_id,
             title=title,
-            url=_pick(item, _FIELD_MAP["url"]) or "",
-            agency=_pick(item, _FIELD_MAP["agency"]),
+            url=url,
+            agency=_pick(item, _FIELD_MAP["agency"]) or "과학기술정보통신부",
             posted_at=_pick(item, _FIELD_MAP["posted_at"]),
             deadline_at=_pick(item, _FIELD_MAP["deadline_at"]),
-            summary=_pick(item, _FIELD_MAP["summary"]),
+            summary=_pick(item, _FIELD_MAP["summary"]) or contact_line or None,
+            body=f"{title}\n{contact_line}",  # 보안 필터 매칭용 최소 본문 (fetch_detail에서 첨부 텍스트로 보강)
+            attachments=attachments,
         )
+
+    def fetch_detail(self, a: Announcement) -> Announcement:
+        """첨부 .hwpx/.pdf 1개 다운로드 + 텍스트 추출하여 body 보강.
+
+        - 보안 필터 통과 가능성 있는 (정보보호*, AI, ICT) 공고만 받기는 비효율 — 일단 모두 시도
+        - 첫 번째 첨부만 (보통 공고문 자체. 신청서·양식은 텍스트 가치 낮음)
+        - 다운로드 실패해도 a 그대로 반환
+        """
+        if not a.attachments:
+            return a
+
+        def _ext_pri(name: str) -> int:
+            n = (name or "").lower()
+            if n.endswith(".hwpx"): return 0
+            if n.endswith(".pdf"):  return 1
+            if n.endswith(".odt"):  return 2
+            if n.endswith(".docx"): return 3
+            if n.endswith(".hwp"):  return 9
+            return 5
+
+        # 카테고리 미분류 첨부 분류 + 정렬 (카테고리 우선순위 → 확장자 우선순위)
+        for att in a.attachments:
+            if not att.get("category"):
+                att["category"] = classify(att.get("name", ""))
+        sorted_atts = sorted(
+            a.attachments,
+            key=lambda x: (priority(x.get("category", "other")), _ext_pri(x.get("name", ""))),
+        )
+
+        text = ""
+        for att in sorted_atts:
+            cat = att.get("category", "other")
+            # notice·form 만 다운로드 (eval·reference·other 는 메타만)
+            if cat not in ("notice", "form"):
+                continue
+            url = att.get("url")
+            name = att.get("name") or "attachment.bin"
+            if not url:
+                continue
+            path = download_file(url, a.external_id, name, referer="https://www.msit.go.kr/")
+            if path is None:
+                continue
+            att["local_path"] = str(path)
+            t = extract_text(path)
+            # 본문 텍스트는 notice 우선, 없으면 form
+            if t and (not text or cat == "notice"):
+                text = t
+                if cat == "notice":
+                    break
+
+        if not text:
+            return a
+
+        # 기존 body(제목·부서) + 첨부 본문 합치기
+        a.body = (a.body or "") + "\n\n[첨부 본문]\n" + text
+
+        # 첨부 본문에서 예산·기간 추출
+        import re
+        bm = re.search(r"(?:총\s*사업비|사업비|예산|총\s*연구비)[^\d]{0,30}([\d,]+)\s*(억|백만\s*원|만\s*원)", text)
+        if bm:
+            n = int(bm.group(1).replace(",", ""))
+            unit = bm.group(2).replace(" ", "")
+            if unit == "억":
+                a.budget_mw = n * 100
+            elif unit == "백만원":
+                a.budget_mw = n
+            elif unit == "만원":
+                a.budget_mw = max(1, n // 100)
+
+        pm = re.search(r"(?:사업\s*기간|연구\s*기간|총\s*연구기간)[^\d]{0,30}(\d+)\s*(개월|년)", text)
+        if pm:
+            n = int(pm.group(1))
+            a.duration_months = n * 12 if pm.group(2) == "년" else n
+
+        dm = re.search(r"(?:접수\s*마감|신청\s*마감|마감일|접수기간[^~]*~)[^\d]{0,20}(\d{4})[.\-/년](\s*)(\d{1,2})[.\-/월](\s*)(\d{1,2})", text)
+        if dm:
+            a.deadline_at = f"{dm.group(1)}-{int(dm.group(3)):02d}-{int(dm.group(5)):02d}"
+
+        return a
 
     def _is_iitp(self, a: Announcement, raw: dict) -> bool:
         """IITP가 발주한 공고인지 추정. 담당기관·제목·부서명에 IITP/정보통신기획평가원 포함."""

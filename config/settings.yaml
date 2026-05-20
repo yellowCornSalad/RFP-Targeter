@@ -7,7 +7,7 @@ crawl:
   interval_minutes: 30
   # 사이트별 요청 간격 (초) — 부하 방지
   request_delay_seconds: 2
-  # 한 번에 가져올 최대 공고 수
+  # 한 번에 가져올 최대 공고 수 (소스별 override 가능 — sources.{name}.max_per_source)
   max_per_source: 50
   # 요청 타임아웃 (초)
   timeout_seconds: 30
@@ -33,6 +33,13 @@ sources:
   iitp:
     enabled: true
     base_url: "https://apis.data.go.kr"      # 실제 endpoint는 secrets.yaml 또는 어댑터 기본값
+    max_per_source: 500                       # 페이지당 10건 × 50 = 약 6~9개월치 (2026.01 IITP 대형 공고까지 커버)
+
+  # 중소벤처기업부 사업공고 (data.go.kr 1421000, 일 한도 100)
+  mss:
+    enabled: true
+    base_url: "https://apis.data.go.kr"
+    max_per_source: 50                        # 일 호출 한도 100 보수적 운용
 
   # 미구현 / 검증 대기
   ntis:
@@ -43,9 +50,10 @@ sources:
     base_url: "https://www.krit.re.kr"       # 어댑터 미구현
 
 # 점수 가중치 (합 1.0)
+# keyword 비중 ↑: 회사 본업 매칭도가 가장 결정적
 scoring_weights:
-  keyword: 0.30        # 보안 키워드 매칭도
-  budget: 0.15         # 회사 적정 예산 범위 일치도
+  keyword: 0.35        # 회사 핵심 키워드 매칭도 (강화)
+  budget: 0.10         # 예산 정합 (약화 — 본문에 안 나오는 경우 다수)
   consortium: 0.20     # 컨소시엄 구성 부담
   competitor: 0.20     # 경쟁자 적은 정도(난이도)
   trl: 0.15            # 회사 기술 TRL 적합

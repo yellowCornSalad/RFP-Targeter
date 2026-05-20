@@ -8,12 +8,14 @@ from rfp_targeter.crawlers.bizinfo import BizinfoCrawler
 from rfp_targeter.crawlers.iitp import IITPCrawler
 from rfp_targeter.crawlers.kisa import KISACrawler
 from rfp_targeter.crawlers.mock import MockCrawler
+from rfp_targeter.crawlers.mss import MSSCrawler
 
 CRAWLERS: dict[str, type[BaseCrawler]] = {
     "bizinfo": BizinfoCrawler,
     "iitp": IITPCrawler,
     "kisa": KISACrawler,
     "mock": MockCrawler,
+    "mss": MSSCrawler,
 }
 
 

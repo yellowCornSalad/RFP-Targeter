@@ -21,10 +21,12 @@ class BaseCrawler(ABC):
 
     def __init__(self, base_url: str | None = None) -> None:
         cfg = settings()["crawl"]
+        src_cfg = settings().get("sources", {}).get(self.source, {})
         self.base_url = base_url
         self.delay = cfg["request_delay_seconds"]
         self.timeout = cfg["timeout_seconds"]
-        self.max_per_source = cfg["max_per_source"]
+        # source별 override 우선
+        self.max_per_source = src_cfg.get("max_per_source", cfg["max_per_source"])
         self.session = requests.Session()
         self.session.headers["User-Agent"] = cfg["user_agent"]
 

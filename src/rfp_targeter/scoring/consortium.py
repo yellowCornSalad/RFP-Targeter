@@ -30,24 +30,39 @@ def score_consortium(a: Announcement, profile: dict) -> tuple[float, list[str]]:
 
     score = 100.0
     why: list[str] = []
+    parts: list[str] = []
     university_ready = cons.get("university_partner_available", False)
     max_partners = cons.get("max_partners", 3)
 
     if has_uni and not university_ready:
         score -= 35
         why.append("대학 참여 필요 신호 — 회사 대학 파트너 미설정")
+        parts.append("대학필요·파트너X −35")
     elif has_uni and university_ready:
-        why.append("대학 참여 필요 신호 — 회사 보유 대학 파트너 활용 가능")
+        score -= 5
+        why.append("대학 참여 필요 신호 — KAIST 등 회사 보유 대학 파트너 활용 가능")
+        parts.append("대학필요·KAIST활용 −5")
 
     if has_multi:
         if max_partners >= 3:
             score -= 10
             why.append("다기관 컨소시엄 필요 — 회사 가능 범위 내")
+            parts.append("다기관·가능 −10")
         else:
             score -= 30
             why.append(f"다기관 컨소시엄 필요 — 회사 max {max_partners} 초과 우려")
+            parts.append(f"다기관·max초과 −30")
 
     if not has_uni and not has_multi:
-        why.append("컨소시엄 신호 약함 — 단독 수행 가능성")
+        # 컨소시엄 신호 약함 — 단독 수행 가능. 다만 100점 만점은 강한 신호일 때만
+        if cons.get("solo_capable"):
+            why.append("컨소시엄 신호 약함 + 회사 단독 수행 능력 입증 — 만점")
+            parts.append("단독수행 가능 0")
+        else:
+            score -= 10
+            why.append("컨소시엄 신호 약함 — 단독 수행 가능성 (회사 단독수행 능력 미명시)")
+            parts.append("단독수행 미명시 −10")
 
-    return max(0.0, score), why
+    score = max(0.0, min(100.0, score))
+    why.append(f"📐 산정: 100 {' '.join(parts) if parts else '(변동없음)'} → **{score:.0f}점**")
+    return score, why

@@ -29,16 +29,34 @@ def score_trl(a: Announcement, profile: dict) -> tuple[float, list[str]]:
     own_trls = [t["trl"] for t in techs if isinstance(t.get("trl"), int)]
 
     if required is None:
-        return 60.0, ["공고에서 TRL 요구치 추정 불가 — 중립 점수"]
+        return 45.0, [
+            "공고에서 TRL 요구치 추정 불가 — 정보 부족 페널티",
+            "📐 산정: TRL 추정불가 → **45점**",
+        ]
 
     if not own_trls:
-        return 50.0, [f"공고 요구 TRL≈{required} — 회사 보유 TRL 데이터 없음"]
+        return 50.0, [
+            f"공고 요구 TRL≈{required} — 회사 보유 TRL 데이터 없음",
+            "📐 산정: 회사 TRL 미설정 → **50점**",
+        ]
 
     closest_gap = min(abs(t - required) for t in own_trls)
     if closest_gap == 0:
-        return 100.0, [f"공고 TRL {required} = 회사 보유 기술과 일치"]
+        return 100.0, [
+            f"공고 TRL {required} = 회사 보유 기술과 일치",
+            "📐 산정: TRL 일치 → **100점**",
+        ]
     if closest_gap == 1:
-        return 85.0, [f"공고 TRL {required} ↔ 회사 {own_trls} (gap 1)"]
+        return 85.0, [
+            f"공고 TRL {required} ↔ 회사 {own_trls} (gap 1)",
+            "📐 산정: gap 1 → **85점**",
+        ]
     if closest_gap == 2:
-        return 65.0, [f"공고 TRL {required} ↔ 회사 {own_trls} (gap 2)"]
-    return 40.0, [f"공고 TRL {required} ↔ 회사 {own_trls} (gap {closest_gap}, 갭 큼)"]
+        return 65.0, [
+            f"공고 TRL {required} ↔ 회사 {own_trls} (gap 2)",
+            "📐 산정: gap 2 → **65점**",
+        ]
+    return 40.0, [
+        f"공고 TRL {required} ↔ 회사 {own_trls} (gap {closest_gap}, 갭 큼)",
+        f"📐 산정: gap {closest_gap} → **40점**",
+    ]

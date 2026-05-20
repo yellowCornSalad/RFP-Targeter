@@ -29,9 +29,14 @@ class SecurityFilter:
         self._must_any = cfg.get("must_any", [])
         self._boost = cfg.get("boost", [])
         self._exclude = cfg.get("exclude", [])
+        self._must_any_agency = cfg.get("must_any_agency", [])
 
-    def check(self, *texts: str | None) -> FilterResult:
-        """제목·요약·본문 등 여러 문자열을 한 번에 검사."""
+    def check(self, *texts: str | None, agency: str | None = None) -> FilterResult:
+        """제목·요약·본문 등 여러 문자열을 한 번에 검사.
+
+        agency가 회사 본업 부서 화이트리스트에 일치하면 키워드 매칭 약해도 통과
+        (통합 공고 누락 방지).
+        """
         haystack = _normalize(" ".join(t for t in texts if t))
 
         excluded = [k for k in self._exclude if _normalize(k) in haystack]
@@ -41,8 +46,18 @@ class SecurityFilter:
         matched = [k for k in self._must_any if _normalize(k) in haystack]
         boosted = [k for k in self._boost if _normalize(k) in haystack]
 
+        # 부서명 자동 통과 (정확 매칭 — 부서명은 enum이라 fuzzy 없음)
+        agency_match = None
+        if agency and not matched:
+            agency_norm = _normalize(agency)
+            for dept in self._must_any_agency:
+                if _normalize(dept) == agency_norm:
+                    agency_match = dept
+                    matched = [f"[부서] {dept}"]   # 매칭 표시
+                    break
+
         return FilterResult(
-            passed=bool(matched),
+            passed=bool(matched) or bool(agency_match),
             matched=matched,
             boost_matched=boosted,
             excluded_by=[],

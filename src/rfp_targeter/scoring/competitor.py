@@ -23,22 +23,39 @@ GENERIC_LOW_COMPETITION = [
 def score_competitor(a: Announcement, profile: dict) -> tuple[float, list[str]]:
     blob = ((a.title or "") + " " + (a.summary or "") + " " + (a.body or "")).lower()
     why: list[str] = []
-    score = 60.0  # baseline
+    parts: list[str] = []
+    score = 50.0  # baseline 낮춤 (정보 없으면 중간)
 
     high_hits = [k for k in GENERIC_HIGH_COMPETITION if k.lower() in blob]
     low_hits = [k for k in GENERIC_LOW_COMPETITION if k.lower() in blob]
 
     if high_hits:
-        score -= min(30, len(high_hits) * 15)
+        d = min(35, len(high_hits) * 15)
+        score -= d
         why.append(f"대형 경쟁 영역 신호: {', '.join(high_hits)}")
+        parts.append(f"대형경쟁 −{d}")
     if low_hits:
-        score += min(30, len(low_hits) * 15)
+        a_ = min(40, len(low_hits) * 15)
+        score += a_  # 전문 영역 가산 강화
         why.append(f"전문 영역 신호 (경쟁 적음 추정): {', '.join(low_hits)}")
+        parts.append(f"전문영역 +{a_}")
+
+    # 본문이 풍부할수록 신뢰도 ↑
+    body_len = len(a.body or "")
+    if body_len < 200:
+        score -= 5
+        why.append("본문 정보 부족 — 신뢰도 낮춤")
+        parts.append("본문부족 −5")
 
     # 경쟁사 이름이 본문에 명시되어 있으면(드물지만) 강한 신호
     rivals = [r for r in (profile.get("competitors") or []) if r.lower() in blob]
     if rivals:
         score -= 15
         why.append(f"본문에 경쟁사 언급: {', '.join(rivals)}")
+        parts.append(f"경쟁사명시 −15")
 
-    return max(0.0, min(100.0, score)), why or ["경쟁 신호 약함 — baseline"]
+    score = max(0.0, min(100.0, score))
+    if not why:
+        why = ["경쟁 신호 약함 — baseline"]
+    why.append(f"📐 산정: baseline 50 {' '.join(parts) if parts else '(변동없음)'} → **{score:.0f}점**")
+    return score, why

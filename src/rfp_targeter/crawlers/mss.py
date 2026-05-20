@@ -1,0 +1,226 @@
+"""중소벤처기업부(MSS) 사업공고 크롤러 — data.go.kr 공식 API.
+
+데이터 소스: 중소벤처기업부_사업공고 (data.go.kr 15113297)
+  Endpoint: https://apis.data.go.kr/1421000/mssBizService_v2/getbizList_v2
+  데이터 포맷: XML
+  일일 트래픽: 100
+
+회사 = 중소기업이라 중기부 R&D·자금·해외진출·인력 사업 모두 직접 매칭 가능.
+"""
+from __future__ import annotations
+
+import logging
+from typing import Iterator
+from urllib.parse import unquote, urlencode
+
+from pathlib import Path
+
+from rfp_targeter.attachments import classify, download_file, extract_text, priority
+from rfp_targeter.config import secrets
+from rfp_targeter.crawlers.base import BaseCrawler
+from rfp_targeter.db.models import Announcement
+
+log = logging.getLogger(__name__)
+
+DEFAULT_ENDPOINT = "https://apis.data.go.kr/1421000/mssBizService_v2/getbizList_v2"
+
+# 응답 필드명 후보 (data.go.kr 일반 패턴 + 중기부 추측)
+# 첫 호출 후 실제 응답 봐서 _FIELD_MAP 보강
+_FIELD_MAP = {
+    "external_id": ["pblancId", "bsnsAncmSeq", "ancmId", "seqNo", "id"],
+    "title": ["pblancNm", "subject", "bsnsAncmNm", "title"],
+    "agency": ["jrsdInstNm", "instNm", "deptName", "agency"],
+    "posted_at": ["pblancBgngYmd", "regDt", "pressDt", "bsnsAncmYmd", "postDate"],
+    "deadline_at": ["pblancEndYmd", "rcptEndYmd", "endDate", "deadline"],
+    "url": ["pblancUrl", "viewUrl", "detailUrl", "url"],
+    "summary": ["pblancCn", "bsnsAncmCn", "summary"],
+    "department": ["chrgDeptNm", "deptName", "deptNm"],
+}
+
+
+def _pick(item: dict, candidates: list[str]) -> str | None:
+    for k in candidates:
+        v = item.get(k)
+        if v not in (None, "", "null"):
+            return str(v)
+    return None
+
+
+class MSSCrawler(BaseCrawler):
+    source = "mss"
+    display_name = "중소벤처기업부 사업공고"
+
+    def __init__(self, base_url: str | None = None) -> None:
+        super().__init__(base_url)
+        sec = secrets().get("mss", {})
+        self.service_key = sec.get("service_key")
+        self.endpoint = sec.get("endpoint", DEFAULT_ENDPOINT)
+
+    def list_announcements(self) -> Iterator[Announcement]:
+        if not self.service_key or self.service_key == "???":
+            log.warning(
+                "MSS: data.go.kr serviceKey 미설정 (secrets.yaml 의 mss 섹션). "
+                "발급: https://www.data.go.kr/data/15113297/openapi.do"
+            )
+            return
+
+        # 일일 한도 100 — 보수적으로 페이지당 10건씩
+        rows_per_page = 10
+        max_pages = max(1, (self.max_per_source + rows_per_page - 1) // rows_per_page)
+        seen = 0
+
+        for page in range(1, max_pages + 1):
+            sk = unquote(self.service_key)
+            params = {
+                "serviceKey": sk,
+                "pageNo": page,
+                "numOfRows": rows_per_page,
+            }
+            url = f"{self.endpoint}?{urlencode(params)}"
+            try:
+                r = self.fetch(url)
+            except Exception as e:
+                log.warning("mss API page %d fail: %s", page, e)
+                break
+
+            items = self._extract_items_from_xml(r.text)
+            if not items:
+                log.info("mss: 항목 없음 (page %d). 응답 첫 300자: %s", page, r.text[:300])
+                break
+
+            for item in items:
+                a = self._to_announcement(item)
+                if a is None:
+                    continue
+                yield a
+                seen += 1
+                if seen >= self.max_per_source:
+                    return
+
+    def _extract_items_from_xml(self, text: str) -> list[dict]:
+        try:
+            from xml.etree import ElementTree as ET
+            root = ET.fromstring(text)
+            items: list[dict] = []
+            for item in root.iter("item"):
+                d: dict = {}
+                file_list = []
+                for child in item:
+                    if child.tag == "files":
+                        for f in child.iter("file"):
+                            fname = (f.findtext("fileName") or "").strip()
+                            furl = (f.findtext("fileUrl") or "").strip()
+                            if fname and furl:
+                                file_list.append({"name": fname, "url": furl})
+                    else:
+                        d[child.tag] = (child.text or "").strip()
+                if file_list:
+                    d["_files"] = file_list
+                items.append(d)
+            return items
+        except Exception as e:
+            log.debug("mss xml parse fail: %s", e)
+            return []
+
+    def _to_announcement(self, item: dict) -> Announcement | None:
+        import re as _re
+        title = _pick(item, _FIELD_MAP["title"])
+        url = _pick(item, _FIELD_MAP["url"]) or ""
+        external_id = _pick(item, _FIELD_MAP["external_id"])
+
+        # external_id 폴백: URL 안의 pblancId 또는 ID 추출
+        if not external_id and url:
+            m = _re.search(r"(?:pblancId|nttSeqNo|bbsSeqNo)=([\w_-]+)", url)
+            if m:
+                external_id = m.group(1)
+
+        if not external_id or not title:
+            return None
+
+        dept = _pick(item, _FIELD_MAP["department"]) or ""
+        contact_line = dept
+
+        attachments = []
+        for f in item.get("_files", []):
+            attachments.append({
+                "name": f["name"], "url": f["url"], "local_path": None,
+                "category": classify(f["name"]),
+            })
+
+        return Announcement(
+            source=self.source,
+            external_id=external_id,
+            title=title,
+            url=url,
+            agency=_pick(item, _FIELD_MAP["agency"]) or "중소벤처기업부",
+            posted_at=_pick(item, _FIELD_MAP["posted_at"]),
+            deadline_at=_pick(item, _FIELD_MAP["deadline_at"]),
+            summary=_pick(item, _FIELD_MAP["summary"]) or contact_line or None,
+            body=f"{title}\n{contact_line}",
+            attachments=attachments,
+        )
+
+    def fetch_detail(self, a: Announcement) -> Announcement:
+        """첨부 분류 기반 우선순위 다운로드 (IITP 어댑터 동일 로직)."""
+        if not a.attachments:
+            return a
+
+        def _ext_pri(name: str) -> int:
+            n = (name or "").lower()
+            if n.endswith(".hwpx"): return 0
+            if n.endswith(".pdf"):  return 1
+            if n.endswith(".odt"):  return 2
+            if n.endswith(".docx"): return 3
+            if n.endswith(".hwp"):  return 9
+            return 5
+
+        for att in a.attachments:
+            if not att.get("category"):
+                att["category"] = classify(att.get("name", ""))
+        sorted_atts = sorted(
+            a.attachments,
+            key=lambda x: (priority(x.get("category", "other")), _ext_pri(x.get("name", ""))),
+        )
+
+        text = ""
+        for att in sorted_atts:
+            cat = att.get("category", "other")
+            if cat not in ("notice", "form"):
+                continue
+            url = att.get("url")
+            name = att.get("name") or "attachment.bin"
+            if not url:
+                continue
+            path = download_file(url, a.external_id, name)
+            if path is None:
+                continue
+            att["local_path"] = str(path)
+            t = extract_text(path)
+            if t and (not text or cat == "notice"):
+                text = t
+                if cat == "notice":
+                    break
+
+        if not text:
+            return a
+
+        a.body = (a.body or "") + "\n\n[첨부 본문]\n" + text
+
+        import re
+        bm = re.search(r"(?:총\s*사업비|사업비|예산|총\s*연구비|지원\s*규모)[^\d]{0,30}([\d,]+)\s*(억|백만\s*원|만\s*원)", text)
+        if bm:
+            n = int(bm.group(1).replace(",", ""))
+            unit = bm.group(2).replace(" ", "")
+            if unit == "억":
+                a.budget_mw = n * 100
+            elif unit == "백만원":
+                a.budget_mw = n
+            elif unit == "만원":
+                a.budget_mw = max(1, n // 100)
+
+        pm = re.search(r"(?:사업\s*기간|연구\s*기간|총\s*연구기간)[^\d]{0,30}(\d+)\s*(개월|년)", text)
+        if pm:
+            n = int(pm.group(1))
+            a.duration_months = n * 12 if pm.group(2) == "년" else n
+
+        return a
