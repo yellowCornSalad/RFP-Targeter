@@ -11,6 +11,9 @@ CREATE TABLE IF NOT EXISTS announcement (
     deadline_at TEXT,
     budget_mw INTEGER,
     duration_months INTEGER,
+    budget_period TEXT,                  -- "연간" | "총사업비" | "총 N개월" | "N차년도" | "단년" 등
+    budget_excerpt TEXT,                 -- 본문 원문 발췌 (hallucination 검증용)
+    budget_confidence TEXT,              -- "high" | "medium"
     summary TEXT,
     body TEXT,
     attachments_json TEXT,               -- JSON: [{name, url, local_path}]

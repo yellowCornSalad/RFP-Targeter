@@ -28,6 +28,10 @@ config/profile.yaml
 config/secrets.yaml
 config/*.local.yaml
 
+# Local-only deploy artifacts (one-time copy)
+profile_b64.txt
+streamlit_secrets.toml
+
 # Build
 build/
 dist/

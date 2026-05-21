@@ -4,10 +4,11 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
+from rfp_targeter.attachments.budget_extract import extract_budget_info
 from rfp_targeter.config import settings
 from rfp_targeter.crawlers import enabled_crawlers
 from rfp_targeter.db.models import (
-    get_conn, init_db, log_fetch_finish, log_fetch_start,
+    Announcement, get_conn, init_db, log_fetch_finish, log_fetch_start,
     upsert_announcement, upsert_score,
 )
 from rfp_targeter.config import profile
@@ -26,6 +27,27 @@ class RunStats:
     updated: int = 0
     filtered_in: int = 0
     error: str | None = None
+
+
+def _enrich_budget(a: Announcement) -> None:
+    """본문에서 예산 + 기간 + 원문 발췌 추출 (hallucination 방지 — 본문에 있는 값만).
+
+    크롤러가 이미 a.budget_mw 채웠더라도 더 정확/풍부한 정보 발견하면 보강.
+    못 찾으면 그대로 None (가짜 값 절대 X).
+    """
+    if not a.body:
+        return
+    info = extract_budget_info(a.body)
+    if not info:
+        return
+    # 크롤러가 더 신뢰할 만한 값 채웠으면 우선 (예: API 직접 응답)
+    if a.budget_mw is None:
+        a.budget_mw = info.mw
+    a.budget_period = info.period_label
+    a.budget_excerpt = info.raw_excerpt
+    a.budget_confidence = info.confidence
+    if a.duration_months is None and info.duration_months:
+        a.duration_months = info.duration_months
 
 
 def run_once() -> list[RunStats]:
@@ -51,6 +73,9 @@ def run_once() -> list[RunStats]:
             for a in crawler.list_announcements():
                 # 본문 보강 — 어댑터에 따라 무시될 수 있음
                 a = crawler.fetch_detail(a)
+
+                # 예산·기간·원문 발췌 보강 (본문 명시값만, hallucination 방지)
+                _enrich_budget(a)
 
                 # 1차: 보안 키워드 필터 (제목·요약·본문 + 부서명 화이트리스트)
                 fr = sec_filter.check(a.title, a.summary, a.body, agency=a.agency)

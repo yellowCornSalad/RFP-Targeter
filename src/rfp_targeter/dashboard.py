@@ -1494,6 +1494,43 @@ def _render_detail_inline(row, aid):
         if not any_rationale:
             st.caption("산정 근거 데이터가 없어요 — 점수만 표시됩니다.")
 
+    # 예산 근거 — 본문 발췌 (hallucination 방지)
+    bud_excerpt = row.get("budget_excerpt")
+    bud_mw = row.get("budget_mw")
+    if bud_excerpt and pd.notna(bud_excerpt):
+        bud_period = row.get("budget_period") or "단년"
+        bud_conf = row.get("budget_confidence") or "medium"
+        # 금액 사람친화 포맷
+        try:
+            bud_val = int(bud_mw)
+            if bud_val >= 1000:
+                bud_str = f"{bud_val/1000:.1f}".rstrip("0").rstrip(".") + "억원"
+            else:
+                bud_str = f"{bud_val}백만원"
+        except Exception:
+            bud_str = "?"
+        conf_color = "#10b981" if bud_conf == "high" else "#f59e0b"
+        conf_label = "높음" if bud_conf == "high" else "보통"
+        st.html(
+            "<div style='color:var(--text-muted);font-size:0.72rem;font-weight:700;"
+            "letter-spacing:0.08em;text-transform:uppercase;margin:14px 0 6px'>"
+            "💰 예산 근거 (본문 발췌)</div>"
+            f"<div style='background:#f0f9ff;border-left:3px solid #0369a1;padding:10px 14px;"
+            f"border-radius:6px;font-size:0.88em;line-height:1.6'>"
+            f"<div style='display:flex;gap:10px;align-items:center;margin-bottom:6px;flex-wrap:wrap'>"
+            f"<span style='font-size:1.1em;font-weight:700;color:#0369a1'>{bud_str}</span>"
+            f"<span style='background:#dbeafe;color:#1e40af;padding:2px 8px;border-radius:4px;"
+            f"font-size:0.85em;font-weight:600'>{bud_period}</span>"
+            f"<span style='background:{conf_color}1a;color:{conf_color};padding:2px 8px;border-radius:4px;"
+            f"font-size:0.85em;font-weight:600'>신뢰도 {conf_label}</span>"
+            f"</div>"
+            f"<div style='color:var(--text-soft);font-size:0.93em;font-style:italic'>"
+            f"“…{_h.escape(str(bud_excerpt))}…”</div>"
+            f"<div style='color:var(--text-faint);font-size:0.78em;margin-top:6px'>"
+            f"※ 위 발췌는 본문에서 그대로 가져온 원문입니다. 추정·계산값 아닙니다.</div>"
+            f"</div>"
+        )
+
     # 본문 요약
     body = row.get("body") or row.get("summary")
     if body and pd.notna(body) and isinstance(body, str):
@@ -1864,6 +1901,7 @@ with tab1:
             with c2:
                 # ── 점수 컬럼 ── 종합 점수 + 예산 강조 (테마 적합도는 작게)
                 bud_raw = row.get("budget_mw")
+                bud_period = row.get("budget_period") or ""
                 if bud_raw is not None and pd.notna(bud_raw) and bud_raw > 0:
                     bud_val = int(bud_raw)
                     # 백만원 → 사람 친화 단위 (1000백만원 = 10억)
@@ -1871,16 +1909,24 @@ with tab1:
                         bud_text = f"{bud_val/1000:.1f}".rstrip("0").rstrip(".") + "<span style='font-size:0.5em;color:var(--text-faint);font-weight:600'> 억</span>"
                     else:
                         bud_text = f"{bud_val}<span style='font-size:0.5em;color:var(--text-faint);font-weight:600'> 백만</span>"
+                    # 기간/단위 라벨 (연간, 총사업비, N차년도 등)
+                    period_html = ""
+                    if bud_period and bud_period not in ("단년", "unknown"):
+                        period_html = (
+                            f"<div style='margin-top:2px;color:#0369a1;font-size:0.72rem;font-weight:600;"
+                            f"letter-spacing:-0.01em;opacity:0.8'>{bud_period}</div>"
+                        )
                     budget_block = (
                         f"<div style='margin-top:14px;color:var(--text-muted);font-size:0.78rem;font-weight:600'>예산</div>"
                         f"<div style='font-size:1.5rem;font-weight:700;color:#0369a1;letter-spacing:-0.04em;"
                         f"line-height:1.1;font-feature-settings:\"tnum\" on'>{bud_text}</div>"
+                        f"{period_html}"
                     )
                 else:
                     budget_block = (
                         f"<div style='margin-top:14px;color:var(--text-muted);font-size:0.78rem;font-weight:600'>예산</div>"
                         f"<div style='font-size:0.95rem;color:var(--text-faint);font-weight:500;"
-                        f"line-height:1.1'>정보 없음</div>"
+                        f"line-height:1.1'>본문 미명시</div>"
                     )
                 st.html(
                     f"<div style='text-align:right'>"

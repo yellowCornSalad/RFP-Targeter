@@ -65,6 +65,9 @@ def init_db() -> None:
             "ALTER TABLE announcement ADD COLUMN IF NOT EXISTS eligibility_status TEXT",
             "ALTER TABLE announcement ADD COLUMN IF NOT EXISTS eligibility_note TEXT",
             "ALTER TABLE announcement ADD COLUMN IF NOT EXISTS eligibility_limit INTEGER",
+            "ALTER TABLE announcement ADD COLUMN IF NOT EXISTS budget_period TEXT",
+            "ALTER TABLE announcement ADD COLUMN IF NOT EXISTS budget_excerpt TEXT",
+            "ALTER TABLE announcement ADD COLUMN IF NOT EXISTS budget_confidence TEXT",
         ]:
             try:
                 with conn.cursor() as cur:
@@ -87,6 +90,9 @@ class Announcement:
     deadline_at: str | None = None
     budget_mw: int | None = None
     duration_months: int | None = None
+    budget_period: str | None = None       # "연간" | "총사업비" | "총 N개월" | "N차년도"
+    budget_excerpt: str | None = None      # 본문 원문 발췌 (hallucination 검증)
+    budget_confidence: str | None = None   # "high" | "medium"
     summary: str | None = None
     body: str | None = None
     attachments: list[dict] = field(default_factory=list)
@@ -129,14 +135,16 @@ def upsert_announcement(conn: psycopg.Connection, a: Announcement) -> bool:
                 INSERT INTO announcement(
                     id, source, external_id, title, agency, url,
                     posted_at, deadline_at, budget_mw, duration_months,
+                    budget_period, budget_excerpt, budget_confidence,
                     summary, body, attachments_json, matched_keywords_json,
                     fetched_at, updated_at, is_security,
                     eligibility_status, eligibility_note, eligibility_limit
-                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                 """,
                 (
                     a.id, a.source, a.external_id, a.title, a.agency, a.url,
                     a.posted_at, a.deadline_at, a.budget_mw, a.duration_months,
+                    a.budget_period, a.budget_excerpt, a.budget_confidence,
                     a.summary, a.body,
                     json.dumps(a.attachments, ensure_ascii=False),
                     json.dumps(a.matched_keywords, ensure_ascii=False),
@@ -149,7 +157,9 @@ def upsert_announcement(conn: psycopg.Connection, a: Announcement) -> bool:
             """
             UPDATE announcement SET
                 title=%s, agency=%s, url=%s, posted_at=%s, deadline_at=%s,
-                budget_mw=%s, duration_months=%s, summary=%s, body=%s,
+                budget_mw=%s, duration_months=%s,
+                budget_period=%s, budget_excerpt=%s, budget_confidence=%s,
+                summary=%s, body=%s,
                 attachments_json=%s, matched_keywords_json=%s,
                 updated_at=%s, is_security=%s,
                 eligibility_status=%s, eligibility_note=%s, eligibility_limit=%s
@@ -157,7 +167,9 @@ def upsert_announcement(conn: psycopg.Connection, a: Announcement) -> bool:
             """,
             (
                 a.title, a.agency, a.url, a.posted_at, a.deadline_at,
-                a.budget_mw, a.duration_months, a.summary, a.body,
+                a.budget_mw, a.duration_months,
+                a.budget_period, a.budget_excerpt, a.budget_confidence,
+                a.summary, a.body,
                 json.dumps(a.attachments, ensure_ascii=False),
                 json.dumps(a.matched_keywords, ensure_ascii=False),
                 now, bool(a.is_security),
