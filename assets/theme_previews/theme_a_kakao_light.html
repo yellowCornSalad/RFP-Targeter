@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>Theme A — Kakao Light</title>
+<link rel="stylesheet"
+    href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<style>
+:root {
+    --bg:           #ffffff;
+    --surface:      #ffffff;
+    --surface-alt:  #fafafa;
+    --border:       #f0f0f0;
+    --border-mid:   #e5e5e5;
+    --text:         #191919;
+    --text-soft:    #4d4d4d;
+    --text-muted:   #8b8b8b;
+    --text-faint:   #b0b0b0;
+    --kakao:        #FEE500;
+    --kakao-deep:   #381E1F;
+    --kakao-hover:  #FDD835;
+    --accent-soft:  #FFF8C4;
+    --chip-bg:      #fff7d6;
+    --chip-text:    #6b5e00;
+    --chip-border:  #fde68a;
+    --shadow-sm:    0 1px 2px rgba(0,0,0,0.04);
+    --shadow-md:    0 4px 12px rgba(0,0,0,0.05);
+}
+* { box-sizing: border-box; }
+body {
+    margin: 0; padding: 0; background: var(--bg); color: var(--text);
+    font-family: 'Pretendard Variable','Pretendard',-apple-system,sans-serif;
+    letter-spacing: -0.015em;
+    font-feature-settings: 'tnum' on, 'kern' on;
+}
+.layout { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; }
+.sidebar { background: #fff; border-right: 1px solid var(--border); padding: 20px; }
+.logo {
+    height: 56px; background: #1a1a1a; color: #FEE500;
+    border-radius: 8px; display: flex; align-items: center; justify-content: center;
+    font-weight: 800; letter-spacing: 0.1em;
+}
+.brand-title { font-size: 1.25rem; font-weight: 800; margin: 16px 0 4px; }
+.brand-sub { color: var(--text-muted); font-size: 0.8rem; }
+.btn-refresh {
+    margin-top: 14px; width: 100%; padding: 10px;
+    background: #1a1a1a; color: #fff; border: 0; border-radius: 10px;
+    font-weight: 600; cursor: pointer; font-size: 0.9rem;
+}
+.section-label {
+    text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--text-faint); font-size: 0.7rem; font-weight: 700;
+    margin-top: 28px;
+}
+.filter-block { margin-top: 14px; }
+.filter-label { font-size: 0.85rem; color: var(--text-soft); margin-bottom: 6px; }
+.input, .select {
+    width: 100%; padding: 9px 12px; border: 1px solid var(--border-mid);
+    border-radius: 10px; background: #fff; font-size: 0.88rem; color: var(--text);
+}
+.chip-multi { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip-multi span {
+    background: var(--accent-soft); color: var(--kakao-deep);
+    padding: 4px 10px; border-radius: 6px;
+    font-size: 0.8rem; font-weight: 600; border: 1px solid var(--chip-border);
+}
+.slider-track { height: 6px; background: var(--border); border-radius: 3px; position: relative; }
+.slider-thumb { width: 18px; height: 18px; background: var(--kakao); border: 2px solid #1a1a1a;
+    border-radius: 50%; position: absolute; top: -6px; left: 0; }
+.checkbox-row { display:flex; align-items:center; gap:8px; color:var(--text-soft); font-size:0.88rem; }
+.checkbox-row .box {
+    width:18px;height:18px;background:var(--kakao);border:2px solid #1a1a1a;border-radius:5px;
+    display:flex;align-items:center;justify-content:center;font-size:11px;color:#1a1a1a;font-weight:900;
+}
+
+.main { padding: 28px 36px; max-width: 1200px; }
+
+.kpi-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 20px; }
+.kpi {
+    background: #fff; border: 1px solid var(--border); border-radius: 12px;
+    padding: 16px 14px; text-align: center; cursor: pointer;
+    transition: all 0.15s; box-shadow: var(--shadow-sm);
+}
+.kpi:hover { border-color: #1a1a1a; transform: translateY(-1px); box-shadow: var(--shadow-md); }
+.kpi.active { background: var(--kakao); border-color: #1a1a1a; }
+.kpi-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: middle; margin-right: 6px; }
+.kpi-text { font-size: 0.9rem; color: var(--text-soft); font-weight: 500; }
+.kpi-text b { color: var(--text); font-weight: 800; margin-left: 4px; }
+
+.kw-panel {
+    background: #fff; border: 1px solid var(--border); border-radius: 12px;
+    padding: 14px 18px; margin-bottom: 24px; color: var(--text-soft);
+    font-size: 0.92rem;
+}
+
+.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: 24px; }
+.tab { padding: 12px 18px; color: var(--text-muted); font-weight: 500; cursor: pointer;
+       border-bottom: 2px solid transparent; }
+.tab.active { color: #1a1a1a; font-weight: 800; border-bottom-color: #1a1a1a; }
+
+.toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+.toolbar .hint { color: var(--text-muted); font-size: 0.85rem; }
+.toolbar .sort-control { display: flex; gap: 6px; align-items: center; }
+.toolbar .sort-control label { font-size: 0.8rem; color: var(--text-muted); }
+
+.pager { display: grid; grid-template-columns: 1fr 1fr 3fr 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+.pager button {
+    border: 1px solid var(--border-mid); background: #fff; padding: 9px;
+    border-radius: 10px; cursor: pointer; font-size: 0.88rem; color: var(--text);
+}
+.pager button:disabled { opacity: 0.4; }
+.pager .meta { display: flex; align-items: center; justify-content: center;
+               color: var(--text-soft); font-size: 0.9rem; }
+
+.card {
+    background: #fff; border: 1px solid var(--border); border-radius: 16px;
+    padding: 24px 26px; margin-bottom: 14px;
+    box-shadow: var(--shadow-sm); transition: all 0.2s;
+}
+.card:hover { box-shadow: var(--shadow-md); border-color: var(--border-mid); }
+.card-grid { display: grid; grid-template-columns: 1fr auto; gap: 32px; }
+.card-title { font-size: 1.2rem; font-weight: 700; color: var(--text); margin: 0 0 8px;
+              letter-spacing: -0.02em; line-height: 1.4; }
+.card-title a { color: inherit; text-decoration: none; border-bottom: 2px solid var(--kakao); }
+.card-meta { color: var(--text-muted); font-size: 0.86rem; margin-bottom: 6px; }
+.card-meta b { color: var(--text-soft); font-weight: 600; }
+.tag-source {
+    display: inline-block; background: var(--surface-alt); color: var(--text-soft);
+    padding: 2px 8px; border-radius: 4px; font-size: 0.78rem; font-family: ui-monospace, monospace;
+    margin-left: 6px;
+}
+
+.chip-row { margin-top: 12px; color: var(--text-muted); font-size: 0.85rem; }
+.kw-chip {
+    display: inline-block; background: var(--chip-bg); color: var(--chip-text);
+    padding: 3px 10px; border-radius: 6px; border: 1px solid var(--chip-border);
+    font-size: 0.8rem; font-weight: 600; margin: 2px;
+}
+
+.axes-row { margin-top: 14px; color: var(--text-soft); font-size: 0.9rem; }
+.axes-row b { font-feature-settings: 'tnum' on; }
+.axes-row .pos { color: #15803d; font-weight: 700; }
+.axes-row .neu { color: #b45309; font-weight: 700; }
+.axes-row .neg { color: #b91c1c; font-weight: 700; }
+.axes-row .top { color: #1a1a1a; font-weight: 800; }
+.dot-sep { color: var(--text-faint); margin: 0 8px; }
+
+.expander {
+    margin-top: 14px; background: var(--surface-alt); border-radius: 10px;
+    padding: 10px 14px; color: var(--text-soft); font-size: 0.88rem; cursor: pointer;
+    display: flex; align-items: center; gap: 8px;
+}
+
+.actions { margin-top: 16px; display: flex; gap: 8px; }
+.btn {
+    padding: 9px 18px; border: 1px solid var(--border-mid); background: #fff;
+    border-radius: 10px; font-size: 0.88rem; color: var(--text); font-weight: 500; cursor: pointer;
+    transition: all 0.15s;
+}
+.btn:hover { border-color: #1a1a1a; background: var(--surface-alt); }
+.btn-primary {
+    background: var(--kakao); border-color: var(--kakao); color: #1a1a1a;
+    font-weight: 700;
+}
+.btn-primary:hover { background: var(--kakao-hover); border-color: var(--kakao-hover); }
+.btn-dark {
+    background: #1a1a1a; border-color: #1a1a1a; color: #fff; font-weight: 700;
+}
+.btn-dark:hover { background: #000; }
+
+.score-col { text-align: right; }
+.score-num { font-size: 2.6rem; font-weight: 800; letter-spacing: -0.04em;
+             color: var(--text); font-feature-settings: 'tnum' on; }
+.score-label { color: var(--text-muted); font-size: 0.85rem; margin-bottom: 2px; }
+.score-label .dot { width:8px; height:8px; display:inline-block;border-radius:50%;background:#eab308;margin-right:6px;vertical-align:middle; }
+
+.theme-banner {
+    background: linear-gradient(135deg, #FEE500 0%, #FDD835 100%);
+    color: #1a1a1a; padding: 16px 24px; border-radius: 12px;
+    font-weight: 700; margin-bottom: 24px; font-size: 0.92rem;
+    box-shadow: 0 4px 12px rgba(254,229,0,0.3);
+}
+</style>
+</head>
+<body>
+<div class="layout">
+    <aside class="sidebar">
+        <div class="logo">ENKI WHITEHAT</div>
+        <div class="brand-title">RFP-Targeter</div>
+        <div class="brand-sub">엔키화이트햇 · 2026.05.21 11:34</div>
+        <button class="btn-refresh">데이터 새로고침</button>
+
+        <div class="section-label">필터</div>
+        <div class="filter-block">
+            <div class="filter-label">검색</div>
+            <input class="input" placeholder="예: 유망기업 육성, AI 보안, PQC">
+        </div>
+        <div class="filter-block">
+            <div class="filter-label">기관 / 소스</div>
+            <div class="chip-multi"><span>iitp ×</span><span>kisa ×</span></div>
+        </div>
+        <div class="filter-block">
+            <div class="filter-label">최소 종합 점수 — <b>0</b></div>
+            <div class="slider-track"><div class="slider-thumb"></div></div>
+        </div>
+        <div class="filter-block">
+            <div class="checkbox-row"><span class="box">✓</span> 공모중</div>
+        </div>
+        <div class="filter-block">
+            <div class="filter-label">키워드 포함 (OR)</div>
+            <select class="select"><option>Choose options</option></select>
+        </div>
+    </aside>
+
+    <main class="main">
+        <div class="theme-banner">🎨 Theme A — Kakao Light · 옐로우 액센트 + 블랙 텍스트로 친근하고 산뜻한 톤</div>
+
+        <div class="kpi-row">
+            <div class="kpi"><div class="kpi-text">전체 · <b>266건</b></div></div>
+            <div class="kpi"><div class="kpi-text"><span class="kpi-dot" style="background:#eab308"></span>≥50점 · <b>47건</b></div></div>
+            <div class="kpi"><div class="kpi-text"><span class="kpi-dot" style="background:#22c55e"></span>≥60점 · <b>5건</b></div></div>
+            <div class="kpi"><div class="kpi-text"><span class="kpi-dot" style="background:#fbbf24"></span>≥70점 · <b>0건</b></div></div>
+            <div class="kpi"><div class="kpi-text"><span class="kpi-dot" style="background:#ef4444"></span>마감 ≤7일 · <b>2건</b></div></div>
+        </div>
+
+        <div class="kw-panel">▸ 자주 매칭되는 키워드 Top 15 — 클릭하면 필터에 추가/제거</div>
+
+        <div class="tabs">
+            <div class="tab active">공고 카드</div>
+            <div class="tab">점수 비교</div>
+            <div class="tab">점수 기준</div>
+            <div class="tab">회사 프로필</div>
+        </div>
+
+        <div class="toolbar">
+            <div class="hint">💡 동일 날짜는 점수 높은 순</div>
+            <div class="sort-control">
+                <select class="select" style="width:180px"><option>📅 최신 등록순</option></select>
+            </div>
+        </div>
+
+        <div class="pager">
+            <button disabled>⏮ 처음</button>
+            <button disabled>◀ 이전</button>
+            <div class="meta"><b>1–10</b> / 266건 · 페이지 <b>1</b> / 27</div>
+            <button>다음 ▶</button>
+            <button>끝 ⏭</button>
+        </div>
+
+        <div class="card">
+            <div class="card-grid">
+                <div>
+                    <h3 class="card-title">
+                        <a href="#">[사전규격공개] PQC 전환 준비를 위한 PKI 인증 인프라 전자서명 기술 관련 국내외 표준 조사 ↗</a>
+                    </h3>
+                    <div class="card-meta"><b>KISA 입찰공고</b> <span class="tag-source">kisa</span></div>
+                    <div class="card-meta">담당: 정보보호산업과 · 임선희 · 044-202-6459</div>
+                    <div class="chip-row">매칭 키워드
+                        <span class="kw-chip">정보보호</span>
+                        <span class="kw-chip">암호</span>
+                        <span class="kw-chip">PQC</span>
+                        <span class="kw-chip">인증</span>
+                    </div>
+                    <div class="axes-row">
+                        🔑 키워드 <span class="neg">24</span>
+                        <span class="dot-sep">·</span>
+                        💰 예산 <span class="neu">35</span>
+                        <span class="dot-sep">·</span>
+                        🤝 컨소시엄 <span class="top">100</span>
+                        <span class="dot-sep">·</span>
+                        ⚔️ 경쟁 <span class="pos">65</span>
+                        <span class="dot-sep">·</span>
+                        🧪 TRL <span class="neu">45</span>
+                    </div>
+                    <div class="expander">▸ 5축 점수 + 산정 근거</div>
+                    <div class="actions">
+                        <button class="btn">초안 생성</button>
+                        <button class="btn btn-dark">AI 초안 생성</button>
+                        <button class="btn">관심 없음</button>
+                    </div>
+                </div>
+                <div class="score-col">
+                    <div class="score-label"><span class="dot"></span>종합 /100</div>
+                    <div class="score-num">52</div>
+                    <div class="score-label" style="margin-top:14px">🎯 테마 적합 /100</div>
+                    <div class="score-num">50</div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+</body>
+</html>

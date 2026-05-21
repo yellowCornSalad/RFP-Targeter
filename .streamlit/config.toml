@@ -1,0 +1,18 @@
+# Streamlit 네이티브 테마 — Cobalt Blue
+# st.button(type="primary") 등 위젯의 기본 색상이 이 값으로 적용됨.
+# CSS 오버라이드보다 우선 동작하므로 색상은 여기서 한 번에 통일.
+
+[theme]
+base = "light"
+primaryColor          = "#3b82f6"   # blue-500 — primary 액센트 (버튼·체크박스·슬라이더)
+backgroundColor       = "#ffffff"   # 메인 배경
+secondaryBackgroundColor = "#f8fafc" # 사이드바·코드블록 배경 (slate-50)
+textColor             = "#0f172a"   # 본문 텍스트 (slate-900)
+font                  = "sans serif"
+
+[server]
+headless = true
+runOnSave = true
+
+[browser]
+gatherUsageStats = false

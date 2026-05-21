@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>RFP-Targeter 테마 후보 — 비교</title>
+<link rel="stylesheet"
+    href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<style>
+* { box-sizing: border-box; margin: 0; }
+body {
+    font-family: 'Pretendard Variable','Pretendard',sans-serif;
+    background: #f8fafc; color: #0f172a;
+    letter-spacing: -0.015em; min-height: 100vh; padding: 40px 24px;
+}
+.wrap { max-width: 1100px; margin: 0 auto; }
+h1 { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.03em; }
+.lead { color: #475569; margin-top: 8px; }
+.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 32px; }
+.card-wrap {
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 18px;
+    overflow: hidden; transition: all 0.2s;
+    box-shadow: 0 1px 3px rgba(15,23,42,0.05);
+}
+.card-wrap:hover {
+    transform: translateY(-2px); box-shadow: 0 12px 32px rgba(15,23,42,0.1);
+}
+.preview { height: 220px; display: flex; align-items: center; justify-content: center;
+           font-weight: 800; letter-spacing: 0.08em; font-size: 0.9rem; }
+.a .preview { background: linear-gradient(135deg, #FEE500 0%, #FDD835 100%); color: #1a1a1a; }
+.b .preview { background: linear-gradient(135deg, #6366f1 0%, #ec4899 100%); color: #fff; }
+.c .preview { background: linear-gradient(135deg, #10b981 0%, #06b6d4 100%); color: #fff; }
+.body { padding: 20px 22px; }
+.name { font-size: 1.05rem; font-weight: 700; letter-spacing: -0.02em; }
+.desc { color: #475569; font-size: 0.88rem; margin-top: 8px; line-height: 1.5; }
+.palette { display: flex; gap: 6px; margin: 14px 0 16px; }
+.swatch { width: 28px; height: 28px; border-radius: 8px; border: 1px solid rgba(0,0,0,0.06); }
+.open {
+    display: inline-block; padding: 10px 18px; border-radius: 10px;
+    background: #0f172a; color: #fff; font-weight: 600; font-size: 0.88rem;
+    text-decoration: none; transition: all 0.15s;
+}
+.open:hover { background: #312e81; }
+.footer { margin-top: 36px; color: #64748b; font-size: 0.9rem; }
+.kbd {
+    background: #f1f5f9; border: 1px solid #e2e8f0; border-bottom-width: 2px;
+    padding: 1px 6px; border-radius: 5px; font-family: ui-monospace, monospace;
+    font-size: 0.85em;
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+    <h1>🎨 RFP-Targeter 테마 후보</h1>
+    <div class="lead">아래 3종 중 하나를 골라 알려주면 Streamlit 대시보드에 적용해줄게.</div>
+
+    <div class="grid">
+        <div class="card-wrap a">
+            <div class="preview">KAKAO LIGHT</div>
+            <div class="body">
+                <div class="name">A. Kakao Light</div>
+                <div class="desc">옐로우 액센트 + 블랙 텍스트. 카카오 톤. 친근하지만 또렷한 인상.</div>
+                <div class="palette">
+                    <div class="swatch" style="background:#FEE500"></div>
+                    <div class="swatch" style="background:#1a1a1a"></div>
+                    <div class="swatch" style="background:#ffffff"></div>
+                    <div class="swatch" style="background:#FFF8C4"></div>
+                </div>
+                <a class="open" href="theme_a_kakao_light.html">A 보기 →</a>
+            </div>
+        </div>
+
+        <div class="card-wrap b">
+            <div class="preview">SOFT CLOUD</div>
+            <div class="body">
+                <div class="name">B. Soft Cloud</div>
+                <div class="desc">인디고-핑크 그라데이션. 화사하고 부드러운 보라 톤. 모던 SaaS 느낌.</div>
+                <div class="palette">
+                    <div class="swatch" style="background:#6366f1"></div>
+                    <div class="swatch" style="background:#ec4899"></div>
+                    <div class="swatch" style="background:#f9fafb"></div>
+                    <div class="swatch" style="background:#eef2ff"></div>
+                </div>
+                <a class="open" href="theme_b_soft_cloud.html">B 보기 →</a>
+            </div>
+        </div>
+
+        <div class="card-wrap c">
+            <div class="preview">MINT FROST</div>
+            <div class="body">
+                <div class="name">C. Mint Frost</div>
+                <div class="desc">민트 그린 + 시원한 청록. 보안회사 분위기에 청량감을 더한 톤.</div>
+                <div class="palette">
+                    <div class="swatch" style="background:#10b981"></div>
+                    <div class="swatch" style="background:#06b6d4"></div>
+                    <div class="swatch" style="background:#f7fdfb"></div>
+                    <div class="swatch" style="background:#ecfdf5"></div>
+                </div>
+                <a class="open" href="theme_c_mint_frost.html">C 보기 →</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        💡 각 카드 클릭 → 실제 샘플 화면 (사이드바·KPI·공고 카드·정렬·버튼)이 그대로 미리보기로 떠.
+        고른 후 "A로 가자" / "B로" / "C로" 라고 말해주면 dashboard.py에 즉시 반영함.
+    </div>
+</div>
+</body>
+</html>

@@ -168,14 +168,24 @@ def log_fetch_finish(
     )
 
 
-def list_security_announcements(conn: sqlite3.Connection, limit: int = 200) -> list[sqlite3.Row]:
+def list_security_announcements(
+    conn: sqlite3.Connection,
+    limit: int = 200,
+    include_dismissed: bool = False,
+) -> list[sqlite3.Row]:
+    """보안 분류된 공고 조회.
+
+    include_dismissed=True 면 숨김 처리(`is_dismissed=1`)된 공고도 함께 반환.
+    이때 대시보드는 `is_dismissed` 컬럼 값을 보고 카드 표시/숨김 해제 액션을 분기.
+    """
+    dismiss_clause = "" if include_dismissed else "AND a.is_dismissed = 0"
     return conn.execute(
-        """
+        f"""
         SELECT a.*, s.total_score, s.theme_fit, s.keyword_score, s.budget_score,
                s.consortium_score, s.competitor_score, s.trl_score, s.rationale_json
         FROM announcement a
         LEFT JOIN score s ON s.announcement_id = a.id
-        WHERE a.is_security = 1 AND a.is_dismissed = 0
+        WHERE a.is_security = 1 {dismiss_clause}
         ORDER BY COALESCE(s.total_score, 0) DESC, a.posted_at DESC
         LIMIT ?
         """,
