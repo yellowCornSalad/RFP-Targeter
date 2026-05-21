@@ -349,15 +349,13 @@ h4 { font-size: 0.9rem !important; font-weight: 600 !important; }
     border-color: var(--border-strong) !important;
     box-shadow: var(--shadow-sm) !important;
 }
-/* 오늘 신규 공고 카드 — 호버 시 노란 글로우로 변경 (NEW 스티커 강조).
-   카드 본문 첫 element가 NEW 띠(linear-gradient 들어간 height:4px div)일 때 적용 */
+/* 오늘 신규 공고 카드 — 미세한 상단 빨간 액센트 라인 + 단정한 boder */
 [data-testid="stMain"] [data-testid="stVerticalBlockBorderWrapper"]:has(
     > div > div > [data-testid="stElementContainer"]:first-of-type
-    [style*="linear-gradient(90deg,#fbbf24"]
+    [style*="background:#fef2f2"]
 ) {
-    border-color: #fde68a !important;
-    box-shadow: 0 0 0 1px #fde68a, 0 8px 24px rgba(245, 158, 11, 0.15),
-                0 2px 8px rgba(245, 158, 11, 0.10) !important;
+    border-color: #fecaca !important;
+    box-shadow: var(--shadow-xs) !important;
 }
 
 /* === Metric (종합/테마 점수) — 흰 배경, 큰 숫자 === */
@@ -1395,41 +1393,40 @@ if "_detail_id" not in st.session_state:
     st.session_state["_detail_id"] = None
 
 
-# ─── 기관 배지 (소스별 색·이모지·풀네임) ──────────────────────────────
+# ─── 기관 메타 — 네이버 톤 단정한 컬러 (채도 낮춤, 일관된 명도) ─────────
 _AGENCY_META = {
-    "kisa":   {"label": "KISA",   "name": "한국인터넷진흥원",       "color": "#0c4a6e", "bg": "#e0f2fe", "icon": "🛡"},
-    "iitp":   {"label": "IITP",   "name": "정보통신기획평가원",     "color": "#1e3a8a", "bg": "#dbeafe", "icon": "🔬"},
-    "ntis":   {"label": "NTIS",   "name": "국가과학기술지식정보",   "color": "#1e40af", "bg": "#e0e7ff", "icon": "🧪"},
-    "kosa":   {"label": "KOSA",   "name": "한국SW산업협회",         "color": "#5b21b6", "bg": "#ede9fe", "icon": "💻"},
-    "nipa":   {"label": "NIPA",   "name": "정보통신산업진흥원",     "color": "#0e7490", "bg": "#cffafe", "icon": "🌐"},
-    "krit":   {"label": "KRIT",   "name": "국방기술진흥연구소",     "color": "#3f6212", "bg": "#ecfccb", "icon": "🛩"},
-    "mss":    {"label": "MSS",    "name": "중소벤처기업부",         "color": "#c2410c", "bg": "#fff7ed", "icon": "🏭"},
-    "koica":  {"label": "KOICA",  "name": "한국국제협력단",         "color": "#166534", "bg": "#dcfce7", "icon": "🌍"},
-    "bizinfo":{"label": "bizinfo","name": "기업마당",               "color": "#475569", "bg": "#f1f5f9", "icon": "📌"},
+    "kisa":   {"label": "KISA",   "name": "한국인터넷진흥원",       "color": "#0284c7", "bg": "#f0f9ff", "icon": ""},
+    "iitp":   {"label": "IITP",   "name": "정보통신기획평가원",     "color": "#2563eb", "bg": "#eff6ff", "icon": ""},
+    "ntis":   {"label": "NTIS",   "name": "국가과학기술지식정보",   "color": "#4f46e5", "bg": "#eef2ff", "icon": ""},
+    "kosa":   {"label": "KOSA",   "name": "한국SW산업협회",         "color": "#7c3aed", "bg": "#f5f3ff", "icon": ""},
+    "nipa":   {"label": "NIPA",   "name": "정보통신산업진흥원",     "color": "#0891b2", "bg": "#ecfeff", "icon": ""},
+    "krit":   {"label": "KRIT",   "name": "국방기술진흥연구소",     "color": "#65a30d", "bg": "#f7fee7", "icon": ""},
+    "mss":    {"label": "MSS",    "name": "중소벤처기업부",         "color": "#ea580c", "bg": "#fff7ed", "icon": ""},
+    "koica":  {"label": "KOICA",  "name": "한국국제협력단",         "color": "#16a34a", "bg": "#f0fdf4", "icon": ""},
+    "bizinfo":{"label": "bizinfo","name": "기업마당",               "color": "#6b7280", "bg": "#f9fafb", "icon": ""},
 }
 
 
 def _agency_badge_html(source: str, agency: str | None = None) -> str:
-    """기관 큰 배지 — 색/이모지/약어/풀네임."""
+    """발주기관 라벨 — 네이버 검색결과 카드 톤 (작은 컬러 prefix + 풀네임 텍스트)."""
     meta = _AGENCY_META.get(source, {
-        "label": source.upper(), "name": agency or "", "color": "#475569",
-        "bg": "#f1f5f9", "icon": "📋",
+        "label": source.upper(), "name": agency or "", "color": "#6b7280",
+        "bg": "#f3f4f6", "icon": "",
     })
     full = meta["name"]
-    # agency가 더 구체적이면 (예: 'KISA 입찰공고') 그걸 우선
     if agency and agency.strip() and agency.strip() not in (meta["label"], full):
         full = agency.strip()
     import html as _h
+    color = meta["color"]
+    label = _h.escape(meta["label"])
+    name = _h.escape(full)
     return (
         f"<span style='display:inline-flex;align-items:center;gap:6px;"
-        f"background:{meta['bg']};color:{meta['color']};"
-        f"padding:5px 11px;border-radius:8px;font-weight:700;"
-        f"font-size:0.82rem;border:1px solid {meta['color']}22;"
-        f"line-height:1.2'>"
-        f"<span style='font-size:1em'>{meta['icon']}</span>"
-        f"<span>{_h.escape(meta['label'])}</span>"
-        f"<span style='color:{meta['color']}99;font-weight:500;"
-        f"font-size:0.88em;margin-left:2px'>· {_h.escape(full)}</span>"
+        f"font-size:13px;line-height:1.4'>"
+        f"<span style='background:{color};color:#fff;padding:1px 7px;"
+        f"border-radius:3px;font-weight:600;font-size:11px;"
+        f"letter-spacing:0.04em'>{label}</span>"
+        f"<span style='color:var(--text-muted);font-weight:400'>{name}</span>"
         f"</span>"
     )
 
@@ -1782,48 +1779,37 @@ with tab1:
 
     for _, row in page_df.iterrows():
         with st.container(border=True):
-            # ── 좌측 점수 컬러 밴드 ──
+            # ── 좌측 점수 컬러 밴드 — 단색 4px (네이버 톤) ──
             total = float(row.get("total_score") or 0)
             theme = float(row.get("theme_fit") or 0)
             _band_color = (
-                "linear-gradient(180deg,#f59e0b,#fbbf24)" if total >= 90 else  # TOP
-                "linear-gradient(180deg,#16a34a,#22c55e)" if total >= 75 else  # GOOD
-                "linear-gradient(180deg,#d97706,#eab308)" if total >= 60 else  # FAIR
-                "linear-gradient(180deg,#94a3b8,#cbd5e1)"                       # LOW
+                "#f59e0b" if total >= 90 else   # TOP
+                "#10b981" if total >= 75 else   # GOOD
+                "#facc15" if total >= 60 else   # FAIR
+                "#e5e7eb"                        # LOW
             )
             st.html(
-                f"<div style='position:absolute;left:0;top:0;bottom:0;width:4px;"
-                f"background:{_band_color};border-top-left-radius:16px;"
-                f"border-bottom-left-radius:16px'></div>"
+                f"<div style='position:absolute;left:0;top:0;bottom:0;width:3px;"
+                f"background:{_band_color};border-top-left-radius:12px;"
+                f"border-bottom-left-radius:12px'></div>"
             )
 
-            # ── 오늘 신규 공고: NEW 스티커 + 카드 노란 스포트라이트 ──
+            # ── 오늘 신규 공고: 작은 NEW 라벨 (회전·그라데이션 X) ──
             _is_new = _is_today_new(row.get("posted_at"))
             if _is_new:
-                # 상단 그라데이션 띠 + 우상단 회전 NEW 스티커
                 st.html(
-                    "<div style='position:absolute;top:0;left:0;right:0;height:4px;"
-                    "background:linear-gradient(90deg,#fbbf24,#f59e0b,#ea580c);"
-                    "border-radius:16px 16px 0 0;z-index:5'></div>"
-                    "<div style='position:absolute;top:-12px;right:14px;"
-                    "background:linear-gradient(135deg,#fbbf24 0%,#f59e0b 100%);"
-                    "color:#fff;padding:6px 14px;border-radius:999px;"
-                    "font-weight:800;font-size:0.74rem;letter-spacing:0.06em;"
-                    "transform:rotate(8deg);"
-                    "box-shadow:0 6px 16px rgba(245,158,11,0.45),0 2px 4px rgba(245,158,11,0.3);"
-                    "z-index:10;font-family:Pretendard Variable,Pretendard,sans-serif'>"
-                    "✨ NEW</div>"
+                    "<div style='position:absolute;top:14px;right:18px;"
+                    "background:#fef2f2;color:#dc2626;padding:2px 8px;"
+                    "border-radius:4px;font-weight:600;font-size:11px;"
+                    "letter-spacing:0.04em;border:1px solid #fecaca;z-index:5'>"
+                    "NEW</div>"
                 )
 
-            # ── 숨김 상태 배지 (목록에 포함된 dismissed 항목) ──
+            # ── 숨김 상태 (단정한 회색 텍스트) ──
             if row.get("is_dismissed"):
                 st.html(
-                    "<div style='background:#fef2f2;border:1px solid #fecaca;"
-                    "color:#991b1b;padding:6px 12px;border-radius:8px;"
-                    "font-size:0.82rem;font-weight:600;margin-bottom:10px;"
-                    "display:inline-block'>"
-                    "🗂 숨김 처리됨 · 우측 [숨김 해제]로 복원"
-                    "</div>"
+                    "<div style='color:var(--text-muted);font-size:12px;"
+                    "margin-bottom:8px'>· 숨김 처리됨 — 우측 [숨김 해제]로 복원</div>"
                 )
 
             c1, c2 = st.columns([5, 1.4])
