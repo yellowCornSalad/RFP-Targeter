@@ -118,24 +118,11 @@ class NIPACrawler(BaseCrawler):
             return a
 
         soup = BeautifulSoup(r.text, "lxml")
-        for tag in soup(["script", "style", "noscript", "header", "footer", "nav"]):
-            tag.decompose()
-        # NIPA 게시판 상세 본문 — 일반적으로 div.bbs_view 또는 div.viewArea
-        main = (
-            soup.select_one("div.bbs_view")
-            or soup.select_one("div.viewArea")
-            or soup.select_one("div.cont")
-            or soup.select_one("article")
-            or soup.body
-        )
-        body = re.sub(r"\s+", " ", main.get_text(" ") if main else "").strip()[:10000]
-        a.body = body
 
         # 첨부파일 — /comm/getFile?srvcId=BBSTY1&upperNo=XXX 패턴
+        # ⚠️ NIPA 특이: 첨부가 <header><nav> 안에 있음. decompose 전에 먼저 추출!
         attachments: list[dict] = []
-        # 본문 영역 안의 첨부 링크. main 이 None이면 soup 전체.
-        attach_scope = main if main else soup
-        for atag in attach_scope.find_all("a", href=True):
+        for atag in soup.find_all("a", href=True):
             href = atag["href"]
             if "getFile" not in href and "fileDownload" not in href:
                 continue
@@ -148,7 +135,7 @@ class NIPACrawler(BaseCrawler):
                 cat = "notice"
             elif any(k in name for k in ("제안요청서", "RFP", "요청서")):
                 cat = "notice"
-            elif any(k in name for k in ("양식", "서식", "신청서", "동의서", "이력서")):
+            elif any(k in name for k in ("양식", "서식", "신청서", "동의서", "이력서", "붙임_2", "붙임_3")):
                 cat = "form"
             elif any(k in name for k in ("평가", "심사", "기준")):
                 cat = "eval"
@@ -159,6 +146,21 @@ class NIPACrawler(BaseCrawler):
             })
         if attachments:
             a.attachments = attachments
+
+        # 본문 정리: 잡태그 제거 후 본문 영역 추출
+        for tag in soup(["script", "style", "noscript", "header", "footer", "nav"]):
+            tag.decompose()
+        main = (
+            soup.select_one("div.tbCont")
+            or soup.select_one("div.body")
+            or soup.select_one("div.bbs_view")
+            or soup.select_one("div.viewArea")
+            or soup.select_one("div.cont")
+            or soup.select_one("article")
+            or soup.body
+        )
+        body = re.sub(r"\s+", " ", main.get_text(" ") if main else "").strip()[:10000]
+        a.body = body
 
         # 마감일
         dm = re.search(

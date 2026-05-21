@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import logging
+import re as _re
 from typing import Iterator
 from urllib.parse import unquote, urlencode
 
