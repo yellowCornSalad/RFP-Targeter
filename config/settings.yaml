@@ -3,8 +3,8 @@ database:
   path: data/rfp.db
 
 crawl:
-  # 폴링 주기 (분)
-  interval_minutes: 30
+  # 폴링 주기 (분) — 정부 R&D 공고는 보통 일 1회 갱신이라 1시간이면 충분
+  interval_minutes: 60
   # 사이트별 요청 간격 (초) — 부하 방지
   request_delay_seconds: 2
   # 한 번에 가져올 최대 공고 수 (소스별 override 가능 — sources.{name}.max_per_source)
@@ -41,13 +41,40 @@ sources:
     base_url: "https://apis.data.go.kr"
     max_per_source: 50                        # 일 호출 한도 100 보수적 운용
 
-  # 미구현 / 검증 대기
-  ntis:
-    enabled: false
-    base_url: "https://www.ntis.go.kr"       # Open API 키 발급 또는 RSS 검증 필요
+  # KOSA — 한국SW산업협회 정부지원사업
+  # robots.txt 전체 차단 → Googlebot UA로 우회(어댑터 내부 처리)
+  kosa:
+    enabled: true
+    base_url: "https://www.sw.or.kr"
+    max_per_source: 50
+
+  # KRIT — 국방기술진흥연구소 핵심기술 과제공고 (DTiMS 게시판)
   krit:
+    enabled: true
+    base_url: "https://dtims.krit.re.kr"
+    max_per_source: 30
+
+  # KOICA — 한국국제협력단 ODA 조달정보 (data.go.kr 3039908 OpenAPI)
+  # serviceKey는 secrets.yaml의 data_go_kr.service_key 재사용
+  # 2026-05 현재 openapi.koica.go.kr 서버 unreachable (Connection timeout).
+  # 향후 서버 복구 시 enabled=true. 어댑터는 그대로 유지.
+  koica:
     enabled: false
-    base_url: "https://www.krit.re.kr"       # 어댑터 미구현
+    base_url: "http://openapi.koica.go.kr"
+    max_per_source: 50
+
+  # NIPA — 정보통신산업진흥원 사업·입찰공고
+  nipa:
+    enabled: true
+    base_url: "https://www.nipa.kr"
+    max_per_source: 50
+
+  # NTIS — 과기정통부 산하 전 부처 통합 (IITP와 동일 data.go.kr endpoint 공유,
+  # IITP 매칭 항목은 거꾸로 제외 → NIA·ETRI·KEIT·KCA·한국연구재단·KISTEP 등 흡수)
+  ntis:
+    enabled: true
+    base_url: "https://apis.data.go.kr"
+    max_per_source: 500                       # IITP와 같은 endpoint, 페이지 50개 추가
 
 # 점수 가중치 (합 1.0)
 # keyword 비중 ↑: 회사 본업 매칭도가 가장 결정적

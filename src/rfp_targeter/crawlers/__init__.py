@@ -7,15 +7,25 @@ from rfp_targeter.crawlers.base import BaseCrawler
 from rfp_targeter.crawlers.bizinfo import BizinfoCrawler
 from rfp_targeter.crawlers.iitp import IITPCrawler
 from rfp_targeter.crawlers.kisa import KISACrawler
+from rfp_targeter.crawlers.koica import KOICACrawler
+from rfp_targeter.crawlers.kosa import KOSACrawler
+from rfp_targeter.crawlers.krit import KRITCrawler
 from rfp_targeter.crawlers.mock import MockCrawler
 from rfp_targeter.crawlers.mss import MSSCrawler
+from rfp_targeter.crawlers.nipa import NIPACrawler
+from rfp_targeter.crawlers.ntis import NTISCrawler
 
 CRAWLERS: dict[str, type[BaseCrawler]] = {
     "bizinfo": BizinfoCrawler,
     "iitp": IITPCrawler,
     "kisa": KISACrawler,
+    "koica": KOICACrawler,
+    "kosa": KOSACrawler,
+    "krit": KRITCrawler,
     "mock": MockCrawler,
     "mss": MSSCrawler,
+    "nipa": NIPACrawler,
+    "ntis": NTISCrawler,
 }
 
 
