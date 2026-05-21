@@ -2314,8 +2314,223 @@ baseline **50**.
     )
 
 with tab4:
-    p = profile()
-    st.subheader("회사 프로필")
+    p = profile() or {}
+    import html as _h_prof
+
+    company = p.get("company") or {}
+    name = company.get("name", "(미설정)")
+    eng = company.get("english_name", "")
+    home = company.get("homepage", "")
+    est_year = company.get("established_year")
+    size = company.get("size", "")
+    positioning = company.get("positioning", "")
+
+    # ─── 명함 헤더 ─────────────────────────────────────────────────
+    from datetime import datetime as _dt_now
+    age_str = ""
+    if est_year:
+        try:
+            age = _dt_now.now().year - int(est_year)
+            age_str = f"{est_year}년 설립 · 창업 {age}년차"
+        except Exception:
+            age_str = f"{est_year}년 설립"
+
+    home_html = (
+        f"<a href='{_h_prof.escape(home)}' target='_blank' "
+        f"style='color:#0369a1;text-decoration:none'>{_h_prof.escape(home)} ↗</a>"
+        if home else ""
+    )
+    st.html(
+        "<div style='background:linear-gradient(135deg,#0c4a6e 0%, #075985 50%, #0369a1 100%);"
+        "color:white;padding:28px 32px;border-radius:12px;"
+        "box-shadow:0 8px 24px rgba(3,105,161,0.18);margin-bottom:20px'>"
+        f"<div style='font-size:0.78em;opacity:0.85;letter-spacing:0.12em;"
+        "text-transform:uppercase;font-weight:600;margin-bottom:6px'>COMPANY PROFILE</div>"
+        f"<div style='font-size:2rem;font-weight:800;letter-spacing:-0.02em;"
+        f"line-height:1.15'>{_h_prof.escape(name)}</div>"
+        + (f"<div style='font-size:1rem;opacity:0.88;margin-top:4px;font-weight:500'>"
+           f"{_h_prof.escape(eng)}</div>" if eng else "")
+        + (f"<div style='margin-top:14px;font-size:0.95rem;line-height:1.55;"
+           f"opacity:0.92;max-width:780px'>{_h_prof.escape(positioning)}</div>"
+           if positioning else "")
+        + f"<div style='display:flex;gap:18px;margin-top:16px;flex-wrap:wrap;"
+          f"font-size:0.85rem;opacity:0.9'>"
+          f"{f'<span>🌐 {home_html}</span>' if home else ''}"
+          f"{f'<span>📅 {age_str}</span>' if age_str else ''}"
+          f"{f'<span>📏 {_h_prof.escape(size)}</span>' if size else ''}"
+          "</div>"
+        "</div>"
+    )
+
+    # ─── 핵심 지표 KPI 4~5개 ──────────────────────────────────────
+    track = p.get("track_record") or {}
+    ip = track.get("ip_assets") or {}
+    std = track.get("standards") or {}
+    data_a = track.get("data_assets") or {}
+    consortium = p.get("consortium") or {}
+
+    kpis = []
+    if ip.get("patents_total"):
+        reg = ip.get("patents_registered_domestic", 0) or 0
+        pend = ip.get("patents_pending_domestic", 0) or 0
+        kpis.append(("🔬", "특허", str(ip["patents_total"]), f"등록 {reg} · 출원 {pend}건"))
+    if std.get("domestic_count") or std.get("international_count"):
+        d = std.get("domestic_count", 0) or 0
+        i = std.get("international_count", 0) or 0
+        kpis.append(("📜", "표준", str(d + i), f"국내 {d} · 국제 {i}건"))
+    if data_a.get("hacker_knowledge_db_count"):
+        cnt = data_a["hacker_knowledge_db_count"]
+        kpis.append(("🗄️", "해커 DB", f"{cnt//10000}만+건",
+                     f"{data_a.get('db_accumulation_years', '?')}년 누적"))
+    if consortium.get("max_partners"):
+        kpis.append(("🤝", "컨소시엄", consortium.get("preferred_role", "?"),
+                     f"최대 {consortium['max_partners']}개사 협업"))
+    if consortium.get("solo_capable"):
+        kpis.append(("⚡", "단독 수행", "가능",
+                     "4단계 platform 모듈"))
+
+    if kpis:
+        cols = st.columns(len(kpis))
+        for col, (icon, label, val, sub) in zip(cols, kpis):
+            with col:
+                st.html(
+                    "<div style='background:white;border:1px solid #e2e8f0;"
+                    "border-radius:10px;padding:16px 18px;height:100%;"
+                    "box-shadow:0 1px 3px rgba(0,0,0,0.04)'>"
+                    f"<div style='font-size:0.72rem;color:#64748b;font-weight:600;"
+                    f"letter-spacing:0.06em;text-transform:uppercase;margin-bottom:4px'>"
+                    f"{icon} {label}</div>"
+                    f"<div style='font-size:1.6rem;font-weight:800;color:#0f172a;"
+                    f"letter-spacing:-0.03em;line-height:1.1'>{_h_prof.escape(str(val))}</div>"
+                    f"<div style='font-size:0.78rem;color:#64748b;margin-top:4px'>"
+                    f"{_h_prof.escape(sub)}</div>"
+                    "</div>"
+                )
+
+    # ─── 자체 제품·기술 ───────────────────────────────────────────
+    techs = p.get("technologies") or []
+    if techs:
+        st.html("<div style='margin-top:24px;font-size:1.05rem;font-weight:700;"
+                "color:#0f172a;letter-spacing:-0.01em'>🎯 자체 보유 기술 (TRL)</div>")
+        for tech in techs:
+            tname = tech.get("name", "")
+            trl = tech.get("trl", "?")
+            kws = tech.get("keywords") or []
+            trl_color = "#10b981" if isinstance(trl, int) and trl >= 8 else "#f59e0b"
+            kw_chips = "".join(
+                f"<span style='background:#f1f5f9;color:#475569;padding:3px 9px;"
+                f"border-radius:12px;font-size:0.78em;margin:2px 3px 0 0;"
+                f"display:inline-block'>{_h_prof.escape(str(k))}</span>"
+                for k in kws[:8]
+            )
+            st.html(
+                "<div style='background:white;border:1px solid #e2e8f0;border-radius:10px;"
+                "padding:14px 18px;margin:8px 0'>"
+                f"<div style='display:flex;align-items:center;gap:10px;margin-bottom:6px'>"
+                f"<span style='font-weight:700;color:#0f172a;font-size:1rem'>"
+                f"{_h_prof.escape(tname)}</span>"
+                f"<span style='background:{trl_color};color:white;padding:2px 9px;"
+                f"border-radius:10px;font-size:0.72em;font-weight:700'>TRL {trl}</span>"
+                f"</div>"
+                f"<div>{kw_chips}</div>"
+                "</div>"
+            )
+
+    # ─── 예산 sweet spot ──────────────────────────────────────────
+    budget = p.get("budget_range") or {}
+    if budget.get("sweet_spot_min") and budget.get("sweet_spot_max"):
+        sm = budget["sweet_spot_min"]
+        sx = budget["sweet_spot_max"]
+        mn = budget.get("min", 0)
+        mx = budget.get("max", sx * 2)
+        st.html("<div style='margin-top:24px;font-size:1.05rem;font-weight:700;"
+                "color:#0f172a;letter-spacing:-0.01em'>💰 예산 적합 구간</div>")
+        # 시각화 — 단순 막대
+        scale = max(mx, 1)
+        pct_min = 100 * sm / scale
+        pct_max = 100 * sx / scale
+        pct_mn = 100 * mn / scale
+        st.html(
+            "<div style='background:white;border:1px solid #e2e8f0;border-radius:10px;"
+            "padding:18px 20px;margin-top:8px'>"
+            f"<div style='display:flex;justify-content:space-between;font-size:0.8em;"
+            f"color:#64748b;margin-bottom:6px'>"
+            f"<span>{mn:,}백만</span>"
+            f"<span style='font-weight:700;color:#0369a1'>"
+            f"sweet spot: {sm:,} ~ {sx:,}백만 ({sm//100}억 ~ {sx//100}억)</span>"
+            f"<span>{mx:,}백만</span>"
+            f"</div>"
+            f"<div style='position:relative;background:#f1f5f9;height:12px;border-radius:6px'>"
+            f"<div style='position:absolute;left:{pct_mn}%;width:{pct_min-pct_mn}%;"
+            f"top:0;height:100%;background:#fbbf24;opacity:0.6;border-radius:2px'></div>"
+            f"<div style='position:absolute;left:{pct_min}%;width:{pct_max-pct_min}%;"
+            f"top:0;height:100%;background:#10b981;border-radius:2px'></div>"
+            f"<div style='position:absolute;left:{pct_max}%;right:0;"
+            f"top:0;height:100%;background:#94a3b8;opacity:0.5;border-radius:2px'></div>"
+            f"</div></div>"
+        )
+
+    # ─── 핵심 키워드 클라우드 ─────────────────────────────────────
+    core_kws = p.get("core_keywords") or []
+    if core_kws:
+        st.html("<div style='margin-top:24px;font-size:1.05rem;font-weight:700;"
+                "color:#0f172a'>🔑 핵심 키워드 ({}개)</div>".format(len(core_kws)))
+        chips = "".join(
+            f"<span style='background:#dbeafe;color:#1e40af;padding:6px 12px;"
+            f"border-radius:14px;font-size:0.85em;font-weight:500;margin:3px;"
+            f"display:inline-block'>{_h_prof.escape(str(k))}</span>"
+            for k in core_kws
+        )
+        st.html(
+            "<div style='background:white;border:1px solid #e2e8f0;border-radius:10px;"
+            f"padding:16px;margin-top:8px;line-height:2'>{chips}</div>"
+        )
+
+    # ─── 타겟 시장 / 파트너 / 정책 ────────────────────────────────
+    targets = p.get("target_markets") or {}
+    partner_list = consortium.get("existing_partners") or []
+    policy = p.get("policy_alignment") or []
+
+    cols2 = st.columns(3)
+    with cols2[0]:
+        prim = targets.get("primary_domestic", [])
+        if prim:
+            st.html("<div style='font-weight:700;color:#0f172a;margin-bottom:6px'>"
+                    "🇰🇷 주력 타겟 (국내)</div>"
+                    "<div style='background:#f8fafc;border-radius:8px;padding:10px 14px;"
+                    "font-size:0.9em;line-height:1.7'>"
+                    + "".join(f"• {_h_prof.escape(str(t))}<br>" for t in prim)
+                    + "</div>")
+    with cols2[1]:
+        if partner_list:
+            st.html("<div style='font-weight:700;color:#0f172a;margin-bottom:6px'>"
+                    "🤝 협업 파트너</div>"
+                    "<div style='background:#f8fafc;border-radius:8px;padding:10px 14px;"
+                    "font-size:0.9em;line-height:1.6'>"
+                    + "".join(
+                        f"<div style='margin-bottom:4px'>"
+                        f"<b>{_h_prof.escape(str(pp.get('name','')))}</b>"
+                        f"<div style='font-size:0.82em;color:#64748b'>"
+                        f"{_h_prof.escape(str(pp.get('type','')))}</div></div>"
+                        for pp in partner_list if isinstance(pp, dict)
+                    )
+                    + "</div>")
+    with cols2[2]:
+        if policy:
+            st.html("<div style='font-weight:700;color:#0f172a;margin-bottom:6px'>"
+                    "📋 정책 정합</div>"
+                    "<div style='background:#f8fafc;border-radius:8px;padding:10px 14px;"
+                    "font-size:0.88em;line-height:1.7'>"
+                    + "".join(f"• {_h_prof.escape(str(t))}<br>" for t in policy[:6])
+                    + "</div>")
+
+    # ─── 미설정 경고 ──────────────────────────────────────────────
     if any("???" in str(v) for v in str(p).split()):
-        st.warning("프로필에 ??? 미설정 항목 있음 — `python scripts/init_profile.py` 실행 후 `config/profile.yaml` 검수 권장")
-    st.json(p)
+        st.warning(
+            "⚠️ 프로필에 미설정 항목 있음 — `config/profile.yaml` 검수 권장"
+        )
+
+    # ─── 원본 YAML (개발자용, 펼치기) ────────────────────────────
+    with st.expander("🔧 원본 데이터 보기 (개발자용)", expanded=False):
+        st.caption("운영 시에는 위의 명함 뷰만 사용. 데이터 구조 확인이 필요한 경우만 펼쳐서 보세요.")
+        st.json(p)
