@@ -1,0 +1,70 @@
+name: Hourly Crawl
+
+on:
+  schedule:
+    # 매 시간 0분 (UTC 기준 — KST = UTC+9, 한국 시각으로 매시 정각)
+    - cron: '0 * * * *'
+  # 수동 트리거 — Actions 탭에서 "Run workflow" 버튼 클릭 가능 (테스트용)
+  workflow_dispatch:
+
+# 동시 실행 방지 — 이전 실행 끝나기 전에 새 cron 안 돌게
+concurrency:
+  group: crawl
+  cancel-in-progress: false
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30                    # 보통 5분 안에 끝, 안전망
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Restore profile.yaml from secret (회사 프로필)
+        env:
+          PROFILE_YAML_B64: ${{ secrets.PROFILE_YAML_B64 }}
+        run: |
+          if [ -n "$PROFILE_YAML_B64" ]; then
+            mkdir -p config
+            echo "$PROFILE_YAML_B64" | base64 -d > config/profile.yaml
+            echo "✅ profile.yaml restored from secret ($(wc -l < config/profile.yaml) lines)"
+          else
+            echo "⚠️ PROFILE_YAML_B64 secret 미설정 — profile.example.yaml로 폴백"
+          fi
+
+      - name: Run crawl pipeline
+        env:
+          # Supabase PostgreSQL
+          DATABASE_URL:        ${{ secrets.DATABASE_URL }}
+          # 공공데이터포털 (IITP/NTIS/MSS 통합 키)
+          DATA_GO_KR_KEY:      ${{ secrets.DATA_GO_KR_KEY }}
+          # Anthropic Claude API (AI 초안 생성용 — 크롤 자체엔 불필요하지만 동일 secrets 사용)
+          ANTHROPIC_API_KEY:   ${{ secrets.ANTHROPIC_API_KEY }}
+          # Slack webhook (신규 공고 알림)
+          SLACK_WEBHOOK_URL:   ${{ secrets.SLACK_WEBHOOK_URL }}
+          # Python 한글 인코딩
+          PYTHONIOENCODING:    utf-8
+        run: |
+          python scripts/run_once.py
+
+      - name: Upload run log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crawl-log-${{ github.run_number }}
+          path: |
+            *.log
+          retention-days: 7
+          if-no-files-found: ignore

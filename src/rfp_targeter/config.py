@@ -39,11 +39,43 @@ def profile() -> dict:
 
 
 def secrets() -> dict:
-    """secrets.yaml — API 키 등 민감 정보. 없으면 빈 dict 반환."""
+    """secrets.yaml — API 키 등 민감 정보.
+
+    파일 없으면 환경변수에서 자동 구성 (GitHub Actions 배포 환경 지원).
+    환경변수 이름 컨벤션:
+      DATABASE_URL                → supabase.database_url
+      DATA_GO_KR_KEY              → data_go_kr.service_key
+      MSS_API_KEY                 → mss.service_key (없으면 DATA_GO_KR_KEY 재사용)
+      ANTHROPIC_API_KEY           → anthropic.api_key
+      SLACK_WEBHOOK_URL           → slack.webhook_url
+    """
     path = CONFIG_DIR / "secrets.yaml"
-    if not path.exists():
-        return {}
-    return _load_yaml(path)
+    if path.exists():
+        return _load_yaml(path)
+    # 파일 없음 → env로 폴백 (CI/CD 환경)
+    s: dict = {}
+    if os.environ.get("DATABASE_URL"):
+        s["supabase"] = {"database_url": os.environ["DATABASE_URL"]}
+    if os.environ.get("DATA_GO_KR_KEY"):
+        s["data_go_kr"] = {
+            "service_key": os.environ["DATA_GO_KR_KEY"],
+            "endpoint": "https://apis.data.go.kr/1721000/msitannouncementinfo/businessAnnouncMentList",
+            "iitp_only_filter": False,
+        }
+    if os.environ.get("MSS_API_KEY") or os.environ.get("DATA_GO_KR_KEY"):
+        s["mss"] = {
+            "service_key": os.environ.get("MSS_API_KEY") or os.environ["DATA_GO_KR_KEY"],
+            "endpoint": "https://apis.data.go.kr/1421000/mssBizService_v2/getbizList_v2",
+        }
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        s["anthropic"] = {
+            "api_key": os.environ["ANTHROPIC_API_KEY"],
+            "model": os.environ.get("ANTHROPIC_MODEL", "claude-opus-4-7"),
+            "effort": os.environ.get("ANTHROPIC_EFFORT", "xhigh"),
+        }
+    if os.environ.get("SLACK_WEBHOOK_URL"):
+        s["slack"] = {"webhook_url": os.environ["SLACK_WEBHOOK_URL"]}
+    return s
 
 
 def db_path() -> Path:
