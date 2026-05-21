@@ -93,6 +93,11 @@ auto_draft:
   enabled: true
   min_total_score: 70  # 100점 만점 기준
 
+# 슬랙 알림 (Incoming Webhook) — 매 크롤 사이클 신규 보안 공고 즉시 푸시
+alert:
+  slack_enabled: true               # secrets.yaml의 slack.webhook_url 필요
+  dashboard_url: "http://localhost:8501"  # 클라우드 배포 시 실제 URL로 교체
+
 # 회사 프로필 추출 대상
 profile_extraction:
   homepage_url: "https://www.enkiwhitehat.com"

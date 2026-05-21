@@ -13,6 +13,7 @@ from rfp_targeter.db.models import (
 from rfp_targeter.config import profile
 from rfp_targeter.filters.eligibility import check_eligibility
 from rfp_targeter.filters.security_filter import SecurityFilter
+from rfp_targeter.notifier.slack import notify_new_announcements
 from rfp_targeter.scoring import compute_score
 
 log = logging.getLogger(__name__)
@@ -37,6 +38,9 @@ def run_once() -> list[RunStats]:
     if not isinstance(_established_year, int):
         _established_year = None
     stats: list[RunStats] = []
+
+    # 사이클 동안 추가된 신규 보안 공고 모음 — 마지막에 슬랙 일괄 발송
+    cycle_new_alerts: list = []  # [(Announcement, Score), ...]
 
     for crawler in enabled_crawlers(settings()):
         s = RunStats(source=crawler.source)
@@ -73,6 +77,9 @@ def run_once() -> list[RunStats]:
                         s.filtered_in += 1
                         score = compute_score(a)
                         upsert_score(conn, score)
+                        # 이번 사이클 신규 + 보안 통과 → 슬랙 알림 대상
+                        if is_new:
+                            cycle_new_alerts.append((a, score))
 
             with get_conn() as conn:
                 log_fetch_finish(conn, log_id, s.new, s.updated)
@@ -87,5 +94,15 @@ def run_once() -> list[RunStats]:
             crawler.source, s.new, s.updated, s.filtered_in,
         )
         stats.append(s)
+
+    # 사이클 끝 — 신규 보안 공고가 1건+ 있으면 슬랙 일괄 발송
+    if cycle_new_alerts:
+        from datetime import datetime as _dt
+        cycle_label = _dt.now().strftime("%Y-%m-%d %H:%M")
+        try:
+            notify_new_announcements(cycle_new_alerts, cycle_label=cycle_label)
+        except Exception:
+            # 알림 실패가 파이프라인 전체를 죽이지 않게
+            log.exception("slack alert dispatch failed (pipeline 계속)")
 
     return stats
