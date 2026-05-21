@@ -1,0 +1,18 @@
+# Streamlit Cloud용 의존성 (pyproject.toml과 동기화)
+# 직접 편집 X — pyproject.toml에 추가 후 동일하게 반영
+requests>=2.32
+beautifulsoup4>=4.12
+lxml>=5.0
+pyyaml>=6.0
+apscheduler>=3.10
+streamlit>=1.36
+plotly>=5.22
+pandas>=2.2
+python-dateutil>=2.9
+pypdf>=4.2
+tenacity>=8.5
+rapidfuzz>=3.9
+rich>=13.7
+anthropic>=0.40
+pyhwp>=0.1b15
+psycopg[binary]>=3.2

@@ -31,28 +31,46 @@ def keywords() -> dict:
     return _load_yaml(CONFIG_DIR / "keywords.yaml")
 
 
-def profile() -> dict:
-    """profile.yaml 없으면 example로 fallback (개발 편의)."""
-    real = CONFIG_DIR / "profile.yaml"
-    example = CONFIG_DIR / "profile.example.yaml"
-    return _load_yaml(real if real.exists() else example)
+def _streamlit_secrets_as_env() -> None:
+    """Streamlit Cloud의 st.secrets 값들을 환경변수로 펼침.
+
+    Streamlit Cloud는 dashboard.py 시작 시 st.secrets dict로 secrets 제공.
+    우리 코드는 환경변수 기반이라 둘을 브리지.
+    """
+    try:
+        import streamlit as st  # noqa: F401
+        # st.secrets 접근은 streamlit 실행 컨텍스트에서만 가능
+        sec = st.secrets
+        for k in ("DATABASE_URL", "DATA_GO_KR_KEY", "MSS_API_KEY",
+                  "ANTHROPIC_API_KEY", "SLACK_WEBHOOK_URL",
+                  "PROFILE_YAML_B64", "DASHBOARD_PASSWORD"):
+            if k in sec and not os.environ.get(k):
+                os.environ[k] = str(sec[k])
+    except Exception:
+        pass  # streamlit 미실행 컨텍스트 (CLI 등) — 무시
 
 
 def secrets() -> dict:
     """secrets.yaml — API 키 등 민감 정보.
 
-    파일 없으면 환경변수에서 자동 구성 (GitHub Actions 배포 환경 지원).
-    환경변수 이름 컨벤션:
-      DATABASE_URL                → supabase.database_url
-      DATA_GO_KR_KEY              → data_go_kr.service_key
-      MSS_API_KEY                 → mss.service_key (없으면 DATA_GO_KR_KEY 재사용)
-      ANTHROPIC_API_KEY           → anthropic.api_key
-      SLACK_WEBHOOK_URL           → slack.webhook_url
+    파일 없으면 환경변수에서 자동 구성:
+      - 로컬: config/secrets.yaml 직접 사용
+      - GitHub Actions: env (workflow에서 secrets 주입)
+      - Streamlit Cloud: st.secrets → env로 펼침 (위 _streamlit_secrets_as_env)
+
+    환경변수 이름:
+      DATABASE_URL          → supabase.database_url
+      DATA_GO_KR_KEY        → data_go_kr.service_key
+      MSS_API_KEY           → mss.service_key (없으면 DATA_GO_KR_KEY 재사용)
+      ANTHROPIC_API_KEY     → anthropic.api_key
+      SLACK_WEBHOOK_URL     → slack.webhook_url
     """
     path = CONFIG_DIR / "secrets.yaml"
     if path.exists():
         return _load_yaml(path)
-    # 파일 없음 → env로 폴백 (CI/CD 환경)
+    # Streamlit Cloud 환경이면 st.secrets → env 펼침
+    _streamlit_secrets_as_env()
+    # env로 폴백
     s: dict = {}
     if os.environ.get("DATABASE_URL"):
         s["supabase"] = {"database_url": os.environ["DATABASE_URL"]}
@@ -76,6 +94,25 @@ def secrets() -> dict:
     if os.environ.get("SLACK_WEBHOOK_URL"):
         s["slack"] = {"webhook_url": os.environ["SLACK_WEBHOOK_URL"]}
     return s
+
+
+def profile() -> dict:
+    """profile.yaml 없으면 PROFILE_YAML_B64 env 디코드 → example fallback."""
+    real = CONFIG_DIR / "profile.yaml"
+    if real.exists():
+        return _load_yaml(real)
+    # Streamlit Cloud / GitHub Actions: PROFILE_YAML_B64 환경변수에서 복원
+    _streamlit_secrets_as_env()
+    b64 = os.environ.get("PROFILE_YAML_B64", "").strip()
+    if b64:
+        try:
+            import base64
+            decoded = base64.b64decode(b64).decode("utf-8")
+            return yaml.safe_load(decoded) or {}
+        except Exception:
+            pass
+    example = CONFIG_DIR / "profile.example.yaml"
+    return _load_yaml(example)
 
 
 def db_path() -> Path:

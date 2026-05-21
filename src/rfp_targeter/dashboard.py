@@ -20,6 +20,71 @@ from rfp_targeter.db.models import Announcement, Score
 
 st.set_page_config(page_title="RFP-Targeter | 엔키화이트햇", layout="wide", page_icon="🎯")
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 비밀번호 보호 (Streamlit Cloud public app 보호용)
+# 로컬 실행 시: secrets.yaml에 dashboard.password 없으면 자동 skip
+# Cloud 배포 시: st.secrets["DASHBOARD_PASSWORD"] 또는 secrets.yaml 의
+#                dashboard.password 가 설정돼있으면 입력 페이지 표시
+# ─────────────────────────────────────────────────────────────────────────────
+def _get_password() -> str | None:
+    """비밀번호 가져오기. st.secrets → secrets.yaml dashboard.password 순."""
+    import os
+    # 1. Streamlit Cloud secrets
+    try:
+        if "DASHBOARD_PASSWORD" in st.secrets:
+            return str(st.secrets["DASHBOARD_PASSWORD"]).strip() or None
+    except Exception:
+        pass
+    # 2. 환경변수
+    env = os.environ.get("DASHBOARD_PASSWORD")
+    if env and env.strip():
+        return env.strip()
+    # 3. secrets.yaml의 dashboard.password (로컬 옵션)
+    try:
+        from rfp_targeter.config import secrets as _s
+        pw = ((_s().get("dashboard") or {}).get("password") or "").strip()
+        if pw:
+            return pw
+    except Exception:
+        pass
+    return None
+
+
+def _check_password() -> bool:
+    """비밀번호 페이지 표시. 일치하면 True, 아니면 stop."""
+    correct = _get_password()
+    if not correct:
+        return True  # 비밀번호 설정 안 됨 → 보호 X (로컬 개발용)
+
+    if st.session_state.get("_auth_ok"):
+        return True
+
+    # 로그인 페이지 (대시보드 다른 UI는 숨김)
+    st.html(
+        "<div style='max-width:420px;margin:60px auto 0;text-align:center'>"
+        "<div style='font-size:2.5rem'>🔒</div>"
+        "<h2 style='margin:12px 0 6px;color:#0f172a;font-weight:700;letter-spacing:-0.02em'>"
+        "RFP-Targeter</h2>"
+        "<div style='color:#64748b;font-size:0.9rem;margin-bottom:24px'>"
+        "엔키화이트햇 사내 도구 — 비밀번호 입력</div>"
+        "</div>"
+    )
+    col_a, col_b, col_c = st.columns([1, 2, 1])
+    with col_b:
+        pw = st.text_input("비밀번호", type="password", key="_pw_input",
+                            label_visibility="collapsed", placeholder="비밀번호 입력")
+        if st.button("로그인", type="primary", use_container_width=True):
+            if pw == correct:
+                st.session_state["_auth_ok"] = True
+                st.rerun()
+            else:
+                st.error("비밀번호가 일치하지 않습니다.")
+    st.stop()
+
+
+_check_password()
+
 # ─────────────────────────────────────────────────────────────────────────────
 # 전역 테마 — ENKI 브랜드 톤(딥 네이비 + 인디고) · Pretendard · 부드러운 카드
 # st.html() 사용 — st.markdown은 <style> 안의 [class*="css"] 같은 CSS 속성
