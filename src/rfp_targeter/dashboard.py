@@ -2154,77 +2154,121 @@ with tab2:
                               else f"{rest:,}만")
             return " ".join(parts) if parts else "—"
 
-        # HTML 테이블 직접 렌더 — 공고명 자체가 링크가 되게 (st.dataframe LinkColumn은
-        # 셀 값=URL 가정이라 title 텍스트를 링크 라벨로 못 만듦)
-        view = filtered[["title", "url", "total_score", "theme_fit",
+        # 같은 (title, url)이 여러 source에서 수집된 경우 → 한 행으로 합치고
+        # 발주기관을 슬래시(/)로 표시. 데이터 정리됐지만 잔재 가능성 대비.
+        view = filtered[["title", "url", "source", "agency", "total_score", "theme_fit",
                          "keyword_score", "budget_mw", "consortium_score",
                          "competitor_score", "trl_score"]].copy()
         view["title"] = view["title"].fillna("").str[:80]
         view["budget_mw"] = view["budget_mw"].map(_fmt_budget)
-        view = view.sort_values("total_score", ascending=False)
+
+        # title 기준 그룹화 — 같은 공고가 여러 행에 있으면 source 모음
+        grouped = (
+            view.groupby("title", as_index=False)
+                .agg({
+                    "url": "first",
+                    "source": lambda s: " / ".join(sorted({str(x) for x in s if x})),
+                    "agency": "first",
+                    "total_score": "max",
+                    "theme_fit": "max",
+                    "keyword_score": "max",
+                    "budget_mw": "first",
+                    "consortium_score": "max",
+                    "competitor_score": "max",
+                    "trl_score": "max",
+                })
+                .sort_values("total_score", ascending=False)
+        )
 
         import html as _html
 
-        def _bar(v: float, color: str = "#3b82f6") -> str:
+        def _bar(v: float, color: str = "#2563eb") -> str:
             v = float(v or 0)
             pct = max(0, min(100, v))
             return (
-                f"<div style='position:relative;background:#e2e8f0;border-radius:4px;"
+                f"<div style='position:relative;background:#f3f4f6;border-radius:4px;"
                 f"height:18px;overflow:hidden;min-width:60px'>"
                 f"<div style='position:absolute;left:0;top:0;height:100%;"
-                f"width:{pct:.0f}%;background:{color};opacity:0.8'></div>"
+                f"width:{pct:.0f}%;background:{color};opacity:0.85'></div>"
                 f"<div style='position:relative;text-align:center;line-height:18px;"
-                f"font-size:0.78em;font-weight:600;color:#0f172a;font-feature-settings:\"tnum\"'>"
+                f"font-size:0.78em;font-weight:600;color:#111827;font-feature-settings:\"tnum\"'>"
                 f"{pct:.0f}</div></div>"
             )
 
+        def _agency_chip(source_str: str) -> str:
+            """공고명 앞에 붙는 작은 발주기관 칩. '/' 로 여러 기관 합쳐서 받음."""
+            chips = []
+            for src in (source_str or "").split(" / "):
+                src = src.strip().lower()
+                if not src:
+                    continue
+                meta = _AGENCY_META.get(src, {
+                    "label": src.upper(), "color": "#475569", "bg": "#f1f5f9",
+                })
+                # f-string 안에 \" escape 안 됨 — 변수로 분리
+                bg = meta["bg"]
+                color = meta["color"]
+                label = _html.escape(meta["label"])
+                chips.append(
+                    f"<span style='background:{bg};color:{color};"
+                    f"padding:2px 7px;border-radius:5px;font-size:0.72rem;"
+                    f"font-weight:700;letter-spacing:0.02em;"
+                    f"border:1px solid {color}22;"
+                    f"display:inline-block;margin-right:5px;line-height:1.5;"
+                    f"vertical-align:middle;white-space:nowrap'>"
+                    f"{label}</span>"
+                )
+            return "".join(chips)
+
         rows_html = []
-        for _, row in view.iterrows():
+        for _, row in grouped.iterrows():
             title_esc = _html.escape(str(row["title"]))
             url = str(row["url"] or "")
+            agency_chips = _agency_chip(str(row["source"] or ""))
             if url and url.startswith(("http://", "https://")):
-                title_cell = (
+                title_link = (
                     f"<a href='{_html.escape(url)}' target='_blank' rel='noopener' "
-                    f"style='color:#0369a1;text-decoration:none;font-weight:500;"
-                    f"border-bottom:1px dashed #93c5fd'>{title_esc}</a>"
+                    f"style='color:#111827;text-decoration:none;font-weight:500;"
+                    f"border-bottom:1px dashed #d1d5db'>{title_esc}</a>"
                 )
             else:
-                title_cell = title_esc
+                title_link = title_esc
+            title_cell = f"{agency_chips}{title_link}"
             rows_html.append(
                 "<tr>"
-                f"<td style='padding:6px 10px;font-size:0.9em'>{title_cell}</td>"
-                f"<td style='padding:6px 10px;text-align:center;font-weight:700;font-size:0.95em;"
+                f"<td style='padding:8px 10px;font-size:0.9em'>{title_cell}</td>"
+                f"<td style='padding:8px 10px;text-align:center;font-weight:700;font-size:0.95em;"
                 f"font-feature-settings:\"tnum\"'>{float(row['total_score'] or 0):.0f}</td>"
-                f"<td style='padding:6px 8px'>{_bar(row['theme_fit'], '#f59e0b')}</td>"
-                f"<td style='padding:6px 8px'>{_bar(row['keyword_score'], '#3b82f6')}</td>"
-                f"<td style='padding:6px 10px;text-align:right;font-size:0.85em;"
+                f"<td style='padding:8px 8px'>{_bar(row['theme_fit'], '#f59e0b')}</td>"
+                f"<td style='padding:8px 8px'>{_bar(row['keyword_score'], '#2563eb')}</td>"
+                f"<td style='padding:8px 10px;text-align:right;font-size:0.85em;"
                 f"font-feature-settings:\"tnum\"'>{_html.escape(str(row['budget_mw']))}</td>"
-                f"<td style='padding:6px 8px'>{_bar(row['consortium_score'], '#8b5cf6')}</td>"
-                f"<td style='padding:6px 8px'>{_bar(row['competitor_score'], '#ef4444')}</td>"
-                f"<td style='padding:6px 8px'>{_bar(row['trl_score'], '#10b981')}</td>"
+                f"<td style='padding:8px 8px'>{_bar(row['consortium_score'], '#8b5cf6')}</td>"
+                f"<td style='padding:8px 8px'>{_bar(row['competitor_score'], '#ef4444')}</td>"
+                f"<td style='padding:8px 8px'>{_bar(row['trl_score'], '#10b981')}</td>"
                 "</tr>"
             )
 
-        st.caption("💡 공고명 클릭 시 원문 사이트가 새 탭에서 열림")
+        st.caption("공고명 클릭 시 원문 사이트가 새 탭에서 열림 · 여러 기관 공동 발주는 ' / '로 표시")
         st.html(
             "<style>"
             ".score-table { width: 100%; border-collapse: collapse; }"
-            ".score-table th { background: #f8fafc; padding: 8px 10px; text-align: left;"
-            "  font-size: 0.85em; font-weight: 700; color: #475569; border-bottom: 1px solid #cbd5e1;"
-            "  text-transform: uppercase; letter-spacing: 0.04em; }"
-            ".score-table td { border-bottom: 1px solid #f1f5f9; }"
-            ".score-table tr:hover { background: #f8fafc; }"
+            ".score-table th { background: #f9fafb; padding: 10px 10px; text-align: left;"
+            "  font-size: 0.75em; font-weight: 600; color: #6b7280; border-bottom: 1px solid #e5e7eb;"
+            "  text-transform: uppercase; letter-spacing: 0.06em; }"
+            ".score-table td { border-bottom: 1px solid #f3f4f6; vertical-align: middle; }"
+            ".score-table tr:hover { background: #fafafa; }"
             "</style>"
             "<table class='score-table'>"
             "<thead><tr>"
-            "<th style='width:42%'>공고명</th>"
-            "<th style='width:7%;text-align:center'>종합 /100</th>"
-            "<th style='width:10%'>🎯 테마</th>"
-            "<th style='width:10%'>🔑 키워드</th>"
-            "<th style='width:9%;text-align:right'>💰 예산</th>"
-            "<th style='width:10%'>🤝 컨소시엄</th>"
-            "<th style='width:8%'>⚔️ 경쟁</th>"
-            "<th style='width:7%'>🧪 TRL</th>"
+            "<th style='width:44%'>발주기관 · 공고명</th>"
+            "<th style='width:7%;text-align:center'>종합</th>"
+            "<th style='width:10%'>테마</th>"
+            "<th style='width:10%'>키워드</th>"
+            "<th style='width:9%;text-align:right'>예산</th>"
+            "<th style='width:10%'>컨소시엄</th>"
+            "<th style='width:5%'>경쟁</th>"
+            "<th style='width:5%'>TRL</th>"
             "</tr></thead>"
             f"<tbody>{''.join(rows_html)}</tbody>"
             "</table>"
