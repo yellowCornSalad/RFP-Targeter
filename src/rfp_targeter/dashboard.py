@@ -1021,17 +1021,16 @@ imm_active = st.session_state.get("imminent_only", False)
 cur_min = st.session_state.get("min_score", 0)
 
 
-# KPI 카드 전체가 단일 버튼 — 클릭 시 바로 필터. (중복 버튼 행 폐기)
-# 버튼 라벨은 Streamlit 마크다운 지원: ## 제목, **굵게**, 그리고 줄바꿈은
-# 마크다운에서 "  \n" (공백 2개 + 개행).
-def _kpi_label(name: str, value: int, sub: str) -> str:
-    return f"**{name}**  \n## {value:,} 건  \n_{sub}_"
+# KPI 카드 — Streamlit 1.40+ 부터 button label 안 마크다운 헤딩(##) 미지원이라
+# 그대로 텍스트로 노출됨. 대신 emoji 아이콘 + bold 로 시각 위계 표현.
+def _kpi_label(icon: str, name: str, value: int, sub: str) -> str:
+    return f"{icon} **{name}**  \n**{value:,}** 건  \n_{sub}_"
 
 
 k1, k2, k3, k4, k5 = st.columns(5)
 with k1:
     st.button(
-        _kpi_label("전체 공고", total_n, f"오늘 신규 +{_today_n}"),
+        _kpi_label("📊", "전체 공고", total_n, f"오늘 신규 +{_today_n}"),
         key="kpi_all", on_click=_set_min_score, args=(0,),
         use_container_width=True,
         type="primary" if cur_min == 0 else "secondary",
@@ -1039,7 +1038,7 @@ with k1:
     )
 with k2:
     st.button(
-        _kpi_label("≥ 60점 (Fair)", n_fair,
+        _kpi_label("🟡", "≥ 60점 (Fair)", n_fair,
                    f"전체의 {int(100*n_fair/max(total_n,1))}%"),
         key="kpi_fair", on_click=_set_min_score, args=(60,),
         use_container_width=True,
@@ -1048,7 +1047,7 @@ with k2:
     )
 with k3:
     st.button(
-        _kpi_label("≥ 75점 (Good)", n_good,
+        _kpi_label("🟢", "≥ 75점 (Good)", n_good,
                    f"전체의 {int(100*n_good/max(total_n,1))}%"),
         key="kpi_good", on_click=_set_min_score, args=(75,),
         use_container_width=True,
@@ -1057,7 +1056,7 @@ with k3:
     )
 with k4:
     st.button(
-        _kpi_label("≥ 90점 (Top)", n_top,
+        _kpi_label("🟠", "≥ 90점 (Top)", n_top,
                    f"전체의 {int(100*n_top/max(total_n,1))}%"),
         key="kpi_top", on_click=_set_min_score, args=(90,),
         use_container_width=True,
@@ -1066,7 +1065,7 @@ with k4:
     )
 with k5:
     st.button(
-        _kpi_label("마감 ≤ 7일", imminent,
+        _kpi_label("⏰", "마감 ≤ 7일", imminent,
                    "필터 적용 중" if imm_active else "클릭해서 필터"),
         key="kpi_imminent", on_click=_toggle_imminent,
         use_container_width=True,
