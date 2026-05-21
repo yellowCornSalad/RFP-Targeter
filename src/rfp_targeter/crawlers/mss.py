@@ -168,7 +168,15 @@ class MSSCrawler(BaseCrawler):
         )
 
     def fetch_detail(self, a: Announcement) -> Announcement:
-        """첨부 분류 기반 우선순위 다운로드 (IITP 어댑터 동일 로직)."""
+        """첨부 분류 기반 우선순위 다운로드 (IITP 어댑터 동일 로직).
+
+        API에서 _files가 비어 오는 경우가 많으므로, 본문 페이지(HTML)에서
+        '내려받기' 링크를 직접 파싱해 attachments에 추가.
+        """
+        # API에 첨부가 없으면 본문 페이지에서 직접 추출
+        if not a.attachments:
+            a.attachments = self._scrape_attachments_from_detail(a.url)
+
         if not a.attachments:
             return a
 
@@ -221,3 +229,50 @@ class MSSCrawler(BaseCrawler):
         if dm is not None:
             a.duration_months = dm
         return a
+
+    def _scrape_attachments_from_detail(self, url: str) -> list[dict]:
+        """MSS 본문 페이지(HTML)에서 첨부 직접 파싱.
+
+        패턴 (예: cbIdx=310 사업공고 게시판):
+            <td class="file_list">
+              <ul>
+                <li>
+                  <div class="info"><span class="name">파일명.hwpx [크기]</span></div>
+                  <div class="link"><a href="/common/board/Download.do?bcIdx=X&cbIdx=Y&streFileNm=UUID.ext">내려받기</a></div>
+                </li>
+              </ul>
+            </td>
+        """
+        if not url or not url.startswith(("http://", "https://")):
+            return []
+        try:
+            r = self.fetch(url)
+        except Exception:
+            return []
+        from bs4 import BeautifulSoup as _BS
+        soup = _BS(r.text, "lxml")
+        attachments: list[dict] = []
+        for li in soup.select(".file_list li, td.file_list li"):
+            name_el = li.select_one(".name")
+            if not name_el:
+                continue
+            name = name_el.get_text(" ", strip=True)
+            # 크기 부분 제거 "[111.34 KB]"
+            name = _re.sub(r"\s*\[[\d.,]+\s*[KMG]?B\]\s*$", "", name).strip()
+            if not name:
+                continue
+            # 인접 내려받기 링크
+            dl = li.select_one("a[href*='Download.do']")
+            if not dl:
+                continue
+            href = dl.get("href", "")
+            if not href:
+                continue
+            full_url = href if href.startswith("http") else f"https://www.mss.go.kr{href}"
+            attachments.append({
+                "name": name,
+                "url": full_url,
+                "category": classify(name),
+                "local_path": None,
+            })
+        return attachments

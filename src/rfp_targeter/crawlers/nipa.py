@@ -131,6 +131,35 @@ class NIPACrawler(BaseCrawler):
         body = re.sub(r"\s+", " ", main.get_text(" ") if main else "").strip()[:10000]
         a.body = body
 
+        # 첨부파일 — /comm/getFile?srvcId=BBSTY1&upperNo=XXX 패턴
+        attachments: list[dict] = []
+        # 본문 영역 안의 첨부 링크. main 이 None이면 soup 전체.
+        attach_scope = main if main else soup
+        for atag in attach_scope.find_all("a", href=True):
+            href = atag["href"]
+            if "getFile" not in href and "fileDownload" not in href:
+                continue
+            name = atag.get_text(" ", strip=True)
+            if not name or len(name) < 3:
+                continue
+            full_url = urljoin(BASE, href)
+            # 카테고리 추정
+            if any(k in name for k in ("공고서", "공고문", "[공고", "통합공고")):
+                cat = "notice"
+            elif any(k in name for k in ("제안요청서", "RFP", "요청서")):
+                cat = "notice"
+            elif any(k in name for k in ("양식", "서식", "신청서", "동의서", "이력서")):
+                cat = "form"
+            elif any(k in name for k in ("평가", "심사", "기준")):
+                cat = "eval"
+            else:
+                cat = "reference"
+            attachments.append({
+                "name": name, "url": full_url, "category": cat, "local_path": None,
+            })
+        if attachments:
+            a.attachments = attachments
+
         # 마감일
         dm = re.search(
             r"(?:접수\s*마감|신청\s*마감|마감일|공모\s*기한)[^\d]{0,20}(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})",

@@ -114,6 +114,12 @@ class KISACrawler(BaseCrawler):
         body = re.sub(r"\s+", " ", main.get_text(" ") if main else "").strip()[:10000]
         a.body = body
 
+        # 첨부파일 — onclick="fnPostAttachDownload(menuSeq, postSeq, attachSeq, lang)" 파싱
+        # 다운로드 URL: /post/fileDownload?menuSeq=X&postSeq=Y&attachSeq=Z&lang_type=KO
+        attachments = self._extract_attachments(soup, a.external_id)
+        if attachments:
+            a.attachments = attachments
+
         # 마감일 추출 (KISA 위탁과제는 신청 마감일 표기)
         dm = re.search(r"(?:접수\s*마감|신청\s*마감|마감일)[^\d]{0,20}(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})", body)
         if dm:
@@ -128,3 +134,56 @@ class KISACrawler(BaseCrawler):
         if dm2 is not None:
             a.duration_months = dm2
         return a
+
+    def _extract_attachments(self, soup, external_id: str) -> list[dict]:
+        """KISA 첨부파일 추출.
+
+        HTML:
+            <a href="#fnPostAttachDownload"
+               onclick="fnPostAttachDownload(403, '10684', 1, 'KO');"
+               title="첨부파일 다운로드">파일명.hwpx (94KB)</a>
+
+        실제 다운로드 (common.js 의 함수 정의 기반):
+            GET /post/fileDownload?menuSeq=403&postSeq=10684&attachSeq=1&lang_type=KO
+        """
+        attachments: list[dict] = []
+        # board_detail_attach 영역의 a[href='#fnPostAttachDownload']
+        for atag in soup.select("a[href='#fnPostAttachDownload']"):
+            onclick = atag.get("onclick", "")
+            m = re.search(
+                r"fnPostAttachDownload\(\s*(\d+)\s*,\s*['\"]?(\d+)['\"]?\s*,"
+                r"\s*(\d+)\s*,\s*['\"]([A-Z]{2})['\"]\s*\)",
+                onclick,
+            )
+            if not m:
+                continue
+            menu_seq, post_seq, attach_seq, lang_type = m.groups()
+            name = atag.get_text(" ", strip=True)
+            if not name:
+                continue
+            url = (
+                f"https://www.kisa.or.kr/post/fileDownload"
+                f"?menuSeq={menu_seq}&postSeq={post_seq}"
+                f"&attachSeq={attach_seq}&lang_type={lang_type}"
+            )
+            # 카테고리 추정: 파일명에 "공고", "제안요청서", "양식" 등 키워드
+            lower_name = name.lower()
+            if any(k in name for k in ("공고서", "공고문", "[공고", "입찰공고")):
+                cat = "notice"
+            elif any(k in name for k in ("제안요청서", "RFP", "요청서")):
+                cat = "notice"
+            elif any(k in name for k in ("양식", "서식", "신청서", "동의서", "이력서")):
+                cat = "form"
+            elif any(k in name for k in ("평가", "심사", "기준")):
+                cat = "eval"
+            else:
+                cat = "reference"
+            attachments.append({
+                "name": name,
+                "url": url,
+                "category": cat,
+                "local_path": None,  # KISA는 대용량 다운 안 함 (링크만)
+            })
+        if attachments:
+            log.debug("kisa [%s] 첨부 %d건 파싱", external_id, len(attachments))
+        return attachments
