@@ -36,6 +36,17 @@ def get_conn() -> Iterator[sqlite3.Connection]:
 def init_db() -> None:
     with get_conn() as conn:
         conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
+        # 기존 DB 마이그레이션 — schema.sql의 CREATE TABLE IF NOT EXISTS는
+        # 컬럼 추가에 무효이므로 ALTER 시도. 이미 있으면 OperationalError 무시.
+        for col, ddl in [
+            ("eligibility_status", "ALTER TABLE announcement ADD COLUMN eligibility_status TEXT"),
+            ("eligibility_note",   "ALTER TABLE announcement ADD COLUMN eligibility_note TEXT"),
+            ("eligibility_limit",  "ALTER TABLE announcement ADD COLUMN eligibility_limit INTEGER"),
+        ]:
+            try:
+                conn.execute(ddl)
+            except sqlite3.OperationalError:
+                pass  # 컬럼 이미 존재
 
 
 # ---------- 도메인 dataclass ----------
@@ -57,6 +68,10 @@ class Announcement:
     attachments: list[dict] = field(default_factory=list)
     matched_keywords: list[str] = field(default_factory=list)
     is_security: bool = False
+    # 창업 N년차 자격 검증 (filters/eligibility.py 결과 저장)
+    eligibility_status: str | None = None      # 'ok'/'blocked'/'unsure'/'unknown'
+    eligibility_note: str | None = None
+    eligibility_limit: int | None = None
 
     @property
     def id(self) -> str:
@@ -90,8 +105,9 @@ def upsert_announcement(conn: sqlite3.Connection, a: Announcement) -> bool:
                 id, source, external_id, title, agency, url,
                 posted_at, deadline_at, budget_mw, duration_months,
                 summary, body, attachments_json, matched_keywords_json,
-                fetched_at, updated_at, is_security
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                fetched_at, updated_at, is_security,
+                eligibility_status, eligibility_note, eligibility_limit
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """,
             (
                 a.id, a.source, a.external_id, a.title, a.agency, a.url,
@@ -100,6 +116,7 @@ def upsert_announcement(conn: sqlite3.Connection, a: Announcement) -> bool:
                 json.dumps(a.attachments, ensure_ascii=False),
                 json.dumps(a.matched_keywords, ensure_ascii=False),
                 now, now, int(a.is_security),
+                a.eligibility_status, a.eligibility_note, a.eligibility_limit,
             ),
         )
         return True
@@ -109,7 +126,8 @@ def upsert_announcement(conn: sqlite3.Connection, a: Announcement) -> bool:
             title=?, agency=?, url=?, posted_at=?, deadline_at=?,
             budget_mw=?, duration_months=?, summary=?, body=?,
             attachments_json=?, matched_keywords_json=?,
-            updated_at=?, is_security=?
+            updated_at=?, is_security=?,
+            eligibility_status=?, eligibility_note=?, eligibility_limit=?
         WHERE id=?
         """,
         (
@@ -117,7 +135,9 @@ def upsert_announcement(conn: sqlite3.Connection, a: Announcement) -> bool:
             a.budget_mw, a.duration_months, a.summary, a.body,
             json.dumps(a.attachments, ensure_ascii=False),
             json.dumps(a.matched_keywords, ensure_ascii=False),
-            now, int(a.is_security), a.id,
+            now, int(a.is_security),
+            a.eligibility_status, a.eligibility_note, a.eligibility_limit,
+            a.id,
         ),
     )
     return False

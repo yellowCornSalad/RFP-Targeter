@@ -10,6 +10,8 @@ from rfp_targeter.db.models import (
     get_conn, init_db, log_fetch_finish, log_fetch_start,
     upsert_announcement, upsert_score,
 )
+from rfp_targeter.config import profile
+from rfp_targeter.filters.eligibility import check_eligibility
 from rfp_targeter.filters.security_filter import SecurityFilter
 from rfp_targeter.scoring import compute_score
 
@@ -29,6 +31,11 @@ def run_once() -> list[RunStats]:
     """모든 활성 크롤러 1회 실행."""
     init_db()
     sec_filter = SecurityFilter()
+    # 회사 설립 연도 — 자격(창업 N년차) 검증용. profile.yaml에서 1회 로드.
+    _company = (profile() or {}).get("company") or {}
+    _established_year = _company.get("established_year")
+    if not isinstance(_established_year, int):
+        _established_year = None
     stats: list[RunStats] = []
 
     for crawler in enabled_crawlers(settings()):
@@ -45,6 +52,15 @@ def run_once() -> list[RunStats]:
                 fr = sec_filter.check(a.title, a.summary, a.body, agency=a.agency)
                 a.is_security = fr.passed
                 a.matched_keywords = fr.matched + fr.boost_matched
+
+                # 자격 검증 — 창업 N년차 vs 공고의 자격 조건. 점수는 변경 X (배지 표시용).
+                er = check_eligibility(
+                    body=a.body, title=a.title,
+                    established_year=_established_year,
+                )
+                a.eligibility_status = er.status
+                a.eligibility_note = er.note
+                a.eligibility_limit = er.limit_years
 
                 # 보안 필터 통과한 것만 점수 산정. 미통과도 DB에 저장 (감사 추적)
                 with get_conn() as conn:

@@ -18,7 +18,10 @@ CREATE TABLE IF NOT EXISTS announcement (
     fetched_at TEXT NOT NULL,           -- 최초 수집
     updated_at TEXT NOT NULL,
     is_security INTEGER NOT NULL DEFAULT 0,  -- 보안 키워드 통과 여부
-    is_dismissed INTEGER NOT NULL DEFAULT 0  -- 사용자가 '관심없음' 표시
+    is_dismissed INTEGER NOT NULL DEFAULT 0, -- 사용자가 '관심없음' 표시
+    eligibility_status TEXT,                 -- 'ok'/'blocked'/'unsure'/'unknown' (filters/eligibility.py)
+    eligibility_note TEXT,                   -- 사용자 표시용 한 줄
+    eligibility_limit INTEGER                -- 추출된 N년 (없으면 NULL)
 );
 
 CREATE INDEX IF NOT EXISTS idx_announcement_source ON announcement(source);

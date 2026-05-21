@@ -648,6 +648,8 @@ if "search_query" not in st.session_state:
     st.session_state["search_query"] = ""
 if "sort_by" not in st.session_state:
     st.session_state["sort_by"] = "📅 최신 등록순"
+if "hide_ineligible" not in st.session_state:
+    st.session_state["hide_ineligible"] = False
 
 # 정렬 옵션 (라벨 → 내부 키) — 사이드바 selectbox와 정렬 로직에서 공유
 SORT_OPTIONS = {
@@ -736,6 +738,10 @@ only_open = st.sidebar.checkbox(
     "공모중만", key="only_open",
     help="공모 마감일이 지나지 않은 공고만 표시",
 )
+hide_ineligible = st.sidebar.checkbox(
+    "자격 가능만", key="hide_ineligible", value=False,
+    help="회사 연차로 신청 불가능한 공고(창업 N년 이내 사업) 자동 숨김",
+)
 
 # 2. 점수 — 최소 점수
 st.sidebar.markdown("### 점수")
@@ -754,6 +760,9 @@ sort_label = st.session_state.get("sort_by", "📅 최신 등록순")
 base = df[df["source"].isin(sources)]
 if only_open and "days_left" in base:
     base = base[base["days_left"].fillna(999) >= 0]
+if hide_ineligible and "eligibility_status" in base.columns:
+    # blocked 만 명시적으로 제거. unsure/ok/unknown/NULL 은 통과.
+    base = base[base["eligibility_status"].fillna("unknown") != "blocked"]
 
 # 자유 텍스트 검색 (제목·부서·요약·본문 — 모든 단어가 포함된 공고만)
 if search_query and search_query.strip():
@@ -976,6 +985,7 @@ def _reset_all_filters() -> None:
     st.session_state["min_score"] = 0
     st.session_state["kw_filter"] = []
     st.session_state["imminent_only"] = False
+    st.session_state["hide_ineligible"] = False
     # only_open은 사용자가 일부러 켜둔 default라 유지
 
 
@@ -998,6 +1008,8 @@ if selected_kws:
     _active_chips.append(f"<span style='{_CHIP_NORMAL}'>키워드 · {_kw_disp}</span>")
 if imm_active:
     _active_chips.append(f"<span style='{_CHIP_WARN}'>마감 ≤ 7일</span>")
+if hide_ineligible:
+    _active_chips.append(f"<span style='{_CHIP_NORMAL}'>자격 가능만</span>")
 
 _FILTER_BAR_STYLE = ("display:flex;flex-wrap:wrap;gap:6px;align-items:center;"
                      "padding:10px 14px;background:#ffffff;border:1px solid #f1f5f9;"
@@ -1519,14 +1531,39 @@ with tab1:
                 else:
                     title_html = f'<span style="color:var(--text)">{safe_title}</span>'
 
+                # 자격 미달 / 불확실 시 추가 배지 (status_badge 오른쪽에)
+                _elig_status = row.get("eligibility_status")
+                _elig_note = row.get("eligibility_note") or ""
+                _badges_html = _status_badge(total)
+                if _elig_status == "blocked":
+                    _badges_html += (
+                        f"<span style='{_BADGE_BASE} #fca5a5;background:#fef2f2;"
+                        f"color:#991b1b;margin-left:6px' title='{_html.escape(_elig_note)}'>"
+                        f"⚠ 자격 미달</span>"
+                    )
+                elif _elig_status == "unsure":
+                    _badges_html += (
+                        f"<span style='{_BADGE_BASE} #fde68a;background:#fffbeb;"
+                        f"color:#92400e;margin-left:6px' title='{_html.escape(_elig_note)}'>"
+                        f"? 자격 확인</span>"
+                    )
+
                 st.html(
                     f"<div style='display:flex;gap:12px;align-items:start;justify-content:space-between;margin-bottom:8px'>"
                     f"  <h3 style='font-size:1.15rem;font-weight:700;margin:0;line-height:1.4;letter-spacing:-0.02em'>{title_html}</h3>"
-                    f"  <div style='flex-shrink:0'>{_status_badge(total)}</div>"
+                    f"  <div style='flex-shrink:0;white-space:nowrap'>{_badges_html}</div>"
                     f"</div>"
                 )
                 if not (url and url.startswith(("http://", "https://"))):
                     st.caption("원문 링크 없음")
+                # 자격 미달이면 본문 위에 한 줄 더 (사용자가 즉시 인지)
+                if _elig_status == "blocked" and _elig_note:
+                    st.html(
+                        f"<div style='background:#fef2f2;border-left:3px solid #ef4444;"
+                        f"padding:6px 10px;border-radius:4px;margin-bottom:8px;"
+                        f"font-size:0.82rem;color:#991b1b'>"
+                        f"🚫 {_html.escape(_elig_note)}</div>"
+                    )
 
                 # ── 메타 행 ──
                 bits = []
