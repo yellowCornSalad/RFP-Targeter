@@ -924,9 +924,11 @@ def _count(threshold: int) -> int:
     return int((base["total_score"].fillna(0) >= threshold).sum())
 
 total_n = len(base)
-n_50 = _count(50)
-n_60 = _count(60)
-n_70 = _count(70)
+# 임계값을 새 점수 분포에 맞춰 60/75/90으로 상향 — 변별력 확보
+# (이전 50/60/70은 50점 이상이 74% 차지해 'Fair' 의미 약함)
+n_fair = _count(60)
+n_good = _count(75)
+n_top  = _count(90)
 imminent = int(
     ((base.get("days_left", pd.Series(dtype=float)).fillna(999) >= 0) &
      (base.get("days_left", pd.Series(dtype=float)).fillna(999) <= 7)).sum()
@@ -964,29 +966,29 @@ with k1:
     )
 with k2:
     st.button(
-        _kpi_label("≥ 50점 (Fair)", n_50,
-                   f"전체의 {int(100*n_50/max(total_n,1))}%"),
-        key="kpi_50", on_click=_set_min_score, args=(50,),
+        _kpi_label("≥ 60점 (Fair)", n_fair,
+                   f"전체의 {int(100*n_fair/max(total_n,1))}%"),
+        key="kpi_fair", on_click=_set_min_score, args=(60,),
         use_container_width=True,
-        type="primary" if cur_min == 50 else "secondary",
+        type="primary" if cur_min == 60 else "secondary",
         help="검토 고려할 수준의 공고만",
     )
 with k3:
     st.button(
-        _kpi_label("≥ 60점 (Good)", n_60,
-                   f"전체의 {int(100*n_60/max(total_n,1))}%"),
-        key="kpi_60", on_click=_set_min_score, args=(60,),
+        _kpi_label("≥ 75점 (Good)", n_good,
+                   f"전체의 {int(100*n_good/max(total_n,1))}%"),
+        key="kpi_good", on_click=_set_min_score, args=(75,),
         use_container_width=True,
-        type="primary" if cur_min == 60 else "secondary",
+        type="primary" if cur_min == 75 else "secondary",
         help="적극 검토 권장 수준",
     )
 with k4:
     st.button(
-        _kpi_label("≥ 70점 (Top)", n_70,
-                   f"전체의 {int(100*n_70/max(total_n,1))}%"),
-        key="kpi_70", on_click=_set_min_score, args=(70,),
+        _kpi_label("≥ 90점 (Top)", n_top,
+                   f"전체의 {int(100*n_top/max(total_n,1))}%"),
+        key="kpi_top", on_click=_set_min_score, args=(90,),
         use_container_width=True,
-        type="primary" if cur_min == 70 else "secondary",
+        type="primary" if cur_min == 90 else "secondary",
         help="우선 수주 대상 수준",
     )
 with k5:
@@ -1227,9 +1229,10 @@ def _ai_confirm_dialog():
 
 # ─── 카드·다이얼로그 공통 시각 헬퍼 (양쪽에서 사용 → module-level) ──────
 def _score_band_class(total: float) -> str:
-    if total >= 70: return "band-top"
-    if total >= 60: return "band-high"
-    if total >= 50: return "band-mid"
+    # 임계값: ≥90 Top / ≥75 Good / ≥60 Fair (분포에 맞게 조정)
+    if total >= 90: return "band-top"
+    if total >= 75: return "band-high"
+    if total >= 60: return "band-mid"
     return "band-low"
 
 
@@ -1238,13 +1241,14 @@ _BADGE_BASE = ("display:inline-block;padding:4px 10px;border-radius:999px;"
 
 
 def _status_badge(total: float) -> str:
-    if total >= 70:
+    # 임계값 60/75/90 (KPI 카드 + 좌측 밴드와 동일)
+    if total >= 90:
         return (f"<span style='{_BADGE_BASE} #fdba74;background:#fff7ed;color:#c2410c'>"
-                f"TOP · 우선 검토</span>")
-    if total >= 60:
+                f"TOP · 즉시 우선 검토</span>")
+    if total >= 75:
         return (f"<span style='{_BADGE_BASE} #86efac;background:#f0fdf4;color:#15803d'>"
                 f"GOOD · 검토 권장</span>")
-    if total >= 50:
+    if total >= 60:
         return (f"<span style='{_BADGE_BASE} #fde047;background:#fefce8;color:#a16207'>"
                 f"FAIR · 검토 고려</span>")
     return (f"<span style='{_BADGE_BASE} #cbd5e1;background:#f8fafc;color:#64748b'>"
@@ -1566,10 +1570,10 @@ with tab1:
             total = float(row.get("total_score") or 0)
             theme = float(row.get("theme_fit") or 0)
             _band_color = (
-                "linear-gradient(180deg,#f59e0b,#fbbf24)" if total >= 70 else
-                "linear-gradient(180deg,#16a34a,#22c55e)" if total >= 60 else
-                "linear-gradient(180deg,#d97706,#eab308)" if total >= 50 else
-                "linear-gradient(180deg,#94a3b8,#cbd5e1)"
+                "linear-gradient(180deg,#f59e0b,#fbbf24)" if total >= 90 else  # TOP
+                "linear-gradient(180deg,#16a34a,#22c55e)" if total >= 75 else  # GOOD
+                "linear-gradient(180deg,#d97706,#eab308)" if total >= 60 else  # FAIR
+                "linear-gradient(180deg,#94a3b8,#cbd5e1)"                       # LOW
             )
             st.html(
                 f"<div style='position:absolute;left:0;top:0;bottom:0;width:4px;"
@@ -1958,6 +1962,20 @@ with tab2:
 
 with tab3:
     st.subheader("📐 점수 산정 기준")
+
+    st.markdown("""
+### 🎯 등급 임계값 (2026-05 튜닝)
+
+| 등급 | 점수 | 비율 | 의미 | 배지 색 |
+|---|---:|---:|---|---|
+| **TOP** | ≥ 90 | ~2% | 즉시 우선 검토 | 🟠 오렌지 |
+| **GOOD** | ≥ 75 | ~10% | 검토 권장 | 🟢 초록 |
+| **FAIR** | ≥ 60 | ~27% | 검토 고려 | 🟡 노랑 |
+| **LOW** | < 60 | ~60% | 참고만 | ⚪ 회색 |
+
+KPI 카드 · 카드 좌측 컬러 밴드 · 상태 배지 모두 위 기준 통일.
+""")
+
     st.markdown("""
 ### 종합 점수 = 가중합 + 테마 보너스
 ```
