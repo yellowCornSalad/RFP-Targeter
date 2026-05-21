@@ -1551,6 +1551,11 @@ def _render_detail_inline(row, aid):
         atts = json.loads(row.get("attachments_json") or "[]")
     except Exception:
         atts = []
+    # odt는 hwp 파일과 동일 내용 중복 → 제외 (정부 공고가 한글 호환 위해 같이 올림)
+    atts = [
+        a for a in atts
+        if isinstance(a, dict) and not str(a.get("name", "")).lower().endswith(".odt")
+    ]
     if atts:
         st.html(
             f"<div style='color:var(--text-muted);font-size:0.72rem;font-weight:700;"
@@ -2080,44 +2085,80 @@ with tab2:
                               else f"{rest:,}만")
             return " ".join(parts) if parts else "—"
 
-        chart_df = filtered[["title", "url", "total_score", "theme_fit",
-                             "keyword_score", "budget_mw", "consortium_score",
-                             "competitor_score", "trl_score"]].copy()
-        chart_df["title"] = chart_df["title"].str[:60]
-        chart_df["budget_mw"] = chart_df["budget_mw"].map(_fmt_budget)
-        chart_df = chart_df.sort_values("total_score", ascending=False)
+        # HTML 테이블 직접 렌더 — 공고명 자체가 링크가 되게 (st.dataframe LinkColumn은
+        # 셀 값=URL 가정이라 title 텍스트를 링크 라벨로 못 만듦)
+        view = filtered[["title", "url", "total_score", "theme_fit",
+                         "keyword_score", "budget_mw", "consortium_score",
+                         "competitor_score", "trl_score"]].copy()
+        view["title"] = view["title"].fillna("").str[:80]
+        view["budget_mw"] = view["budget_mw"].map(_fmt_budget)
+        view = view.sort_values("total_score", ascending=False)
 
-        def _axis_cfg(label):
-            return st.column_config.ProgressColumn(
-                label, min_value=0, max_value=100, format="%d"
+        import html as _html
+
+        def _bar(v: float, color: str = "#3b82f6") -> str:
+            v = float(v or 0)
+            pct = max(0, min(100, v))
+            return (
+                f"<div style='position:relative;background:#e2e8f0;border-radius:4px;"
+                f"height:18px;overflow:hidden;min-width:60px'>"
+                f"<div style='position:absolute;left:0;top:0;height:100%;"
+                f"width:{pct:.0f}%;background:{color};opacity:0.8'></div>"
+                f"<div style='position:relative;text-align:center;line-height:18px;"
+                f"font-size:0.78em;font-weight:600;color:#0f172a;font-feature-settings:\"tnum\"'>"
+                f"{pct:.0f}</div></div>"
             )
 
-        # 행 수에 맞춰 표 높이를 키워 페이지 여백을 채움 (최대 ~18행)
-        _h = min(len(chart_df), 18) * 35 + 40
+        rows_html = []
+        for _, row in view.iterrows():
+            title_esc = _html.escape(str(row["title"]))
+            url = str(row["url"] or "")
+            if url and url.startswith(("http://", "https://")):
+                title_cell = (
+                    f"<a href='{_html.escape(url)}' target='_blank' rel='noopener' "
+                    f"style='color:#0369a1;text-decoration:none;font-weight:500;"
+                    f"border-bottom:1px dashed #93c5fd'>{title_esc}</a>"
+                )
+            else:
+                title_cell = title_esc
+            rows_html.append(
+                "<tr>"
+                f"<td style='padding:6px 10px;font-size:0.9em'>{title_cell}</td>"
+                f"<td style='padding:6px 10px;text-align:center;font-weight:700;font-size:0.95em;"
+                f"font-feature-settings:\"tnum\"'>{float(row['total_score'] or 0):.0f}</td>"
+                f"<td style='padding:6px 8px'>{_bar(row['theme_fit'], '#f59e0b')}</td>"
+                f"<td style='padding:6px 8px'>{_bar(row['keyword_score'], '#3b82f6')}</td>"
+                f"<td style='padding:6px 10px;text-align:right;font-size:0.85em;"
+                f"font-feature-settings:\"tnum\"'>{_html.escape(str(row['budget_mw']))}</td>"
+                f"<td style='padding:6px 8px'>{_bar(row['consortium_score'], '#8b5cf6')}</td>"
+                f"<td style='padding:6px 8px'>{_bar(row['competitor_score'], '#ef4444')}</td>"
+                f"<td style='padding:6px 8px'>{_bar(row['trl_score'], '#10b981')}</td>"
+                "</tr>"
+            )
 
-        st.caption("💡 공고명 옆 🔗 아이콘 클릭 시 원문 사이트가 새 탭에서 열림")
-        st.dataframe(
-            chart_df,
-            width="stretch", hide_index=True, height=_h,
-            column_config={
-                "title": st.column_config.TextColumn("공고명", width="large"),
-                "url": st.column_config.LinkColumn(
-                    "🔗", help="공고 원문 사이트", display_text="열기 ↗",
-                    width="small",
-                ),
-                "total_score": st.column_config.NumberColumn(
-                    "종합 /100", format="%.1f", help="가중합 + 테마 보너스"),
-                "theme_fit": _axis_cfg("🎯 테마"),
-                "keyword_score": _axis_cfg("🔑 키워드"),
-                "budget_mw": st.column_config.TextColumn(
-                    "💰 예산", help="공고 사업비(추정)"),
-                "consortium_score": _axis_cfg("🤝 컨소시엄"),
-                "competitor_score": _axis_cfg("⚔️ 경쟁"),
-                "trl_score": _axis_cfg("🧪 TRL"),
-            },
-            column_order=["title", "url", "total_score", "theme_fit",
-                          "keyword_score", "budget_mw", "consortium_score",
-                          "competitor_score", "trl_score"],
+        st.caption("💡 공고명 클릭 시 원문 사이트가 새 탭에서 열림")
+        st.html(
+            "<style>"
+            ".score-table { width: 100%; border-collapse: collapse; }"
+            ".score-table th { background: #f8fafc; padding: 8px 10px; text-align: left;"
+            "  font-size: 0.85em; font-weight: 700; color: #475569; border-bottom: 1px solid #cbd5e1;"
+            "  text-transform: uppercase; letter-spacing: 0.04em; }"
+            ".score-table td { border-bottom: 1px solid #f1f5f9; }"
+            ".score-table tr:hover { background: #f8fafc; }"
+            "</style>"
+            "<table class='score-table'>"
+            "<thead><tr>"
+            "<th style='width:42%'>공고명</th>"
+            "<th style='width:7%;text-align:center'>종합 /100</th>"
+            "<th style='width:10%'>🎯 테마</th>"
+            "<th style='width:10%'>🔑 키워드</th>"
+            "<th style='width:9%;text-align:right'>💰 예산</th>"
+            "<th style='width:10%'>🤝 컨소시엄</th>"
+            "<th style='width:8%'>⚔️ 경쟁</th>"
+            "<th style='width:7%'>🧪 TRL</th>"
+            "</tr></thead>"
+            f"<tbody>{''.join(rows_html)}</tbody>"
+            "</table>"
         )
 
 with tab3:

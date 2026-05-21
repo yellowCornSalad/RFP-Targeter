@@ -104,12 +104,22 @@ _UNIT_PRICE_PREFIX = re.compile(
 _PERIOD_YEAR_LABEL = re.compile(
     r"['‘’‛ʼ`＇]?(\d{2,4})\s*년"  # '26년, '26년, 2026년 (다양한 typographic apostrophe)
 )
-# 사업기간은 prefix 바로 다음에 (5자 이내) N개월/N년 형식으로만 인정.
-# 가운데 다른 텍스트(예산, 출연금 등) 끼면 그건 연도 라벨이지 기간 아님.
+# 사업기간 prefix 패턴 — 가운데 텍스트 80자 허용 (날짜 범위/약/등 흡수)
+# 그러나 prefix와 N(개월|년) 사이에 다른 사업기간 표현이 또 나오면 안 됨 (greedy 방지)
 _PERIOD_DURATION = re.compile(
     r"(?:총\s*)?(?:사업\s*기간|연구\s*기간|총\s*연구\s*기간|수행\s*기간|총\s*사업\s*기간|"
-    r"연구\s*개발\s*기간|전체\s*사업\s*기간|총\s*기간)"
-    r"\s*[:\s\-=()]{0,5}\s*(\d{1,3})\s*(개월|년)\b"
+    r"연구\s*개발\s*기간|전체\s*사업\s*기간|총\s*기간|지원\s*기간|협약\s*기간|계약\s*기간)"
+    r"[^()\n]{0,80}?(?:\(\s*약?\s*)?(\d{1,3})\s*(개월|년)\b"
+)
+# "X년 Y개월" 형식 별도 (총 사업기간 3년 9개월)
+_PERIOD_YEARMONTH = re.compile(
+    r"(?:사업\s*기간|연구\s*기간|총\s*사업\s*기간|총\s*연구\s*기간|지원\s*기간|총\s*기간)"
+    r"[^()\n]{0,80}?\(?\s*(\d{1,2})\s*년\s*(\d{1,2})\s*개월\s*\)?"
+)
+# 단독 "(N개월)" / "(약 N개월)" — 본문에 명시
+_PERIOD_PAREN_MONTHS = re.compile(
+    r"\(\s*(?:약\s*)?(\d{1,3})\s*개월\s*\)|"
+    r"\(\s*(\d{1,2})\s*년\s*(\d{1,2})?\s*개월?\s*\)"
 )
 # 단독 기간 표현 — 년 또는 개월
 _DURATION_STANDALONE = re.compile(
@@ -226,7 +236,15 @@ def _normalize_year(y: int) -> int:
 
 def _find_duration_in(text_block: str) -> tuple[int | None, int | None]:
     """텍스트 블록에서 사업기간 추출. Returns (duration_months, years)."""
-    # 1. "사업기간 N년/N개월"
+    # 1. "사업기간 ... 3년 9개월" (혼합 표현)
+    m = _PERIOD_YEARMONTH.search(text_block)
+    if m:
+        y = int(m.group(1))
+        mo = int(m.group(2))
+        if 0 <= y <= 30 and 0 <= mo < 12:
+            total = y * 12 + mo
+            return total, y if mo == 0 else y + (1 if mo >= 6 else 0)
+    # 2. "사업기간 ... N개월" / "사업기간 ... N년"
     m = _PERIOD_DURATION.search(text_block)
     if m:
         n = int(m.group(1))
@@ -234,7 +252,7 @@ def _find_duration_in(text_block: str) -> tuple[int | None, int | None]:
             return n * 12, n
         else:
             return n, max(1, round(n / 12))
-    # 2. 년 단위 단독 표현
+    # 3. 년 단위 단독 표현 — "(5년간)", "5개년 사업"
     m = _DURATION_STANDALONE.search(text_block)
     if m:
         val = m.group(1) or m.group(2) or m.group(3) or m.group(4)
@@ -242,15 +260,28 @@ def _find_duration_in(text_block: str) -> tuple[int | None, int | None]:
             n = int(val)
             if 1 <= n <= 30:
                 return n * 12, n
-    # 3. 개월 단위 단독 표현 ("60개월 사업")
+    # 4. 개월 단위 단독 표현 — "60개월 사업", "(약 9개월)"
     m = _DURATION_MONTHS_STANDALONE.search(text_block)
     if m:
         val = m.group(1) or m.group(2)
         if val:
             months = int(val)
-            if 1 <= months <= 360:  # 30년 이내
+            if 1 <= months <= 360:
                 return months, max(1, round(months / 12))
-    # 4. 연도 범위 "'26년~'30년"
+    # 5. 괄호 안의 (N개월) — 본문에 명시 단독
+    m = _PERIOD_PAREN_MONTHS.search(text_block)
+    if m:
+        if m.group(1):
+            months = int(m.group(1))
+            if 1 <= months <= 360:
+                return months, max(1, round(months / 12))
+        elif m.group(2):
+            y = int(m.group(2))
+            mo = int(m.group(3) or 0)
+            total = y * 12 + mo
+            if 1 <= total <= 360:
+                return total, max(1, y + (1 if mo >= 6 else 0))
+    # 6. 연도 범위 "'26년~'30년"
     m = _RANGE_YEARS.search(text_block)
     if m:
         y1 = _normalize_year(int(m.group(1)))
@@ -306,10 +337,18 @@ def _detect_period(text: str, amount_start: int, amount_end: int) -> tuple[str, 
             n_yrs = y2 - y1 + 1
             if 1 <= n_yrs <= 30:
                 return f"총 {n_yrs}년 ({y1}~{y2})", n_yrs * 12, n_yrs
+        # 12개월 미만이면 개월 단위로 표시 (9개월을 "1년"이라 부르면 부정확)
+        if dm and dm < 12:
+            return f"총 {dm}개월간", dm, None
+        if dm and dm % 12 != 0:
+            # 비정수 년 (예: 45개월=3년9개월) → "3년 9개월"
+            y_part = dm // 12
+            m_part = dm % 12
+            return f"총 {y_part}년 {m_part}개월", dm, yrs
         if yrs:
             return f"총 {yrs}년간", dm, yrs
         if dm:
-            return f"총 {dm}개월", dm, None
+            return f"총 {dm}개월간", dm, None
         return "총사업비 (기간 미명시)", None, None
 
     # ── 3. N차년도 ───────────────────────────────────────────────

@@ -86,9 +86,24 @@ class NIPACrawler(BaseCrawler):
             return None
 
         detail_url = urljoin(BASE, href)
-        # nttNo 추출 → external_id
-        m = re.search(r"nttNo=(\d+)", detail_url)
-        external_id = f"nipa-{key}-{m.group(1)}" if m else f"nipa-{key}-{abs(hash(title)) % 10**10}"
+        # external_id 우선순위:
+        #   1. URL의 마지막 path segment (안정적, NIPA가 부여한 ID)
+        #   2. URL의 nttNo 파라미터
+        #   3. title의 결정적 해시 (Python hash() 는 PYTHONHASHSEED 영향받아 매 실행마다 다름!)
+        external_id = None
+        # /home/2-2/16774 형태에서 끝의 16774 추출
+        url_id_m = re.search(r"/(\d+)(?:\?|$|/)", detail_url)
+        if url_id_m:
+            external_id = f"nipa-{key}-{url_id_m.group(1)}"
+        else:
+            m = re.search(r"nttNo=(\d+)", detail_url)
+            if m:
+                external_id = f"nipa-{key}-{m.group(1)}"
+            else:
+                # 마지막 폴백: title의 SHA1 (결정적 — 매 실행 동일)
+                import hashlib as _hashlib
+                h = _hashlib.sha1(title.encode("utf-8")).hexdigest()[:12]
+                external_id = f"nipa-{key}-h{h}"
 
         # 날짜 추출 — 모든 셀에서 YYYY-MM-DD 패턴
         cell_texts = [td.get_text(" ", strip=True) for td in tr.find_all("td")]

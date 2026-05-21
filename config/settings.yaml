@@ -72,12 +72,13 @@ sources:
     base_url: "https://www.nipa.kr"
     max_per_source: 50
 
-  # NTIS — 과기정통부 산하 전 부처 통합 (IITP와 동일 data.go.kr endpoint 공유,
-  # IITP 매칭 항목은 거꾸로 제외 → NIA·ETRI·KEIT·KCA·한국연구재단·KISTEP 등 흡수)
+  # NTIS — 2026-05 검증 결과 IITP와 100% 데이터 중복 (NTIS 고유 0건).
+  # _is_iitp 역필터가 의도대로 작동 안 함 → 실제 운영에서는 IITP에 다 들어옴.
+  # 추후 NTIS endpoint가 IITP와 다른 부처 데이터를 제공하기 시작하면 enabled: true.
   ntis:
-    enabled: true
+    enabled: false
     base_url: "https://apis.data.go.kr"
-    max_per_source: 500                       # IITP와 같은 endpoint, 페이지 50개 추가
+    max_per_source: 500
 
 # 점수 가중치 (합 1.0)
 # keyword 비중 ↑: 회사 본업 매칭도가 가장 결정적
