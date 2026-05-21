@@ -153,16 +153,32 @@ def upsert_announcement(conn: psycopg.Connection, a: Announcement) -> bool:
                 ),
             )
             return True
+        # UPDATE — 빈 값으로 기존 데이터 덮어쓰지 않게 COALESCE 가드:
+        # · attachments_json : 새로 추출 실패해도 (= []) 기존 첨부 유지
+        # · budget_mw / period / excerpt : 새 추출 실패해도 기존 값 유지
+        # · body : 빈 문자열이면 기존 본문 유지
+        # (크롤러가 일시적으로 fetch 실패하거나 사이트 구조 변경 시 데이터 보존)
+        attachments_str = json.dumps(a.attachments, ensure_ascii=False)
         cur.execute(
             """
             UPDATE announcement SET
                 title=%s, agency=%s, url=%s, posted_at=%s, deadline_at=%s,
-                budget_mw=%s, duration_months=%s,
-                budget_period=%s, budget_excerpt=%s, budget_confidence=%s,
-                summary=%s, body=%s,
-                attachments_json=%s, matched_keywords_json=%s,
+                budget_mw=COALESCE(%s, budget_mw),
+                duration_months=COALESCE(%s, duration_months),
+                budget_period=COALESCE(%s, budget_period),
+                budget_excerpt=COALESCE(%s, budget_excerpt),
+                budget_confidence=COALESCE(%s, budget_confidence),
+                summary=COALESCE(NULLIF(%s,''), summary),
+                body=COALESCE(NULLIF(%s,''), body),
+                attachments_json = CASE
+                    WHEN %s IN ('','[]') THEN attachments_json
+                    ELSE %s
+                END,
+                matched_keywords_json=%s,
                 updated_at=%s, is_security=%s,
-                eligibility_status=%s, eligibility_note=%s, eligibility_limit=%s
+                eligibility_status=COALESCE(%s, eligibility_status),
+                eligibility_note=COALESCE(%s, eligibility_note),
+                eligibility_limit=COALESCE(%s, eligibility_limit)
             WHERE id=%s
             """,
             (
@@ -170,7 +186,7 @@ def upsert_announcement(conn: psycopg.Connection, a: Announcement) -> bool:
                 a.budget_mw, a.duration_months,
                 a.budget_period, a.budget_excerpt, a.budget_confidence,
                 a.summary, a.body,
-                json.dumps(a.attachments, ensure_ascii=False),
+                attachments_str, attachments_str,
                 json.dumps(a.matched_keywords, ensure_ascii=False),
                 now, bool(a.is_security),
                 a.eligibility_status, a.eligibility_note, a.eligibility_limit,

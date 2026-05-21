@@ -251,23 +251,34 @@ section[data-testid="stSidebar"] hr {
     margin: 1rem 0 !important;
 }
 section[data-testid="stSidebar"] h3 {
-    font-size: 0.78rem !important;
-    text-transform: uppercase;
-    letter-spacing: 0.08em !important;
-    color: var(--text-faint) !important;
-    font-weight: 700 !important;
-    margin-top: 1.2rem !important;
+    font-size: 12px !important;
+    text-transform: none !important;
+    letter-spacing: 0 !important;
+    color: var(--text-muted) !important;
+    font-weight: 600 !important;
+    margin-top: 1.4rem !important;
+    margin-bottom: 0.5rem !important;
+}
+/* 사이드바 라벨 (selectbox 등) — 더 작고 단정 */
+section[data-testid="stSidebar"] label,
+section[data-testid="stSidebar"] [data-testid="stWidgetLabel"] p {
+    font-size: 0.825rem !important;
+    color: var(--text-soft) !important;
+    font-weight: 500 !important;
+    margin-bottom: 4px !important;
 }
 
-/* === 헤더 (h1~h4) === */
+/* === 헤더 (h1~h4) — 네이버/토스 톤 위계 === */
 h1, h2, h3, h4 {
     color: var(--text) !important;
     letter-spacing: -0.025em !important;
     font-weight: 700 !important;
+    line-height: 1.3 !important;
 }
-h1 { font-size: 1.6rem !important; }
-h2 { font-size: 1.25rem !important; }
-h3 { font-size: 1.05rem !important; }
+h1 { font-size: 1.5rem !important; }
+h2 { font-size: 1.15rem !important; margin-top: 0.5rem !important; }
+h3 { font-size: 1rem !important; font-weight: 600 !important; }
+h4 { font-size: 0.9rem !important; font-weight: 600 !important; }
 
 /* === Tabs — 미니멀 언더라인 === */
 [data-testid="stTabs"] [role="tablist"] {
@@ -479,78 +490,78 @@ a:hover {
    ghost buttons / empty state / card score band
    ═════════════════════════════════════════════════════════════════════════ */
 
-/* === 본문 상단 sticky app bar === */
+/* === 본문 상단 app bar — 네이버 메인 상단 톤 (그림자 X, 단순) === */
 .enki-appbar {
     display: flex; align-items: center; justify-content: space-between;
     padding: 14px 18px; background: var(--surface);
-    border: 1px solid var(--border); border-radius: 14px;
+    border: 1px solid var(--border); border-radius: var(--radius);
     margin-bottom: 18px;
-    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+    box-shadow: none;
 }
 .enki-appbar .left {
-    display: flex; align-items: center; gap: 14px;
+    display: flex; align-items: center; gap: 12px;
 }
 .enki-appbar .crumb {
-    color: var(--text-faint); font-size: 0.78rem;
-    text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700;
+    color: var(--text-muted); font-size: 12px;
+    font-weight: 500;
 }
 .enki-appbar .title {
-    font-size: 1.05rem; font-weight: 700; color: var(--text);
+    font-size: 1rem; font-weight: 700; color: var(--text);
     letter-spacing: -0.02em;
 }
 .enki-appbar .badge {
-    background: var(--accent-soft); color: var(--chip-text);
-    padding: 3px 10px; border-radius: 999px;
-    font-size: 0.78rem; font-weight: 700; border: 1px solid var(--chip-border);
+    background: var(--accent-soft); color: var(--primary);
+    padding: 2px 9px; border-radius: 5px;
+    font-size: 11px; font-weight: 600; border: 1px solid var(--chip-border);
 }
 .enki-appbar .right {
-    display: flex; align-items: center; gap: 8px;
-    color: var(--text-muted); font-size: 0.82rem;
+    display: flex; align-items: center; gap: 12px;
+    color: var(--text-muted); font-size: 12px;
 }
 .enki-appbar .right .dot { width:6px;height:6px;border-radius:50%;
     background: var(--success); display:inline-block; margin-right:4px; }
 
-/* === KPI Stats Strip === */
+/* === KPI Stats Strip — 네이버/토스 톤, 절제된 hover === */
 .enki-kpi-strip { display: grid; gap: 10px; margin-bottom: 18px; }
 .enki-kpi-card {
     background: var(--surface); border: 1px solid var(--border);
-    border-radius: 14px; padding: 14px 16px;
-    transition: all 0.15s ease;
+    border-radius: var(--radius); padding: 14px 16px;
+    transition: border-color 0.15s ease, background 0.15s ease;
     cursor: pointer;
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+    box-shadow: none;
 }
 .enki-kpi-card:hover {
-    border-color: var(--accent); transform: translateY(-1px);
-    box-shadow: 0 6px 16px rgba(59, 130, 246, 0.10);
+    border-color: var(--border-strong);
+    background: var(--surface-alt);
 }
 .enki-kpi-card.active {
-    background: var(--accent-soft); border-color: var(--accent);
+    background: var(--accent-soft); border-color: var(--primary);
 }
 .enki-kpi-card.warn {
-    background: #fff7ed; border-color: #fed7aa;
+    background: var(--warning-soft); border-color: #fde68a;
 }
 .enki-kpi-label {
-    color: var(--text-muted); font-size: 0.78rem;
-    font-weight: 600; letter-spacing: 0.02em;
+    color: var(--text-muted); font-size: 12px;
+    font-weight: 500; letter-spacing: 0;
     display: flex; align-items: center; gap: 6px;
 }
 .enki-kpi-label .dot {
-    width: 8px; height: 8px; border-radius: 50%; display: inline-block;
+    width: 6px; height: 6px; border-radius: 50%; display: inline-block;
 }
 .enki-kpi-value {
-    font-size: 1.85rem; font-weight: 800;
-    color: var(--text); letter-spacing: -0.04em;
+    font-size: 1.65rem; font-weight: 700;
+    color: var(--text); letter-spacing: -0.03em;
     font-feature-settings: 'tnum' on;
-    margin-top: 4px; line-height: 1.1;
+    margin-top: 6px; line-height: 1.1;
 }
-.enki-kpi-value .unit { font-size: 0.7em; color: var(--text-muted); font-weight: 600; margin-left: 2px; }
+.enki-kpi-value .unit { font-size: 0.65em; color: var(--text-muted); font-weight: 500; margin-left: 3px; }
 .enki-kpi-delta {
-    margin-top: 4px; font-size: 0.75rem; color: var(--text-muted);
+    margin-top: 6px; font-size: 12px; color: var(--text-muted);
     display: flex; align-items: center; gap: 4px;
 }
 .enki-kpi-delta.up   { color: var(--success); }
 .enki-kpi-delta.down { color: var(--danger); }
-.enki-kpi-delta.warn { color: #c2410c; }
+.enki-kpi-delta.warn { color: var(--warning); }
 
 /* === 활성 필터 칩 바 === */
 .enki-filter-bar {
@@ -576,31 +587,31 @@ a:hover {
     color: var(--text-faint); font-style: italic;
 }
 
-/* === 공고 카드 좌측 점수 컬러 밴드 === */
+/* === 공고 카드 좌측 점수 컬러 밴드 — 단색 (그라데이션 X) === */
 [data-testid="stMain"] [data-testid="stVerticalBlockBorderWrapper"] {
     position: relative;
     overflow: hidden;
 }
 .enki-card-band {
     position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
-    border-top-left-radius: 16px; border-bottom-left-radius: 16px;
+    border-top-left-radius: var(--radius-lg); border-bottom-left-radius: var(--radius-lg);
 }
-.band-top    { background: linear-gradient(180deg, #f59e0b, #fbbf24); }   /* ≥70 */
-.band-high   { background: linear-gradient(180deg, #16a34a, #22c55e); }   /* ≥60 */
-.band-mid    { background: linear-gradient(180deg, #d97706, #eab308); }   /* ≥50 */
-.band-low    { background: linear-gradient(180deg, #94a3b8, #cbd5e1); }   /* <50 */
+.band-top    { background: #f59e0b; }   /* ≥90 — top */
+.band-high   { background: var(--success); }   /* ≥75 — good */
+.band-mid    { background: #facc15; }   /* ≥60 — fair */
+.band-low    { background: var(--border-strong); }   /* <60 */
 
-/* === 상태 배지 (카드 우상단) === */
+/* === 상태 배지 (카드 우상단) — 네이버/토스 톤, soft 배경 === */
 .enki-status-badge {
-    display: inline-block; padding: 4px 10px;
-    border-radius: 999px; font-size: 0.72rem;
-    font-weight: 700; letter-spacing: 0.02em;
-    border: 1px solid;
+    display: inline-block; padding: 3px 9px;
+    border-radius: 5px; font-size: 11px;
+    font-weight: 600; letter-spacing: 0.02em;
+    border: 1px solid transparent;
 }
-.enki-status-badge.top  { background:#fff7ed; color:#c2410c; border-color:#fdba74; }
-.enki-status-badge.high { background:#f0fdf4; color:#15803d; border-color:#86efac; }
+.enki-status-badge.top  { background:var(--warning-soft); color:var(--warning); border-color:#fde68a; }
+.enki-status-badge.high { background:var(--success-soft); color:var(--success); border-color:#a7f3d0; }
 .enki-status-badge.mid  { background:#fefce8; color:#a16207; border-color:#fde047; }
-.enki-status-badge.low  { background:#f8fafc; color:#64748b; border-color:#cbd5e1; }
+.enki-status-badge.low  { background:var(--surface-alt); color:var(--text-muted); border-color:var(--border); }
 
 /* === 5축 mini progress bar === */
 .enki-axes { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
