@@ -102,28 +102,44 @@ st.html(
 <link rel="stylesheet"
     href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <style>
-/* === 색상 토큰 (Cobalt Blue — 산뜻한 블루 + 중립 슬레이트) === */
+/* === 색상 토큰 — 토스·네이버 스타일 (단정한 단일 액센트 + 중립 그레이) === */
 :root {
     --bg:            #ffffff;
-    --bg-warm:       #fafbfc;
+    --bg-warm:       #fafafa;
     --surface:       #ffffff;
-    --surface-alt:   #f8fafc;       /* slate-50 */
-    --border:        #f1f5f9;       /* slate-100 — 거의 안 보일 만큼 옅게 */
-    --border-strong: #e2e8f0;       /* slate-200 */
-    --text:          #0f172a;       /* slate-900 — 중립 다크 (보라 기 없음) */
-    --text-muted:    #64748b;       /* slate-500 */
-    --text-soft:     #334155;       /* slate-700 */
-    --text-faint:    #94a3b8;       /* slate-400 */
-    --primary:       #1e40af;       /* blue-800 — 사이드바 타이틀 등 진한 블루 */
+    --surface-alt:   #f9fafb;       /* gray-50 */
+    --surface-sunk:  #f3f4f6;       /* gray-100 */
+    --border:        #e5e7eb;       /* gray-200 — 명확하나 부드러운 */
+    --border-strong: #d1d5db;       /* gray-300 */
+    --border-soft:   #f3f4f6;       /* 거의 안 보임 */
+    --text:          #111827;       /* gray-900 — 중립 진한 검정 */
+    --text-muted:    #6b7280;       /* gray-500 */
+    --text-soft:     #4b5563;       /* gray-600 */
+    --text-faint:    #9ca3af;       /* gray-400 */
+    --primary:       #2563eb;       /* blue-600 — 토스 파랑 톤 */
     --primary-soft:  #1d4ed8;       /* blue-700 */
-    --accent:        #3b82f6;       /* blue-500 — 메인 액센트(슬라이더, 호버, 칩) */
-    --accent-hover:  #2563eb;       /* blue-600 */
-    --accent-soft:   #eff6ff;       /* blue-50 — 칩/호버 배경 */
-    --chip-text:     #1d4ed8;       /* blue-700 — 칩 글자 */
-    --chip-border:   #bfdbfe;       /* blue-200 — 칩 보더 */
-    --success:       #16a34a;
+    --primary-dark:  #1e3a8a;       /* blue-900 */
+    --accent:        #2563eb;       /* primary와 통일 (단일 액센트) */
+    --accent-hover:  #1d4ed8;
+    --accent-soft:   #eff6ff;       /* blue-50 */
+    --chip-text:     #1e40af;
+    --chip-border:   #dbeafe;       /* blue-100 */
+    --success:       #059669;       /* emerald-600 */
+    --success-soft:  #ecfdf5;
     --warning:       #d97706;
+    --warning-soft:  #fffbeb;
     --danger:        #dc2626;
+    --danger-soft:   #fef2f2;
+    /* Shadow tokens — 매우 절제 */
+    --shadow-xs:     0 1px 2px rgba(0, 0, 0, 0.04);
+    --shadow-sm:     0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+    --shadow-md:     0 4px 12px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
+    --shadow-lg:     0 12px 32px rgba(0, 0, 0, 0.08), 0 4px 8px rgba(0, 0, 0, 0.04);
+    /* Radius — 일관성 (네이버/토스 8~12px) */
+    --radius-sm:     6px;
+    --radius:        8px;
+    --radius-md:     10px;
+    --radius-lg:     12px;
 }
 
 /* === 전역 폰트 — Pretendard === */
@@ -275,25 +291,24 @@ h3 { font-size: 1.05rem !important; }
     border-bottom-color: var(--accent) !important;
 }
 
-/* === 일반 버튼 — 아웃라인 + 그림자 톤 === */
+/* === 일반 버튼 — 깔끔한 아웃라인 (토스/네이버 톤) === */
 [data-testid="stButton"] > button,
 [data-testid="stDownloadButton"] > button {
-    border-radius: 10px !important;
-    border: 1px solid var(--border-strong) !important;
+    border-radius: var(--radius) !important;
+    border: 1px solid var(--border) !important;
     background: var(--surface) !important;
     color: var(--text) !important;
     font-weight: 500 !important;
-    font-size: 0.9rem !important;
-    padding: 0.45rem 0.85rem !important;
-    transition: all 0.15s ease !important;
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04) !important;
+    font-size: 0.875rem !important;
+    padding: 0.5rem 0.95rem !important;
+    transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease !important;
+    box-shadow: none !important;
 }
 [data-testid="stButton"] > button:hover:not(:disabled),
 [data-testid="stDownloadButton"] > button:hover:not(:disabled) {
-    border-color: var(--accent) !important;
-    background: var(--accent-soft) !important;
-    color: var(--primary-soft) !important;
-    box-shadow: 0 2px 6px rgba(59, 130, 246, 0.15) !important;
+    border-color: var(--border-strong) !important;
+    background: var(--surface-alt) !important;
+    color: var(--text) !important;
 }
 [data-testid="stButton"] > button:disabled {
     opacity: 0.45 !important;
@@ -311,17 +326,17 @@ h3 { font-size: 1.05rem !important; }
     color: #ffffff !important;
 }
 
-/* === 카드 컨테이너 (st.container(border=True)) === */
+/* === 카드 컨테이너 — 절제된 그림자 (토스 스타일) === */
 [data-testid="stMain"] [data-testid="stVerticalBlockBorderWrapper"] {
     border: 1px solid var(--border) !important;
-    border-radius: 16px !important;
+    border-radius: var(--radius-lg) !important;
     background: var(--surface) !important;
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04) !important;
-    transition: box-shadow 0.2s ease, border-color 0.2s ease, transform 0.15s ease !important;
+    box-shadow: var(--shadow-xs) !important;
+    transition: border-color 0.18s ease, box-shadow 0.18s ease !important;
 }
 [data-testid="stMain"] [data-testid="stVerticalBlockBorderWrapper"]:hover {
-    border-color: var(--chip-border) !important;
-    box-shadow: 0 8px 24px rgba(59, 130, 246, 0.10), 0 2px 6px rgba(15, 23, 42, 0.04) !important;
+    border-color: var(--border-strong) !important;
+    box-shadow: var(--shadow-sm) !important;
 }
 /* 오늘 신규 공고 카드 — 호버 시 노란 글로우로 변경 (NEW 스티커 강조).
    카드 본문 첫 element가 NEW 띠(linear-gradient 들어간 height:4px div)일 때 적용 */
@@ -1021,16 +1036,15 @@ imm_active = st.session_state.get("imminent_only", False)
 cur_min = st.session_state.get("min_score", 0)
 
 
-# KPI 카드 — Streamlit 1.40+ 부터 button label 안 마크다운 헤딩(##) 미지원이라
-# 그대로 텍스트로 노출됨. 대신 emoji 아이콘 + bold 로 시각 위계 표현.
-def _kpi_label(icon: str, name: str, value: int, sub: str) -> str:
-    return f"{icon} **{name}**  \n**{value:,}** 건  \n_{sub}_"
+# KPI 카드 — 깔끔한 카드 (이모지 제거, 색상 점으로 등급 표시)
+def _kpi_label(name: str, value: int, sub: str) -> str:
+    return f"{name}  \n**{value:,}** 건  \n_{sub}_"
 
 
 k1, k2, k3, k4, k5 = st.columns(5)
 with k1:
     st.button(
-        _kpi_label("📊", "전체 공고", total_n, f"오늘 신규 +{_today_n}"),
+        _kpi_label("전체 공고", total_n, f"오늘 신규 {_today_n}건"),
         key="kpi_all", on_click=_set_min_score, args=(0,),
         use_container_width=True,
         type="primary" if cur_min == 0 else "secondary",
@@ -1038,7 +1052,7 @@ with k1:
     )
 with k2:
     st.button(
-        _kpi_label("🟡", "≥ 60점 (Fair)", n_fair,
+        _kpi_label("Fair · 60점+", n_fair,
                    f"전체의 {int(100*n_fair/max(total_n,1))}%"),
         key="kpi_fair", on_click=_set_min_score, args=(60,),
         use_container_width=True,
@@ -1047,7 +1061,7 @@ with k2:
     )
 with k3:
     st.button(
-        _kpi_label("🟢", "≥ 75점 (Good)", n_good,
+        _kpi_label("Good · 75점+", n_good,
                    f"전체의 {int(100*n_good/max(total_n,1))}%"),
         key="kpi_good", on_click=_set_min_score, args=(75,),
         use_container_width=True,
@@ -1056,7 +1070,7 @@ with k3:
     )
 with k4:
     st.button(
-        _kpi_label("🟠", "≥ 90점 (Top)", n_top,
+        _kpi_label("Top · 90점+", n_top,
                    f"전체의 {int(100*n_top/max(total_n,1))}%"),
         key="kpi_top", on_click=_set_min_score, args=(90,),
         use_container_width=True,
@@ -1065,7 +1079,7 @@ with k4:
     )
 with k5:
     st.button(
-        _kpi_label("⏰", "마감 ≤ 7일", imminent,
+        _kpi_label("마감 임박 (7일내)", imminent,
                    "필터 적용 중" if imm_active else "클릭해서 필터"),
         key="kpi_imminent", on_click=_toggle_imminent,
         use_container_width=True,
@@ -2325,44 +2339,56 @@ with tab4:
     size = company.get("size", "")
     positioning = company.get("positioning", "")
 
-    # ─── 명함 헤더 ─────────────────────────────────────────────────
+    # ─── 회사 헤더 (flat, 좌측 색바 + 깔끔한 정보 구성) ──────────────
     from datetime import datetime as _dt_now
     age_str = ""
     if est_year:
         try:
             age = _dt_now.now().year - int(est_year)
-            age_str = f"{est_year}년 설립 · 창업 {age}년차"
+            age_str = f"창업 {age}년차"
         except Exception:
-            age_str = f"{est_year}년 설립"
+            age_str = ""
+
+    meta_items = []
+    if est_year:
+        meta_items.append(f"{est_year}년 설립")
+    if age_str:
+        meta_items.append(age_str)
+    if size:
+        meta_items.append(f"{size} 기업")
+    meta_line = "  ·  ".join(meta_items)
 
     home_html = (
-        f"<a href='{_h_prof.escape(home)}' target='_blank' "
-        f"style='color:#0369a1;text-decoration:none'>{_h_prof.escape(home)} ↗</a>"
+        f'<a href="{_h_prof.escape(home)}" target="_blank" rel="noopener" '
+        f'style="color:var(--primary);font-weight:500;'
+        f'border-bottom:1px solid transparent;text-decoration:none">'
+        f'{_h_prof.escape(home.replace("https://", "").replace("http://", ""))}'
+        f'</a>'
         if home else ""
     )
     st.html(
-        "<div style='background:linear-gradient(135deg,#0c4a6e 0%, #075985 50%, #0369a1 100%);"
-        "color:white;padding:28px 32px;border-radius:12px;"
-        "box-shadow:0 8px 24px rgba(3,105,161,0.18);margin-bottom:20px'>"
-        f"<div style='font-size:0.78em;opacity:0.85;letter-spacing:0.12em;"
-        "text-transform:uppercase;font-weight:600;margin-bottom:6px'>COMPANY PROFILE</div>"
-        f"<div style='font-size:2rem;font-weight:800;letter-spacing:-0.02em;"
-        f"line-height:1.15'>{_h_prof.escape(name)}</div>"
-        + (f"<div style='font-size:1rem;opacity:0.88;margin-top:4px;font-weight:500'>"
-           f"{_h_prof.escape(eng)}</div>" if eng else "")
-        + (f"<div style='margin-top:14px;font-size:0.95rem;line-height:1.55;"
-           f"opacity:0.92;max-width:780px'>{_h_prof.escape(positioning)}</div>"
-           if positioning else "")
-        + f"<div style='display:flex;gap:18px;margin-top:16px;flex-wrap:wrap;"
-          f"font-size:0.85rem;opacity:0.9'>"
-          f"{f'<span>🌐 {home_html}</span>' if home else ''}"
-          f"{f'<span>📅 {age_str}</span>' if age_str else ''}"
-          f"{f'<span>📏 {_h_prof.escape(size)}</span>' if size else ''}"
-          "</div>"
-        "</div>"
+        '<div style="background:var(--surface);border:1px solid var(--border);'
+        'border-radius:var(--radius-lg);padding:28px 32px;margin-bottom:20px;'
+        'border-left:4px solid var(--primary);box-shadow:var(--shadow-xs)">'
+        '<div style="font-size:11px;color:var(--text-muted);letter-spacing:0.12em;'
+        'text-transform:uppercase;font-weight:600;margin-bottom:8px">회사 프로필</div>'
+        '<div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:4px">'
+        f'<h1 style="font-size:1.75rem;font-weight:800;color:var(--text);'
+        f'margin:0;letter-spacing:-0.025em;line-height:1.2">{_h_prof.escape(name)}</h1>'
+        + (f'<span style="font-size:0.95rem;color:var(--text-muted);font-weight:500">'
+           f'{_h_prof.escape(eng)}</span>' if eng else '')
+        + '</div>'
+        + (f'<div style="font-size:0.875rem;color:var(--text-muted);margin-top:6px">'
+           f'{_h_prof.escape(meta_line)}</div>' if meta_line else '')
+        + (f'<div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--border-soft);'
+           f'font-size:0.95rem;line-height:1.65;color:var(--text-soft);max-width:780px">'
+           f'{_h_prof.escape(positioning)}</div>' if positioning else '')
+        + (f'<div style="margin-top:14px;font-size:0.88rem">{home_html}</div>'
+           if home_html else '')
+        + '</div>'
     )
 
-    # ─── 핵심 지표 KPI 4~5개 ──────────────────────────────────────
+    # ─── 핵심 지표 — 카드 그리드 (이모지 X, 타이포로만) ───────────
     track = p.get("track_record") or {}
     ip = track.get("ip_assets") or {}
     std = track.get("standards") or {}
@@ -2373,164 +2399,189 @@ with tab4:
     if ip.get("patents_total"):
         reg = ip.get("patents_registered_domestic", 0) or 0
         pend = ip.get("patents_pending_domestic", 0) or 0
-        kpis.append(("🔬", "특허", str(ip["patents_total"]), f"등록 {reg} · 출원 {pend}건"))
+        kpis.append(("특허", str(ip["patents_total"]), "건", f"등록 {reg} · 출원 {pend}"))
     if std.get("domestic_count") or std.get("international_count"):
         d = std.get("domestic_count", 0) or 0
         i = std.get("international_count", 0) or 0
-        kpis.append(("📜", "표준", str(d + i), f"국내 {d} · 국제 {i}건"))
+        kpis.append(("표준", str(d + i), "건", f"국내 {d} · 국제 {i}"))
     if data_a.get("hacker_knowledge_db_count"):
         cnt = data_a["hacker_knowledge_db_count"]
-        kpis.append(("🗄️", "해커 DB", f"{cnt//10000}만+건",
+        kpis.append(("해커 DB", f"{cnt//10000}만+", "건",
                      f"{data_a.get('db_accumulation_years', '?')}년 누적"))
     if consortium.get("max_partners"):
-        kpis.append(("🤝", "컨소시엄", consortium.get("preferred_role", "?"),
+        kpis.append(("컨소시엄", consortium.get("preferred_role", "?"), "",
                      f"최대 {consortium['max_partners']}개사 협업"))
     if consortium.get("solo_capable"):
-        kpis.append(("⚡", "단독 수행", "가능",
-                     "4단계 platform 모듈"))
+        kpis.append(("단독 수행", "가능", "", "4단계 platform 모듈"))
 
     if kpis:
         cols = st.columns(len(kpis))
-        for col, (icon, label, val, sub) in zip(cols, kpis):
+        for col, (label, val, unit, sub) in zip(cols, kpis):
             with col:
                 st.html(
-                    "<div style='background:white;border:1px solid #e2e8f0;"
-                    "border-radius:10px;padding:16px 18px;height:100%;"
-                    "box-shadow:0 1px 3px rgba(0,0,0,0.04)'>"
-                    f"<div style='font-size:0.72rem;color:#64748b;font-weight:600;"
-                    f"letter-spacing:0.06em;text-transform:uppercase;margin-bottom:4px'>"
-                    f"{icon} {label}</div>"
-                    f"<div style='font-size:1.6rem;font-weight:800;color:#0f172a;"
-                    f"letter-spacing:-0.03em;line-height:1.1'>{_h_prof.escape(str(val))}</div>"
-                    f"<div style='font-size:0.78rem;color:#64748b;margin-top:4px'>"
-                    f"{_h_prof.escape(sub)}</div>"
-                    "</div>"
+                    '<div style="background:var(--surface);border:1px solid var(--border);'
+                    'border-radius:var(--radius);padding:18px 20px;height:100%;'
+                    'transition:border-color 0.15s ease">'
+                    f'<div style="font-size:12px;color:var(--text-muted);'
+                    f'font-weight:500;margin-bottom:8px">{label}</div>'
+                    f'<div style="font-size:1.75rem;font-weight:700;color:var(--text);'
+                    f'letter-spacing:-0.03em;line-height:1.1;font-feature-settings:\'tnum\'">'
+                    f'{_h_prof.escape(str(val))}'
+                    + (f'<span style="font-size:0.6em;color:var(--text-muted);'
+                       f'font-weight:500;margin-left:3px">{unit}</span>' if unit else '')
+                    + '</div>'
+                    + f'<div style="font-size:12px;color:var(--text-muted);margin-top:6px;'
+                      f'line-height:1.4">{_h_prof.escape(sub)}</div>'
+                    + '</div>'
                 )
 
-    # ─── 자체 제품·기술 ───────────────────────────────────────────
+    # ─── 자체 보유 기술 ────────────────────────────────────────────
     techs = p.get("technologies") or []
     if techs:
-        st.html("<div style='margin-top:24px;font-size:1.05rem;font-weight:700;"
-                "color:#0f172a;letter-spacing:-0.01em'>🎯 자체 보유 기술 (TRL)</div>")
+        st.html('<div style="margin-top:28px;margin-bottom:12px">'
+                '<div style="font-size:1.05rem;font-weight:700;color:var(--text);'
+                'letter-spacing:-0.015em">자체 보유 기술</div>'
+                '<div style="font-size:0.82rem;color:var(--text-muted);margin-top:2px">'
+                'TRL: Technology Readiness Level (9=상용화, 8=실증, 7=시제, ...)</div>'
+                '</div>')
         for tech in techs:
             tname = tech.get("name", "")
             trl = tech.get("trl", "?")
             kws = tech.get("keywords") or []
-            trl_color = "#10b981" if isinstance(trl, int) and trl >= 8 else "#f59e0b"
+            is_mature = isinstance(trl, int) and trl >= 8
+            trl_bg = "var(--success-soft)" if is_mature else "var(--warning-soft)"
+            trl_color = "var(--success)" if is_mature else "var(--warning)"
             kw_chips = "".join(
-                f"<span style='background:#f1f5f9;color:#475569;padding:3px 9px;"
-                f"border-radius:12px;font-size:0.78em;margin:2px 3px 0 0;"
-                f"display:inline-block'>{_h_prof.escape(str(k))}</span>"
+                f'<span style="background:var(--surface-alt);color:var(--text-soft);'
+                f'padding:4px 10px;border-radius:6px;font-size:0.8rem;font-weight:500;'
+                f'margin:3px 5px 0 0;display:inline-block;border:1px solid var(--border-soft)">'
+                f'{_h_prof.escape(str(k))}</span>'
                 for k in kws[:8]
             )
             st.html(
-                "<div style='background:white;border:1px solid #e2e8f0;border-radius:10px;"
-                "padding:14px 18px;margin:8px 0'>"
-                f"<div style='display:flex;align-items:center;gap:10px;margin-bottom:6px'>"
-                f"<span style='font-weight:700;color:#0f172a;font-size:1rem'>"
-                f"{_h_prof.escape(tname)}</span>"
-                f"<span style='background:{trl_color};color:white;padding:2px 9px;"
-                f"border-radius:10px;font-size:0.72em;font-weight:700'>TRL {trl}</span>"
-                f"</div>"
-                f"<div>{kw_chips}</div>"
-                "</div>"
+                '<div style="background:var(--surface);border:1px solid var(--border);'
+                'border-radius:var(--radius);padding:16px 20px;margin:10px 0">'
+                f'<div style="display:flex;align-items:center;gap:10px;'
+                f'margin-bottom:10px;flex-wrap:wrap">'
+                f'<span style="font-weight:700;color:var(--text);font-size:1rem">'
+                f'{_h_prof.escape(tname)}</span>'
+                f'<span style="background:{trl_bg};color:{trl_color};'
+                f'padding:3px 10px;border-radius:6px;font-size:11px;font-weight:700;'
+                f'letter-spacing:0.04em">TRL {trl}</span>'
+                f'</div>'
+                f'<div style="margin-top:2px">{kw_chips}</div>'
+                '</div>'
             )
 
-    # ─── 예산 sweet spot ──────────────────────────────────────────
+    # ─── 예산 적합 구간 ────────────────────────────────────────────
     budget = p.get("budget_range") or {}
     if budget.get("sweet_spot_min") and budget.get("sweet_spot_max"):
         sm = budget["sweet_spot_min"]
         sx = budget["sweet_spot_max"]
         mn = budget.get("min", 0)
         mx = budget.get("max", sx * 2)
-        st.html("<div style='margin-top:24px;font-size:1.05rem;font-weight:700;"
-                "color:#0f172a;letter-spacing:-0.01em'>💰 예산 적합 구간</div>")
-        # 시각화 — 단순 막대
+        st.html('<div style="margin-top:28px;margin-bottom:12px">'
+                '<div style="font-size:1.05rem;font-weight:700;color:var(--text);'
+                'letter-spacing:-0.015em">예산 적합 구간</div>'
+                '<div style="font-size:0.82rem;color:var(--text-muted);margin-top:2px">'
+                '회사 규모 대비 최적 사업비 범위 — 점수의 예산 축 가중치 기준</div>'
+                '</div>')
         scale = max(mx, 1)
         pct_min = 100 * sm / scale
         pct_max = 100 * sx / scale
         pct_mn = 100 * mn / scale
         st.html(
-            "<div style='background:white;border:1px solid #e2e8f0;border-radius:10px;"
-            "padding:18px 20px;margin-top:8px'>"
-            f"<div style='display:flex;justify-content:space-between;font-size:0.8em;"
-            f"color:#64748b;margin-bottom:6px'>"
-            f"<span>{mn:,}백만</span>"
-            f"<span style='font-weight:700;color:#0369a1'>"
-            f"sweet spot: {sm:,} ~ {sx:,}백만 ({sm//100}억 ~ {sx//100}억)</span>"
-            f"<span>{mx:,}백만</span>"
-            f"</div>"
-            f"<div style='position:relative;background:#f1f5f9;height:12px;border-radius:6px'>"
-            f"<div style='position:absolute;left:{pct_mn}%;width:{pct_min-pct_mn}%;"
-            f"top:0;height:100%;background:#fbbf24;opacity:0.6;border-radius:2px'></div>"
-            f"<div style='position:absolute;left:{pct_min}%;width:{pct_max-pct_min}%;"
-            f"top:0;height:100%;background:#10b981;border-radius:2px'></div>"
-            f"<div style='position:absolute;left:{pct_max}%;right:0;"
-            f"top:0;height:100%;background:#94a3b8;opacity:0.5;border-radius:2px'></div>"
-            f"</div></div>"
+            '<div style="background:var(--surface);border:1px solid var(--border);'
+            'border-radius:var(--radius);padding:20px 24px">'
+            f'<div style="text-align:center;margin-bottom:14px">'
+            f'<span style="font-size:1.4rem;font-weight:700;color:var(--text);'
+            f'letter-spacing:-0.025em">{sm//100}억 ~ {sx//100}억원</span>'
+            f'<span style="font-size:0.85rem;color:var(--text-muted);margin-left:8px">'
+            f'sweet spot</span></div>'
+            f'<div style="position:relative;background:var(--surface-sunk);'
+            f'height:8px;border-radius:4px;margin:14px 0">'
+            f'<div style="position:absolute;left:{pct_mn}%;width:{pct_min-pct_mn}%;'
+            f'top:0;height:100%;background:#fde68a"></div>'
+            f'<div style="position:absolute;left:{pct_min}%;width:{pct_max-pct_min}%;'
+            f'top:0;height:100%;background:var(--success);border-radius:4px"></div>'
+            f'<div style="position:absolute;left:{pct_max}%;right:0;'
+            f'top:0;height:100%;background:var(--border-strong)"></div>'
+            f'</div>'
+            f'<div style="display:flex;justify-content:space-between;'
+            f'font-size:0.78rem;color:var(--text-muted);margin-top:8px">'
+            f'<span>{mn//100}억</span>'
+            f'<span style="color:var(--success);font-weight:600">최적 구간</span>'
+            f'<span>{mx//100}억+</span></div>'
+            '</div>'
         )
 
-    # ─── 핵심 키워드 클라우드 ─────────────────────────────────────
+    # ─── 핵심 키워드 ───────────────────────────────────────────────
     core_kws = p.get("core_keywords") or []
     if core_kws:
-        st.html("<div style='margin-top:24px;font-size:1.05rem;font-weight:700;"
-                "color:#0f172a'>🔑 핵심 키워드 ({}개)</div>".format(len(core_kws)))
+        st.html(f'<div style="margin-top:28px;margin-bottom:12px">'
+                f'<div style="font-size:1.05rem;font-weight:700;color:var(--text);'
+                f'letter-spacing:-0.015em">핵심 기술 키워드</div>'
+                f'<div style="font-size:0.82rem;color:var(--text-muted);margin-top:2px">'
+                f'{len(core_kws)}개 · 공고 자동 매칭 기준</div></div>')
         chips = "".join(
-            f"<span style='background:#dbeafe;color:#1e40af;padding:6px 12px;"
-            f"border-radius:14px;font-size:0.85em;font-weight:500;margin:3px;"
-            f"display:inline-block'>{_h_prof.escape(str(k))}</span>"
+            f'<span style="background:var(--accent-soft);color:var(--primary);'
+            f'padding:6px 12px;border-radius:6px;font-size:0.85rem;font-weight:500;'
+            f'margin:3px 4px 3px 0;display:inline-block;'
+            f'border:1px solid var(--chip-border)">'
+            f'{_h_prof.escape(str(k))}</span>'
             for k in core_kws
         )
         st.html(
-            "<div style='background:white;border:1px solid #e2e8f0;border-radius:10px;"
-            f"padding:16px;margin-top:8px;line-height:2'>{chips}</div>"
+            '<div style="background:var(--surface);border:1px solid var(--border);'
+            f'border-radius:var(--radius);padding:18px;line-height:2.2">{chips}</div>'
         )
 
-    # ─── 타겟 시장 / 파트너 / 정책 ────────────────────────────────
+    # ─── 타겟 / 파트너 / 정책 — 깔끔한 3컬럼 ──────────────────────
     targets = p.get("target_markets") or {}
     partner_list = consortium.get("existing_partners") or []
     policy = p.get("policy_alignment") or []
 
+    def _list_block(title: str, sub: str, items: list[str]) -> str:
+        if not items:
+            return ''
+        lis = "".join(
+            f'<li style="padding:6px 0;border-bottom:1px solid var(--border-soft);'
+            f'font-size:0.875rem;color:var(--text-soft);list-style:none">'
+            f'{_h_prof.escape(str(i))}</li>'
+            for i in items
+        )
+        return (
+            '<div style="background:var(--surface);border:1px solid var(--border);'
+            'border-radius:var(--radius);padding:18px 20px;height:100%">'
+            f'<div style="font-size:0.78rem;color:var(--text-muted);letter-spacing:0.08em;'
+            f'text-transform:uppercase;font-weight:600;margin-bottom:2px">{title}</div>'
+            f'<div style="font-size:0.75rem;color:var(--text-faint);margin-bottom:10px">{sub}</div>'
+            f'<ul style="margin:0;padding:0">{lis}</ul></div>'
+        )
+
+    st.html('<div style="margin-top:28px;margin-bottom:12px">'
+            '<div style="font-size:1.05rem;font-weight:700;color:var(--text);'
+            'letter-spacing:-0.015em">타겟 시장 · 파트너 · 정책</div></div>')
     cols2 = st.columns(3)
     with cols2[0]:
-        prim = targets.get("primary_domestic", [])
-        if prim:
-            st.html("<div style='font-weight:700;color:#0f172a;margin-bottom:6px'>"
-                    "🇰🇷 주력 타겟 (국내)</div>"
-                    "<div style='background:#f8fafc;border-radius:8px;padding:10px 14px;"
-                    "font-size:0.9em;line-height:1.7'>"
-                    + "".join(f"• {_h_prof.escape(str(t))}<br>" for t in prim)
-                    + "</div>")
+        st.html(_list_block("주력 타겟", "국내 발주 1순위",
+                            targets.get("primary_domestic", [])))
     with cols2[1]:
-        if partner_list:
-            st.html("<div style='font-weight:700;color:#0f172a;margin-bottom:6px'>"
-                    "🤝 협업 파트너</div>"
-                    "<div style='background:#f8fafc;border-radius:8px;padding:10px 14px;"
-                    "font-size:0.9em;line-height:1.6'>"
-                    + "".join(
-                        f"<div style='margin-bottom:4px'>"
-                        f"<b>{_h_prof.escape(str(pp.get('name','')))}</b>"
-                        f"<div style='font-size:0.82em;color:#64748b'>"
-                        f"{_h_prof.escape(str(pp.get('type','')))}</div></div>"
-                        for pp in partner_list if isinstance(pp, dict)
-                    )
-                    + "</div>")
+        partner_items = []
+        for pp in partner_list:
+            if isinstance(pp, dict):
+                partner_items.append(f"{pp.get('name','')} ({pp.get('type','')})")
+        st.html(_list_block("협업 파트너", "공동 R&D 또는 컨소시엄",
+                            partner_items))
     with cols2[2]:
-        if policy:
-            st.html("<div style='font-weight:700;color:#0f172a;margin-bottom:6px'>"
-                    "📋 정책 정합</div>"
-                    "<div style='background:#f8fafc;border-radius:8px;padding:10px 14px;"
-                    "font-size:0.88em;line-height:1.7'>"
-                    + "".join(f"• {_h_prof.escape(str(t))}<br>" for t in policy[:6])
-                    + "</div>")
+        st.html(_list_block("정책 정합", "회사 사업이 따르는 규제·정책",
+                            policy[:6]))
 
     # ─── 미설정 경고 ──────────────────────────────────────────────
     if any("???" in str(v) for v in str(p).split()):
-        st.warning(
-            "⚠️ 프로필에 미설정 항목 있음 — `config/profile.yaml` 검수 권장"
-        )
+        st.warning("프로필에 미설정 항목 있음 — `config/profile.yaml` 검수 권장")
 
     # ─── 원본 YAML (개발자용, 펼치기) ────────────────────────────
-    with st.expander("🔧 원본 데이터 보기 (개발자용)", expanded=False):
-        st.caption("운영 시에는 위의 명함 뷰만 사용. 데이터 구조 확인이 필요한 경우만 펼쳐서 보세요.")
+    with st.expander("원본 데이터 (개발자용)", expanded=False):
+        st.caption("배포·운영 시 위의 뷰만 사용. 데이터 구조 확인이 필요한 경우만 펼침.")
         st.json(p)
