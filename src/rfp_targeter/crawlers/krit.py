@@ -73,45 +73,47 @@ class KRITCrawler(BaseCrawler):
         log.info("krit: %d건 수집", seen)
 
     def _parse_row(self, tr) -> Announcement | None:
-        """DTiMS row 컬럼: NO / 공고현황 / 공고번호 / 공고명 / 접수일 / 마감일 / D-day / 결과."""
+        """DTiMS 실제 row 구조 (헤더 NO 컬럼은 빠져있음, 7 cells):
+        [0] 공고현황 (마감/접수중)
+        [1] 공고번호 (YY-NNN)
+        [2] 공고명 ← 텍스트만 (a 태그 없음)
+        [3] 접수일 ("접수일 YYYY/MM/DD")
+        [4] 마감일 ("마감일 YYYY/MM/DD")
+        [5] D-day
+        [6] 결과 — "보기" 링크 (vpsFileView.do?attcIden=...)
+        """
         cells = tr.find_all("td")
-        if len(cells) < 5:
+        if len(cells) < 7:
             return None
 
-        # 공고명 셀 — 보통 4번째(idx 3) 컬럼. 그 안에 a 태그 있으면 상세 URL
-        title_cell = None
-        title = None
+        # 공고명 — idx=2 셀의 텍스트
+        title = cells[2].get_text(" ", strip=True)
+        if not title or title in ("등록된 정보가 없습니다.", "-"):
+            return None
+
+        # 상세 URL — 마지막 셀(결과 "보기")의 링크
         detail_url = None
-        for c in cells:
-            link = c.find("a", href=True)
-            if link and link.get_text(strip=True):
-                title_cell = c
-                title = link.get_text(" ", strip=True)
-                href = link.get("href", "")
-                if href and not href.startswith("javascript:"):
-                    detail_url = urljoin(LIST_URL, href)
-                break
-        if not title:
+        result_link = cells[-1].find("a", href=True)
+        if result_link:
+            href = result_link.get("href", "")
+            if href and not href.startswith("javascript:"):
+                detail_url = urljoin(LIST_URL, href)
+
+        # 공고번호 — idx=1
+        notice_no = cells[1].get_text(strip=True)
+
+        # 접수일/마감일 — "접수일 YYYY/MM/DD" 형식 (prefix 무시하고 정규식)
+        def _parse_date(text: str) -> str | None:
+            m = re.search(r"(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})", text)
+            if m:
+                return f"{m.group(1)}-{int(m.group(2)):02d}-{int(m.group(3)):02d}"
             return None
 
-        # 공고번호 — title_cell 직전(또는 자체 셀) 텍스트에서 'YY-NNN' 패턴
-        cell_texts = [c.get_text(" ", strip=True) for c in cells]
-        notice_no = next(
-            (t for t in cell_texts if re.fullmatch(r"\d{2}-\d{3,4}", t)),
-            None,
-        )
+        posted_at = _parse_date(cells[3].get_text(strip=True))
+        deadline_at = _parse_date(cells[4].get_text(strip=True))
 
-        # 접수일/마감일 — YYYY-MM-DD 패턴
-        dates = []
-        for t in cell_texts:
-            m = re.search(r"(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})", t)
-            if m:
-                dates.append(f"{m.group(1)}-{int(m.group(2)):02d}-{int(m.group(3)):02d}")
-        posted_at = dates[0] if dates else None
-        deadline_at = dates[1] if len(dates) >= 2 else None
-
-        # external_id 우선순위: 공고번호 → href에서 attcIden 추출 → 제목 hash
-        external_id = notice_no
+        # external_id 우선: 공고번호. fallback: href attcIden, 최후 제목 hash
+        external_id = notice_no if re.fullmatch(r"\d{2}-\d{3,4}", notice_no or "") else None
         if not external_id and detail_url:
             m = re.search(r"(?:attcIden|prjId|notiId)=(\w+)", detail_url)
             if m:
