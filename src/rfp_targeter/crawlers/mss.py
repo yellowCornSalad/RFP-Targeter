@@ -24,17 +24,19 @@ log = logging.getLogger(__name__)
 
 DEFAULT_ENDPOINT = "https://apis.data.go.kr/1421000/mssBizService_v2/getbizList_v2"
 
-# 응답 필드명 후보 (data.go.kr 일반 패턴 + 중기부 추측)
-# 첫 호출 후 실제 응답 봐서 _FIELD_MAP 보강
+# 응답 필드명 (data.go.kr 15113297 실응답 검증, 2026-05-21)
+# 핵심: itemId / title / applicationStartDate / applicationEndDate / dataContents
+# 담당자/직위는 writerName/writerPosition (agency 아님, mss 자체가 발주처)
 _FIELD_MAP = {
-    "external_id": ["pblancId", "bsnsAncmSeq", "ancmId", "seqNo", "id"],
-    "title": ["pblancNm", "subject", "bsnsAncmNm", "title"],
-    "agency": ["jrsdInstNm", "instNm", "deptName", "agency"],
-    "posted_at": ["pblancBgngYmd", "regDt", "pressDt", "bsnsAncmYmd", "postDate"],
-    "deadline_at": ["pblancEndYmd", "rcptEndYmd", "endDate", "deadline"],
-    "url": ["pblancUrl", "viewUrl", "detailUrl", "url"],
-    "summary": ["pblancCn", "bsnsAncmCn", "summary"],
-    "department": ["chrgDeptNm", "deptName", "deptNm"],
+    "external_id": ["itemId", "pblancId", "bsnsAncmSeq", "ancmId", "seqNo", "id"],
+    "title":       ["title", "pblancNm", "subject", "bsnsAncmNm"],
+    "agency":      ["jrsdInstNm", "instNm", "deptName", "agency"],
+    "posted_at":   ["applicationStartDate", "pblancBgngYmd", "regDt", "pressDt"],
+    "deadline_at": ["applicationEndDate", "pblancEndYmd", "rcptEndYmd", "endDate"],
+    "url":         ["pblancUrl", "viewUrl", "detailUrl", "url"],
+    "summary":     ["dataContents", "pblancCn", "bsnsAncmCn", "summary"],
+    "department":  ["writerPosition", "chrgDeptNm", "deptName"],
+    "manager":     ["writerName", "managerName"],
 }
 
 
@@ -130,15 +132,20 @@ class MSSCrawler(BaseCrawler):
 
         # external_id 폴백: URL 안의 pblancId 또는 ID 추출
         if not external_id and url:
-            m = _re.search(r"(?:pblancId|nttSeqNo|bbsSeqNo)=([\w_-]+)", url)
+            m = _re.search(r"(?:pblancId|nttSeqNo|bbsSeqNo|bcIdx)=([\w_-]+)", url)
             if m:
                 external_id = m.group(1)
 
         if not external_id or not title:
             return None
 
+        # URL 없으면 mss 본 사이트 게시판 패턴으로 구성 (itemId = bcIdx)
+        if not url:
+            url = f"https://www.mss.go.kr/site/smba/ex/bbs/View.do?cbIdx=86&bcIdx={external_id}"
+
         dept = _pick(item, _FIELD_MAP["department"]) or ""
-        contact_line = dept
+        mgr = _pick(item, _FIELD_MAP["manager"]) or ""
+        contact_line = " · ".join(filter(None, [dept, mgr]))
 
         attachments = []
         for f in item.get("_files", []):

@@ -22,8 +22,11 @@ sources:
     base_url: "https://example.test"
 
   # 실데이터 크롤러
+  # bizinfo (기업마당): SPA — 정적 HTML 받아도 행 0 (JS로 채움).
+  # Playwright 추가 필요. data.go.kr OpenAPI 미제공.
+  # 중기부 본부는 MSS 어댑터가 이미 흡수, 지자체 공고는 보안 매칭률 낮음 → 후순위.
   bizinfo:
-    enabled: true
+    enabled: false
     base_url: "https://www.bizinfo.go.kr"
   kisa:
     enabled: true
