@@ -15,7 +15,12 @@ def _blob(a: Announcement) -> str:
 def score_keyword(a: Announcement, profile: dict) -> tuple[float, list[str]]:
     """공고 본문에 회사 핵심 키워드가 얼마나 등장하는지.
 
-    매칭 개수 기반(키워드 사전 크기에 무관). boost 매칭도 가산.
+    설계:
+    - 회사 core_keywords (OFFen·ASM 등 자체 제품명)는 정부 공고에 거의 안 나옴.
+      따라서 baseline 0이면 너무 박함. 보안 필터 통과 = 회사 영역 ⇒ baseline 30 부여.
+    - 매칭 1건당 가중치 강화: core 18 / positioning 12 / boost 8
+    - 정량: 양자내성암호 사업(core 2 + boost 2) → 30 + 36 + 16 = 82
+    - 정량: 일반 보안 공고(core 0 + boost 3) → 30 + 24 = 54
     """
     core = profile.get("core_keywords") or []
     positioning = profile.get("positioning_keywords") or []
@@ -26,30 +31,43 @@ def score_keyword(a: Announcement, profile: dict) -> tuple[float, list[str]]:
 
     core_hits = [k for k in core if _norm(k) in blob]
     pos_hits = [k for k in positioning if _norm(k) in blob]
-
-    # 핵심 키워드 매칭당 12점 (9개 매칭이면 만점), positioning 키워드는 8점
-    score = min(100.0, len(core_hits) * 12 + len(pos_hits) * 8)
-
-    # 보안 필터 매칭(matched_keywords) 가산 — 회사 보안 사전 hit
-    # core_hits 와 중복 제외, 매칭당 4점 (회사 특기 영역 매칭 강화)
     boost_n = max(0, len(a.matched_keywords) - len(core_hits))
-    if boost_n:
-        score = min(100.0, score + boost_n * 4)
+
+    # 보안 필터 통과 또는 회사 키워드 1+ 매칭이면 baseline 30
+    has_any_match = bool(core_hits or pos_hits or a.matched_keywords)
+    baseline = 30.0 if has_any_match else 0.0
+
+    # 매칭 가중치 (이전 12/8/4 → 18/12/8)
+    score = min(
+        100.0,
+        baseline
+        + len(core_hits) * 18
+        + len(pos_hits) * 12
+        + boost_n * 8,
+    )
+
+    # 매칭 풍부도 보너스: 보안 필터 8개 이상이면 +5 (회사 영역 직접 신호)
+    if len(a.matched_keywords) >= 8:
+        score = min(100.0, score + 5)
 
     why: list[str] = []
     parts = []
+    if has_any_match:
+        parts.append(f"baseline {int(baseline)}")
     if core_hits:
         shown = ", ".join(core_hits[:6])
         more = f" 외 {len(core_hits) - 6}개" if len(core_hits) > 6 else ""
         why.append(f"핵심 키워드 {len(core_hits)}개 매칭: {shown}{more}")
-        parts.append(f"core {len(core_hits)}×12")
+        parts.append(f"core {len(core_hits)}×18")
     if pos_hits:
         why.append(f"포지셔닝 키워드 매칭: {', '.join(pos_hits[:4])}")
-        parts.append(f"pos {len(pos_hits)}×8")
+        parts.append(f"pos {len(pos_hits)}×12")
     if a.matched_keywords:
         why.append(f"보안 필터 매칭 {len(a.matched_keywords)}개: {', '.join(a.matched_keywords[:6])}")
         if boost_n:
-            parts.append(f"boost {boost_n}×4")
+            parts.append(f"boost {boost_n}×8")
+        if len(a.matched_keywords) >= 8:
+            parts.append("매칭 풍부 +5")
     if not why:
         why.append("회사 키워드 매칭 없음")
     if parts:
