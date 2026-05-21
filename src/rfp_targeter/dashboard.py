@@ -1546,7 +1546,7 @@ def _render_detail_inline(row, aid):
             f"{_h.escape(text)}</div>"
         )
 
-    # 첨부
+    # 첨부 — 클릭 가능한 다운로드 링크
     try:
         atts = json.loads(row.get("attachments_json") or "[]")
     except Exception:
@@ -1555,12 +1555,13 @@ def _render_detail_inline(row, aid):
         st.html(
             f"<div style='color:var(--text-muted);font-size:0.72rem;font-weight:700;"
             f"letter-spacing:0.08em;text-transform:uppercase;margin:14px 0 4px'>"
-            f"📎 첨부 {len(atts)}건</div>"
+            f"📎 첨부 {len(atts)}건 · 파일명 클릭 시 다운로드</div>"
         )
-        for a in atts[:10]:
+        for a in atts[:20]:
             if not isinstance(a, dict):
                 continue
             name = _h.escape(str(a.get("name", "")))
+            url = a.get("url") or ""
             cat = a.get("category", "") or "기타"
             cat_bg = {
                 "notice": "#fef3c7", "form": "#dbeafe",
@@ -1570,15 +1571,35 @@ def _render_detail_inline(row, aid):
                 "notice": "#a16207", "form": "#1e40af",
                 "eval": "#9d174d", "reference": "#475569",
             }.get(cat, "#64748b")
-            st.markdown(
-                f"<div style='font-size:0.85em;color:var(--text-soft);margin:3px 0'>"
-                f"<span style='background:{cat_bg};color:{cat_color};padding:1px 7px;"
+            # URL 있으면 클릭 가능한 링크로
+            if url and isinstance(url, str) and url.startswith(("http://", "https://")):
+                name_html = (
+                    f"<a href='{_h.escape(url)}' target='_blank' rel='noopener' "
+                    f"style='color:var(--accent);text-decoration:none;"
+                    f"border-bottom:1px dotted var(--accent-soft)'>{name}</a>"
+                )
+            else:
+                name_html = f"<span style='color:var(--text-soft)'>{name}</span>"
+            st.html(
+                f"<div style='font-size:0.88em;margin:5px 0;line-height:1.5'>"
+                f"<span style='background:{cat_bg};color:{cat_color};padding:2px 7px;"
                 f"border-radius:4px;font-size:0.85em;font-weight:600;margin-right:6px'>"
-                f"{cat}</span>{name}</div>",
-                unsafe_allow_html=True,
+                f"{cat}</span>{name_html}</div>"
             )
-        if len(atts) > 10:
-            st.caption(f"외 {len(atts) - 10}개")
+        if len(atts) > 20:
+            st.caption(f"외 {len(atts) - 20}개")
+    elif row.get("source_url") or row.get("url"):
+        # 첨부 없으면 원문 페이지 링크라도 노출
+        ann_url = row.get("source_url") or row.get("url")
+        if ann_url and str(ann_url).startswith(("http://", "https://")):
+            st.html(
+                f"<div style='color:var(--text-muted);font-size:0.72rem;font-weight:700;"
+                f"letter-spacing:0.08em;text-transform:uppercase;margin:14px 0 4px'>"
+                f"📎 첨부 정보 없음</div>"
+                f"<a href='{_h.escape(str(ann_url))}' target='_blank' rel='noopener' "
+                f"style='font-size:0.88em;color:var(--accent);text-decoration:none'>"
+                f"🔗 원문 사이트에서 확인하기 →</a>"
+            )
 
 
 def _toggle_detail(aid):
@@ -2059,10 +2080,10 @@ with tab2:
                               else f"{rest:,}만")
             return " ".join(parts) if parts else "—"
 
-        chart_df = filtered[["title", "total_score", "theme_fit",
+        chart_df = filtered[["title", "url", "total_score", "theme_fit",
                              "keyword_score", "budget_mw", "consortium_score",
                              "competitor_score", "trl_score"]].copy()
-        chart_df["title"] = chart_df["title"].str[:40]
+        chart_df["title"] = chart_df["title"].str[:60]
         chart_df["budget_mw"] = chart_df["budget_mw"].map(_fmt_budget)
         chart_df = chart_df.sort_values("total_score", ascending=False)
 
@@ -2074,11 +2095,16 @@ with tab2:
         # 행 수에 맞춰 표 높이를 키워 페이지 여백을 채움 (최대 ~18행)
         _h = min(len(chart_df), 18) * 35 + 40
 
+        st.caption("💡 공고명 옆 🔗 아이콘 클릭 시 원문 사이트가 새 탭에서 열림")
         st.dataframe(
             chart_df,
             width="stretch", hide_index=True, height=_h,
             column_config={
                 "title": st.column_config.TextColumn("공고명", width="large"),
+                "url": st.column_config.LinkColumn(
+                    "🔗", help="공고 원문 사이트", display_text="열기 ↗",
+                    width="small",
+                ),
                 "total_score": st.column_config.NumberColumn(
                     "종합 /100", format="%.1f", help="가중합 + 테마 보너스"),
                 "theme_fit": _axis_cfg("🎯 테마"),
@@ -2089,6 +2115,9 @@ with tab2:
                 "competitor_score": _axis_cfg("⚔️ 경쟁"),
                 "trl_score": _axis_cfg("🧪 TRL"),
             },
+            column_order=["title", "url", "total_score", "theme_fit",
+                          "keyword_score", "budget_mw", "consortium_score",
+                          "competitor_score", "trl_score"],
         )
 
 with tab3:
