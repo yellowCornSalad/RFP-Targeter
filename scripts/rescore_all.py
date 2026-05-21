@@ -19,9 +19,9 @@ from rfp_targeter.scoring.engine import compute_score  # noqa: E402
 def main():
     init_db()
     with get_conn() as conn:
-        rows = conn.execute(
-            "SELECT * FROM announcement WHERE is_security = 1"
-        ).fetchall()
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM announcement WHERE is_security = TRUE")
+            rows = cur.fetchall()
         print(f"보안 통과 공고: {len(rows):,}건 재산정 시작...")
 
         bucket = {b: 0 for b in [0, 10, 20, 30, 40, 50, 60, 70, 80, 90]}

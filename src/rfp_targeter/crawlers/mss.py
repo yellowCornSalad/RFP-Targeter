@@ -213,21 +213,11 @@ class MSSCrawler(BaseCrawler):
 
         a.body = (a.body or "") + "\n\n[첨부 본문]\n" + text
 
-        import re
-        bm = re.search(r"(?:총\s*사업비|사업비|예산|총\s*연구비|지원\s*규모)[^\d]{0,30}([\d,]+)\s*(억|백만\s*원|만\s*원)", text)
-        if bm:
-            n = int(bm.group(1).replace(",", ""))
-            unit = bm.group(2).replace(" ", "")
-            if unit == "억":
-                a.budget_mw = n * 100
-            elif unit == "백만원":
-                a.budget_mw = n
-            elif unit == "만원":
-                a.budget_mw = max(1, n // 100)
-
-        pm = re.search(r"(?:사업\s*기간|연구\s*기간|총\s*연구기간)[^\d]{0,30}(\d+)\s*(개월|년)", text)
-        if pm:
-            n = int(pm.group(1))
-            a.duration_months = n * 12 if pm.group(2) == "년" else n
-
+        from rfp_targeter.attachments.budget_extract import extract_budget_mw, extract_duration_months
+        mw = extract_budget_mw(text)
+        if mw is not None:
+            a.budget_mw = mw
+        dm = extract_duration_months(text)
+        if dm is not None:
+            a.duration_months = dm
         return a

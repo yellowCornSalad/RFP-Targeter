@@ -1,15 +1,26 @@
-"""경량 SQLite wrapper. ORM 없이 dict 기반으로 처리."""
+"""PostgreSQL (Supabase) wrapper — psycopg3 기반.
+
+이전 SQLite 버전에서 마이그레이션:
+- placeholder ? → %s
+- INTEGER(0/1) → BOOLEAN
+- AUTOINCREMENT → SERIAL
+- sqlite3.Row → psycopg dict_row (sqlite3.Row와 동일 인터페이스 [key]/get())
+- executescript → 직접 execute (psycopg는 multi-statement OK)
+- ALTER TABLE 마이그레이션 그대로 (psycopg도 IF NOT EXISTS 미지원)
+"""
 from __future__ import annotations
 
 import json
-import sqlite3
 from contextlib import contextmanager
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterator
 
-from rfp_targeter.config import db_path
+import psycopg
+from psycopg.rows import dict_row
+
+from rfp_targeter.config import db_url
 
 SCHEMA_PATH = Path(__file__).with_name("schema.sql")
 
@@ -19,10 +30,19 @@ def _now() -> str:
 
 
 @contextmanager
-def get_conn() -> Iterator[sqlite3.Connection]:
-    conn = sqlite3.connect(db_path())
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
+def get_conn() -> Iterator[psycopg.Connection]:
+    """PostgreSQL 연결. dict_row로 row를 dict처럼.
+
+    prepare_threshold=None: Supabase transaction pooler(pgbouncer)는
+    prepared statement를 트랜잭션 간 재사용 못함 → DuplicatePreparedStatement
+    에러 발생. None으로 prepared 비활성화 (성능 영향 미미).
+    """
+    conn = psycopg.connect(
+        db_url(),
+        row_factory=dict_row,
+        autocommit=False,
+        prepare_threshold=None,
+    )
     try:
         yield conn
         conn.commit()
@@ -34,19 +54,23 @@ def get_conn() -> Iterator[sqlite3.Connection]:
 
 
 def init_db() -> None:
+    """schema.sql 실행 + 추가 컬럼 마이그레이션."""
     with get_conn() as conn:
-        conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
-        # 기존 DB 마이그레이션 — schema.sql의 CREATE TABLE IF NOT EXISTS는
-        # 컬럼 추가에 무효이므로 ALTER 시도. 이미 있으면 OperationalError 무시.
-        for col, ddl in [
-            ("eligibility_status", "ALTER TABLE announcement ADD COLUMN eligibility_status TEXT"),
-            ("eligibility_note",   "ALTER TABLE announcement ADD COLUMN eligibility_note TEXT"),
-            ("eligibility_limit",  "ALTER TABLE announcement ADD COLUMN eligibility_limit INTEGER"),
+        schema_sql = SCHEMA_PATH.read_text(encoding="utf-8")
+        # psycopg는 multi-statement를 한 번에 execute 가능
+        with conn.cursor() as cur:
+            cur.execute(schema_sql)
+        # 옛 DB에 컬럼이 없을 때 추가 (이미 있으면 ProgrammingError → 무시)
+        for ddl in [
+            "ALTER TABLE announcement ADD COLUMN IF NOT EXISTS eligibility_status TEXT",
+            "ALTER TABLE announcement ADD COLUMN IF NOT EXISTS eligibility_note TEXT",
+            "ALTER TABLE announcement ADD COLUMN IF NOT EXISTS eligibility_limit INTEGER",
         ]:
             try:
-                conn.execute(ddl)
-            except sqlite3.OperationalError:
-                pass  # 컬럼 이미 존재
+                with conn.cursor() as cur:
+                    cur.execute(ddl)
+            except psycopg.Error:
+                pass  # 이미 컬럼 존재 또는 동시 마이그레이션
 
 
 # ---------- 도메인 dataclass ----------
@@ -68,8 +92,7 @@ class Announcement:
     attachments: list[dict] = field(default_factory=list)
     matched_keywords: list[str] = field(default_factory=list)
     is_security: bool = False
-    # 창업 N년차 자격 검증 (filters/eligibility.py 결과 저장)
-    eligibility_status: str | None = None      # 'ok'/'blocked'/'unsure'/'unknown'
+    eligibility_status: str | None = None
     eligibility_note: str | None = None
     eligibility_limit: int | None = None
 
@@ -94,120 +117,129 @@ class Score:
 # ---------- repository 함수들 ----------
 
 
-def upsert_announcement(conn: sqlite3.Connection, a: Announcement) -> bool:
-    """신규면 True 반환."""
-    row = conn.execute("SELECT id FROM announcement WHERE id=?", (a.id,)).fetchone()
+def upsert_announcement(conn: psycopg.Connection, a: Announcement) -> bool:
+    """신규면 True, 업데이트면 False."""
     now = _now()
-    if row is None:
-        conn.execute(
+    with conn.cursor() as cur:
+        cur.execute("SELECT id FROM announcement WHERE id = %s", (a.id,))
+        exists = cur.fetchone() is not None
+        if not exists:
+            cur.execute(
+                """
+                INSERT INTO announcement(
+                    id, source, external_id, title, agency, url,
+                    posted_at, deadline_at, budget_mw, duration_months,
+                    summary, body, attachments_json, matched_keywords_json,
+                    fetched_at, updated_at, is_security,
+                    eligibility_status, eligibility_note, eligibility_limit
+                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                """,
+                (
+                    a.id, a.source, a.external_id, a.title, a.agency, a.url,
+                    a.posted_at, a.deadline_at, a.budget_mw, a.duration_months,
+                    a.summary, a.body,
+                    json.dumps(a.attachments, ensure_ascii=False),
+                    json.dumps(a.matched_keywords, ensure_ascii=False),
+                    now, now, bool(a.is_security),
+                    a.eligibility_status, a.eligibility_note, a.eligibility_limit,
+                ),
+            )
+            return True
+        cur.execute(
             """
-            INSERT INTO announcement(
-                id, source, external_id, title, agency, url,
-                posted_at, deadline_at, budget_mw, duration_months,
-                summary, body, attachments_json, matched_keywords_json,
-                fetched_at, updated_at, is_security,
-                eligibility_status, eligibility_note, eligibility_limit
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            UPDATE announcement SET
+                title=%s, agency=%s, url=%s, posted_at=%s, deadline_at=%s,
+                budget_mw=%s, duration_months=%s, summary=%s, body=%s,
+                attachments_json=%s, matched_keywords_json=%s,
+                updated_at=%s, is_security=%s,
+                eligibility_status=%s, eligibility_note=%s, eligibility_limit=%s
+            WHERE id=%s
             """,
             (
-                a.id, a.source, a.external_id, a.title, a.agency, a.url,
-                a.posted_at, a.deadline_at, a.budget_mw, a.duration_months,
-                a.summary, a.body,
+                a.title, a.agency, a.url, a.posted_at, a.deadline_at,
+                a.budget_mw, a.duration_months, a.summary, a.body,
                 json.dumps(a.attachments, ensure_ascii=False),
                 json.dumps(a.matched_keywords, ensure_ascii=False),
-                now, now, int(a.is_security),
+                now, bool(a.is_security),
                 a.eligibility_status, a.eligibility_note, a.eligibility_limit,
+                a.id,
             ),
         )
-        return True
-    conn.execute(
-        """
-        UPDATE announcement SET
-            title=?, agency=?, url=?, posted_at=?, deadline_at=?,
-            budget_mw=?, duration_months=?, summary=?, body=?,
-            attachments_json=?, matched_keywords_json=?,
-            updated_at=?, is_security=?,
-            eligibility_status=?, eligibility_note=?, eligibility_limit=?
-        WHERE id=?
-        """,
-        (
-            a.title, a.agency, a.url, a.posted_at, a.deadline_at,
-            a.budget_mw, a.duration_months, a.summary, a.body,
-            json.dumps(a.attachments, ensure_ascii=False),
-            json.dumps(a.matched_keywords, ensure_ascii=False),
-            now, int(a.is_security),
-            a.eligibility_status, a.eligibility_note, a.eligibility_limit,
-            a.id,
-        ),
-    )
-    return False
+        return False
 
 
-def upsert_score(conn: sqlite3.Connection, s: Score) -> None:
-    conn.execute(
-        """
-        INSERT INTO score(
-            announcement_id, keyword_score, budget_score, consortium_score,
-            competitor_score, trl_score, total_score, theme_fit,
-            rationale_json, computed_at
-        ) VALUES (?,?,?,?,?,?,?,?,?,?)
-        ON CONFLICT(announcement_id) DO UPDATE SET
-            keyword_score=excluded.keyword_score,
-            budget_score=excluded.budget_score,
-            consortium_score=excluded.consortium_score,
-            competitor_score=excluded.competitor_score,
-            trl_score=excluded.trl_score,
-            total_score=excluded.total_score,
-            theme_fit=excluded.theme_fit,
-            rationale_json=excluded.rationale_json,
-            computed_at=excluded.computed_at
-        """,
-        (
-            s.announcement_id, s.keyword_score, s.budget_score, s.consortium_score,
-            s.competitor_score, s.trl_score, s.total_score, s.theme_fit,
-            json.dumps(s.rationale, ensure_ascii=False),
-            _now(),
-        ),
-    )
+def upsert_score(conn: psycopg.Connection, s: Score) -> None:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO score(
+                announcement_id, keyword_score, budget_score, consortium_score,
+                competitor_score, trl_score, total_score, theme_fit,
+                rationale_json, computed_at
+            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            ON CONFLICT(announcement_id) DO UPDATE SET
+                keyword_score=EXCLUDED.keyword_score,
+                budget_score=EXCLUDED.budget_score,
+                consortium_score=EXCLUDED.consortium_score,
+                competitor_score=EXCLUDED.competitor_score,
+                trl_score=EXCLUDED.trl_score,
+                total_score=EXCLUDED.total_score,
+                theme_fit=EXCLUDED.theme_fit,
+                rationale_json=EXCLUDED.rationale_json,
+                computed_at=EXCLUDED.computed_at
+            """,
+            (
+                s.announcement_id, s.keyword_score, s.budget_score, s.consortium_score,
+                s.competitor_score, s.trl_score, s.total_score, s.theme_fit,
+                json.dumps(s.rationale, ensure_ascii=False),
+                _now(),
+            ),
+        )
 
 
-def log_fetch_start(conn: sqlite3.Connection, source: str) -> int:
-    cur = conn.execute(
-        "INSERT INTO fetch_log(source, started_at) VALUES (?,?)",
-        (source, _now()),
-    )
-    return cur.lastrowid
+def log_fetch_start(conn: psycopg.Connection, source: str) -> int:
+    with conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO fetch_log(source, started_at) VALUES (%s, %s) RETURNING id",
+            (source, _now()),
+        )
+        row = cur.fetchone()
+        return int(row["id"]) if row else 0
 
 
 def log_fetch_finish(
-    conn: sqlite3.Connection, log_id: int, new_count: int, updated_count: int, error: str | None = None
+    conn: psycopg.Connection, log_id: int, new_count: int, updated_count: int,
+    error: str | None = None,
 ) -> None:
-    conn.execute(
-        "UPDATE fetch_log SET finished_at=?, new_count=?, updated_count=?, error=? WHERE id=?",
-        (_now(), new_count, updated_count, error, log_id),
-    )
+    with conn.cursor() as cur:
+        cur.execute(
+            "UPDATE fetch_log SET finished_at=%s, new_count=%s, updated_count=%s, error=%s WHERE id=%s",
+            (_now(), new_count, updated_count, error, log_id),
+        )
 
 
 def list_security_announcements(
-    conn: sqlite3.Connection,
+    conn: psycopg.Connection,
     limit: int = 200,
     include_dismissed: bool = False,
-) -> list[sqlite3.Row]:
+) -> list[dict]:
     """보안 분류된 공고 조회.
 
-    include_dismissed=True 면 숨김 처리(`is_dismissed=1`)된 공고도 함께 반환.
-    이때 대시보드는 `is_dismissed` 컬럼 값을 보고 카드 표시/숨김 해제 액션을 분기.
+    PostgreSQL은 BOOLEAN이라 is_security = TRUE / is_dismissed = FALSE 사용.
+    Row는 psycopg dict_row 로 dict 형태 반환 (sqlite3.Row와 인터페이스 호환).
     """
-    dismiss_clause = "" if include_dismissed else "AND a.is_dismissed = 0"
-    return conn.execute(
-        f"""
-        SELECT a.*, s.total_score, s.theme_fit, s.keyword_score, s.budget_score,
-               s.consortium_score, s.competitor_score, s.trl_score, s.rationale_json
-        FROM announcement a
-        LEFT JOIN score s ON s.announcement_id = a.id
-        WHERE a.is_security = 1 {dismiss_clause}
-        ORDER BY COALESCE(s.total_score, 0) DESC, a.posted_at DESC
-        LIMIT ?
-        """,
-        (limit,),
-    ).fetchall()
+    dismiss_clause = "" if include_dismissed else "AND a.is_dismissed = FALSE"
+    with conn.cursor() as cur:
+        cur.execute(
+            f"""
+            SELECT a.*, s.total_score, s.theme_fit, s.keyword_score, s.budget_score,
+                   s.consortium_score, s.competitor_score, s.trl_score, s.rationale_json
+            FROM announcement a
+            LEFT JOIN score s ON s.announcement_id = a.id
+            WHERE a.is_security = TRUE {dismiss_clause}
+            ORDER BY COALESCE(s.total_score, 0) DESC, a.posted_at DESC
+            LIMIT %s
+            """,
+            (limit,),
+        )
+        return cur.fetchall()

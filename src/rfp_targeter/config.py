@@ -1,6 +1,7 @@
 """설정 파일 로더."""
 from __future__ import annotations
 
+import os
 from functools import lru_cache
 from pathlib import Path
 
@@ -46,7 +47,30 @@ def secrets() -> dict:
 
 
 def db_path() -> Path:
-    rel = settings()["database"]["path"]
+    """레거시 SQLite 경로 — 마이그레이션 스크립트에서만 사용 (현재는 PostgreSQL)."""
+    rel = settings().get("database", {}).get("path", "data/rfp.db")
     path = PROJECT_ROOT / rel
     path.parent.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def db_url() -> str:
+    """PostgreSQL connection string.
+
+    우선순위:
+      1. 환경변수 DATABASE_URL (GitHub Actions / 클라우드 배포)
+      2. secrets.yaml 의 supabase.database_url (로컬 개발)
+
+    형태: postgresql://postgres.{project}:{password}@{host}:{port}/postgres
+    """
+    env = os.environ.get("DATABASE_URL")
+    if env and env.strip():
+        return env.strip()
+    sec = (secrets().get("supabase") or {})
+    url = (sec.get("database_url") or "").strip()
+    if not url or url == "???":
+        raise RuntimeError(
+            "DATABASE_URL 미설정. config/secrets.yaml 의 supabase.database_url 또는 "
+            "환경변수 DATABASE_URL 둘 중 하나 필요."
+        )
+    return url

@@ -28,28 +28,29 @@ def main():
     print(f"회사 설립연도: {est}, 백필 시작...")
 
     with get_conn() as conn:
-        rows = conn.execute(
-            "SELECT id, title, body FROM announcement"
-        ).fetchall()
+        with conn.cursor() as cur:
+            cur.execute("SELECT id, title, body FROM announcement")
+            rows = cur.fetchall()
         print(f"대상: {len(rows):,}건")
 
         updated = {"ok": 0, "blocked": 0, "unsure": 0, "unknown": 0}
-        for r in rows:
-            er = check_eligibility(
-                body=r["body"], title=r["title"],
-                established_year=est,
-            )
-            conn.execute(
-                """
-                UPDATE announcement SET
-                    eligibility_status = ?,
-                    eligibility_note = ?,
-                    eligibility_limit = ?
-                WHERE id = ?
-                """,
-                (er.status, er.note, er.limit_years, r["id"]),
-            )
-            updated[er.status] = updated.get(er.status, 0) + 1
+        with conn.cursor() as cur:
+            for r in rows:
+                er = check_eligibility(
+                    body=r["body"], title=r["title"],
+                    established_year=est,
+                )
+                cur.execute(
+                    """
+                    UPDATE announcement SET
+                        eligibility_status = %s,
+                        eligibility_note = %s,
+                        eligibility_limit = %s
+                    WHERE id = %s
+                    """,
+                    (er.status, er.note, er.limit_years, r["id"]),
+                )
+                updated[er.status] = updated.get(er.status, 0) + 1
 
     print(f"\n=== 백필 완료 ===")
     print(f"  ok      : {updated['ok']:,} (자격 적합 또는 자격 조건 없음)")

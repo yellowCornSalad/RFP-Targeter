@@ -628,10 +628,12 @@ def load_data(include_dismissed: bool = False) -> pd.DataFrame:
 def count_dismissed() -> int:
     """현재 숨김 처리된 공고 수 — 사이드바 토글 라벨에 노출."""
     with get_conn() as conn:
-        row = conn.execute(
-            "SELECT COUNT(*) FROM announcement WHERE is_security = 1 AND is_dismissed = 1"
-        ).fetchone()
-    return int(row[0] if row else 0)
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT COUNT(*) AS n FROM announcement WHERE is_security = TRUE AND is_dismissed = TRUE"
+            )
+            row = cur.fetchone()
+    return int(row["n"] if row else 0)
 
 
 # ---------- 사이드바 ----------
@@ -1880,10 +1882,11 @@ with tab1:
                                  use_container_width=True,
                                  help="다시 일반 목록에 표시"):
                         with get_conn() as conn:
-                            conn.execute(
-                                "UPDATE announcement SET is_dismissed=0 WHERE id=?",
-                                (row["id"],),
-                            )
+                            with conn.cursor() as cur:
+                                cur.execute(
+                                    "UPDATE announcement SET is_dismissed=FALSE WHERE id=%s",
+                                    (row["id"],),
+                                )
                         st.cache_data.clear()
                         st.rerun()
                 else:
@@ -1891,10 +1894,11 @@ with tab1:
                                  use_container_width=True,
                                  help="이 공고를 목록에서 제외 (사이드바 '숨김 포함 표시'로 복원 가능)"):
                         with get_conn() as conn:
-                            conn.execute(
-                                "UPDATE announcement SET is_dismissed=1 WHERE id=?",
-                                (row["id"],),
-                            )
+                            with conn.cursor() as cur:
+                                cur.execute(
+                                    "UPDATE announcement SET is_dismissed=TRUE WHERE id=%s",
+                                    (row["id"],),
+                                )
                         st.cache_data.clear()
                         st.rerun()
 
