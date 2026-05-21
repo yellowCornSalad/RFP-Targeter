@@ -189,13 +189,15 @@ svg[class*="icon"], i[class*="icon"] {
     text-transform: none !important;
 }
 
-/* === 전체 배경 === */
+/* === 전체 배경 — 인스타 피드처럼 메인 영역 좁게 (사이드 여백 ↑) === */
 [data-testid="stAppViewContainer"], [data-testid="stMain"] {
     background: var(--bg) !important;
 }
 .main .block-container, [data-testid="stMain"] .block-container {
-    padding-top: 1.2rem !important;
-    max-width: 1280px;
+    padding-top: 1.5rem !important;
+    padding-left: 2.5rem !important;
+    padding-right: 2.5rem !important;
+    max-width: 1080px;  /* 카드들이 인스타 피드 폭처럼 가운데 정렬 */
 }
 
 /* === Streamlit 기본 데코 숨김 (Deploy 버튼 위 영역, 햄버거 메뉴 등) === */
@@ -337,17 +339,22 @@ h4 { font-size: 0.9rem !important; font-weight: 600 !important; }
     color: #ffffff !important;
 }
 
-/* === 카드 컨테이너 — 절제된 그림자 (토스 스타일) === */
+/* === 카드 컨테이너 — 인스타그램 피드 톤 (넓은 여백, 절제된 그림자) === */
 [data-testid="stMain"] [data-testid="stVerticalBlockBorderWrapper"] {
     border: 1px solid var(--border) !important;
     border-radius: var(--radius-lg) !important;
     background: var(--surface) !important;
-    box-shadow: var(--shadow-xs) !important;
+    box-shadow: none !important;
     transition: border-color 0.18s ease, box-shadow 0.18s ease !important;
+    margin-bottom: 16px !important;
 }
 [data-testid="stMain"] [data-testid="stVerticalBlockBorderWrapper"]:hover {
     border-color: var(--border-strong) !important;
-    box-shadow: var(--shadow-sm) !important;
+    box-shadow: var(--shadow-xs) !important;
+}
+/* 카드 내부 여백 — 인스타 피드처럼 여유롭게 */
+[data-testid="stMain"] [data-testid="stVerticalBlockBorderWrapper"] > div > div {
+    padding: 4px 4px !important;
 }
 /* 오늘 신규 공고 카드 — 미세한 상단 빨간 액센트 라인 + 단정한 boder */
 [data-testid="stMain"] [data-testid="stVerticalBlockBorderWrapper"]:has(
@@ -1941,51 +1948,51 @@ with tab1:
                     kws_raw = [k for k in matched if isinstance(k, str) and not k.startswith("[부서]")]
                     kws = _dedup_keywords(kws_raw)
                     chip_parts = []
+                    # 부서: 회색 톤
                     for d in depts[:3]:
                         chip_parts.append(
-                            f"<span style='background:#f1f5f9;color:#334155;padding:3px 9px;"
-                            f"border-radius:6px;font-size:0.78em;margin-right:4px;display:inline-block;"
-                            f"border:1px solid #cbd5e1;font-weight:500'>부서 · {_html.escape(d)}</span>"
+                            f"<span style='background:var(--surface-alt);color:var(--text-soft);"
+                            f"padding:2px 8px;border-radius:4px;font-size:12px;margin-right:4px;"
+                            f"display:inline-block;border:1px solid var(--border);font-weight:500'>"
+                            f"부서·{_html.escape(d)}</span>"
                         )
-                    SHOW = 10
+                    SHOW = 8
                     for k in kws[:SHOW]:
                         chip_parts.append(
-                            f"<span style='background:#eff6ff;color:#1d4ed8;padding:3px 9px;"
-                            f"border-radius:6px;font-size:0.78em;margin-right:4px;display:inline-block;"
-                            f"border:1px solid #bfdbfe;font-weight:500'>{_html.escape(k)}</span>"
+                            f"<span style='background:var(--accent-soft);color:var(--primary);"
+                            f"padding:2px 8px;border-radius:4px;font-size:12px;margin-right:4px;"
+                            f"display:inline-block;font-weight:500'>"
+                            f"#{_html.escape(k)}</span>"
                         )
                     more = len(kws) - SHOW
                     if more > 0:
                         chip_parts.append(
-                            f"<span style='color:#94a3b8;font-size:0.78em;padding:2px 4px'>+{more}</span>"
+                            f"<span style='color:var(--text-muted);font-size:12px;padding:2px 4px'>"
+                            f"+{more}</span>"
                         )
-                    st.html("<div style='margin-top:8px;line-height:1.9'>" + "".join(chip_parts) + "</div>")
+                    st.html("<div style='margin-top:10px;line-height:1.9'>" + "".join(chip_parts) + "</div>")
 
-                # ── 5축 mini 한 줄 (의미 있는 정보로 빈 공간 채움) ──
+                # ── 5축 mini 한 줄 — 단정한 회색 톤 (네이버/인스타식) ──
                 kw_s = float(row.get("keyword_score") or 0)
                 bg_s = float(row.get("budget_score") or 0)
                 cs_s = float(row.get("consortium_score") or 0)
                 cp_s = float(row.get("competitor_score") or 0)
                 tr_s = float(row.get("trl_score") or 0)
-                def _ac(v: float) -> str:
-                    if v >= 70: return "#16a34a"
-                    if v >= 50: return "#d97706"
-                    if v >= 30: return "#64748b"
-                    return "#dc2626"
+                # 색상 강조 X — 모든 점수 같은 톤 (정보 위계 평등)
                 axes_inline = [
                     ("키워드", kw_s), ("예산", bg_s), ("컨소시엄", cs_s),
                     ("경쟁", cp_s), ("TRL", tr_s),
                 ]
-                axes_html = " <span style='color:var(--text-faint)'>·</span> ".join(
+                axes_html = "  ".join(
                     f"<span style='color:var(--text-muted)'>{name}</span> "
-                    f"<b style='color:{_ac(v)};font-feature-settings:&quot;tnum&quot; on'>{v:.0f}</b>"
+                    f"<b style='color:var(--text);font-weight:600;"
+                    f"font-feature-settings:&quot;tnum&quot; on'>{v:.0f}</b>"
                     for name, v in axes_inline
                 )
                 st.html(
-                    f"<div style='margin-top:10px;padding:8px 12px;background:var(--surface-alt);"
-                    f"border-radius:8px;font-size:0.84rem;line-height:1.5'>"
-                    f"<span style='color:var(--text-faint);font-size:0.75em;font-weight:700;"
-                    f"letter-spacing:0.06em;text-transform:uppercase;margin-right:8px'>5축</span>"
+                    f"<div style='margin-top:12px;padding-top:10px;"
+                    f"border-top:1px solid var(--border-soft);"
+                    f"font-size:13px;line-height:1.5;color:var(--text-soft)'>"
                     f"{axes_html}"
                     f"</div>"
                 )
