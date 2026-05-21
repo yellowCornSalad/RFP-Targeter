@@ -1346,67 +1346,10 @@ def _is_today_new(posted_at_str) -> bool:
         return False
 
 
-# ─── 상세 보기 다이얼로그 — 카드 [상세 보기] 클릭 시 ──────────────────────
-@st.dialog("공고 상세", width="large")
-def _detail_dialog():
-    aid = st.session_state.get("_detail_id")
-    if not aid:
-        return
-    rm = df[df["id"] == aid]
-    if rm.empty:
-        st.error("공고 정보를 찾을 수 없습니다.")
-        if st.button("닫기"):
-            st.session_state["_detail_id"] = None
-            st.rerun()
-        return
-    row = rm.iloc[0]
-    total = float(row.get("total_score") or 0)
-    theme = float(row.get("theme_fit") or 0)
-
-    # 헤더
+# ─── 상세 보기 — 카드 아래에 inline으로 펼쳐짐 (dialog 폐기, 첫 버전처럼) ──
+def _render_detail_inline(row, aid):
+    """[상세 보기] 토글 시 카드 안에 펼쳐지는 풀 디테일."""
     import html as _h
-    title = str(row.get("title") or "(제목 없음)")
-    url = str(row.get("url") or "")
-    badge = _status_badge(total)
-    title_html = (
-        f'<a href="{_h.escape(url, quote=True)}" target="_blank" rel="noopener noreferrer" '
-        f'style="color:var(--text);text-decoration:none">{_h.escape(title)}'
-        f'<span style="color:var(--accent);margin-left:6px">↗</span></a>'
-    ) if url.startswith(("http://", "https://")) else _h.escape(title)
-    st.html(
-        f"<div style='display:flex;gap:12px;align-items:start;justify-content:space-between;margin-bottom:6px'>"
-        f"  <h3 style='margin:0;font-size:1.15rem;font-weight:700;line-height:1.4'>{title_html}</h3>"
-        f"  <div style='flex-shrink:0'>{badge}</div>"
-        f"</div>"
-    )
-
-    # 메타
-    bits = []
-    if pd.notna(row.get("agency")): bits.append(_h.escape(str(row["agency"])))
-    bits.append(f"<code>{row['source']}</code>")
-    if pd.notna(row.get("deadline_at")):
-        d = row.get("days_left")
-        if pd.notna(d):
-            bits.append(f"마감 D-{int(d)} ({row['deadline_at']})")
-        else:
-            bits.append(f"마감 {row['deadline_at']}")
-    if pd.notna(row.get("budget_mw")):
-        bits.append(f"예산 {int(row['budget_mw'])}백만원")
-    st.html(
-        f"<div style='color:var(--text-muted);font-size:0.88em;margin-bottom:14px'>"
-        + " · ".join(bits) + "</div>"
-    )
-
-    # 점수 요약 4칸
-    sc1, sc2, sc3, sc4 = st.columns(4)
-    sc1.metric("종합", f"{total:.0f}", help="가중합 + 테마 보너스")
-    sc2.metric("테마 적합", f"{theme:.0f}")
-    sc3.metric("키워드", f"{float(row.get('keyword_score') or 0):.0f}")
-    sc4.metric("경쟁 강도", f"{float(row.get('competitor_score') or 0):.0f}")
-
-    st.markdown("---")
-
-    # 5축 레이더 + 산정 근거
     rationale = json.loads(row.get("rationale_json") or "{}")
     axes_names = ["키워드", "예산", "컨소시엄", "경쟁자", "TRL"]
     vals = [
@@ -1416,37 +1359,42 @@ def _detail_dialog():
         float(row.get("competitor_score") or 0),
         float(row.get("trl_score") or 0),
     ]
-    # 레이더 차트 — Plotly. dialog 컨테이너에서 안 보이는 이슈 회피 위해
-    # height/width 명시 + use_container_width=True 사용.
+
+    # 시각 구분선 + 헤더
+    st.html(
+        "<div style='border-top:1px solid var(--border);margin:14px 0 12px'></div>"
+        "<div style='color:var(--text-muted);font-size:0.72rem;font-weight:700;"
+        "letter-spacing:0.08em;text-transform:uppercase;margin-bottom:8px'>"
+        "📐 상세 정보</div>"
+    )
+
+    # 5축 레이더 + 산정 근거
     fig = go.Figure(go.Scatterpolar(
         r=vals + [vals[0]], theta=axes_names + [axes_names[0]],
         fill="toself",
         line=dict(color="#3b82f6", width=2),
         fillcolor="rgba(59,130,246,0.20)",
-        name=title[:30],
+        name=str(row.get("title", ""))[:30],
     ))
     fig.update_layout(
         polar=dict(
-            radialaxis=dict(
-                visible=True, range=[0, 100],
-                gridcolor="#e2e8f0", tickfont=dict(size=10, color="#64748b"),
-                tickvals=[20, 40, 60, 80, 100],
-            ),
+            radialaxis=dict(visible=True, range=[0, 100],
+                            gridcolor="#e2e8f0",
+                            tickfont=dict(size=10, color="#64748b"),
+                            tickvals=[20, 40, 60, 80, 100]),
             angularaxis=dict(tickfont=dict(size=11, color="#0f172a"),
-                              gridcolor="#f1f5f9"),
+                             gridcolor="#f1f5f9"),
             bgcolor="rgba(0,0,0,0)",
         ),
-        showlegend=False, height=320,
-        margin=dict(l=40, r=40, t=30, b=30),
+        showlegend=False, height=300,
+        margin=dict(l=40, r=40, t=20, b=20),
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         font=dict(family="Pretendard Variable, Pretendard, sans-serif"),
     )
 
     rc1, rc2 = st.columns([1, 1])
     with rc1:
-        # use_container_width=True — dialog 안에서 width="stretch"가 잘 안 먹는 케이스 회피
-        st.plotly_chart(fig, use_container_width=True, key=f"radar_dlg_{aid}")
-        # 백업: 레이더가 안 보일 때를 대비한 텍스트 5축 표 (항상 표시)
+        st.plotly_chart(fig, use_container_width=True, key=f"radar_inline_{aid}")
         st.html(_axes_progress_html(*vals))
     with rc2:
         st.markdown("**산정 근거**")
@@ -1459,21 +1407,30 @@ def _detail_dialog():
             reasons = rationale.get(k) or []
             if reasons:
                 any_rationale = True
-                st.markdown(f"<div style='font-size:0.86em;margin-bottom:6px'>"
-                            f"<b>{label}</b> · "
-                            f"<span style='color:var(--text-muted)'>{' / '.join(reasons)}</span>"
-                            f"</div>", unsafe_allow_html=True)
+                st.markdown(
+                    f"<div style='font-size:0.86em;margin-bottom:6px'>"
+                    f"<b>{label}</b> · "
+                    f"<span style='color:var(--text-muted)'>{' / '.join(reasons)}</span>"
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
         if not any_rationale:
             st.caption("산정 근거 데이터가 없어요 — 점수만 표시됩니다.")
 
     # 본문 요약
-    summary = row.get("summary")
-    if summary and pd.notna(summary) and isinstance(summary, str):
-        st.markdown("---")
-        st.markdown("**요약**")
-        st.markdown(f"<div style='color:var(--text-soft);font-size:0.9em;line-height:1.6'>"
-                    f"{_h.escape(summary[:600])}{'...' if len(summary) > 600 else ''}</div>",
-                    unsafe_allow_html=True)
+    body = row.get("body") or row.get("summary")
+    if body and pd.notna(body) and isinstance(body, str):
+        st.html(
+            "<div style='color:var(--text-muted);font-size:0.72rem;font-weight:700;"
+            "letter-spacing:0.08em;text-transform:uppercase;margin:14px 0 4px'>"
+            "📄 본문</div>"
+        )
+        text = body[:800] + ("..." if len(body) > 800 else "")
+        st.html(
+            f"<div style='color:var(--text-soft);font-size:0.88em;line-height:1.6;"
+            f"background:var(--surface-alt);padding:12px 14px;border-radius:8px'>"
+            f"{_h.escape(text)}</div>"
+        )
 
     # 첨부
     try:
@@ -1481,30 +1438,44 @@ def _detail_dialog():
     except Exception:
         atts = []
     if atts:
-        st.markdown("---")
-        st.markdown(f"**첨부 {len(atts)}건**")
-        for a in atts[:8]:
+        st.html(
+            f"<div style='color:var(--text-muted);font-size:0.72rem;font-weight:700;"
+            f"letter-spacing:0.08em;text-transform:uppercase;margin:14px 0 4px'>"
+            f"📎 첨부 {len(atts)}건</div>"
+        )
+        for a in atts[:10]:
             if not isinstance(a, dict):
                 continue
             name = _h.escape(str(a.get("name", "")))
-            cat = a.get("category", "")
-            st.markdown(f"<div style='font-size:0.85em;color:var(--text-soft);margin:2px 0'>"
-                        f"<span style='color:var(--text-faint)'>[{cat or '기타'}]</span> {name}"
-                        f"</div>", unsafe_allow_html=True)
-        if len(atts) > 8:
-            st.caption(f"외 {len(atts) - 8}개")
+            cat = a.get("category", "") or "기타"
+            cat_bg = {
+                "notice": "#fef3c7", "form": "#dbeafe",
+                "eval": "#fce7f3", "reference": "#f3f4f6",
+            }.get(cat, "#f1f5f9")
+            cat_color = {
+                "notice": "#a16207", "form": "#1e40af",
+                "eval": "#9d174d", "reference": "#475569",
+            }.get(cat, "#64748b")
+            st.markdown(
+                f"<div style='font-size:0.85em;color:var(--text-soft);margin:3px 0'>"
+                f"<span style='background:{cat_bg};color:{cat_color};padding:1px 7px;"
+                f"border-radius:4px;font-size:0.85em;font-weight:600;margin-right:6px'>"
+                f"{cat}</span>{name}</div>",
+                unsafe_allow_html=True,
+            )
+        if len(atts) > 10:
+            st.caption(f"외 {len(atts) - 10}개")
 
-    st.markdown("---")
-    if st.button("닫기", type="primary", use_container_width=True):
-        st.session_state["_detail_id"] = None
-        st.rerun()
+
+def _toggle_detail(aid):
+    """[상세 보기] 토글 — 같은 ID면 닫고, 다른 ID면 그것만 열고 이전은 자동 닫힘."""
+    cur = st.session_state.get("_detail_id")
+    st.session_state["_detail_id"] = None if cur == aid else aid
 
 
-# 페이지 어딘가 dialog 트리거 (트리거 우선)
+# dialog 트리거 — AI 초안 확인만 (상세보기는 카드 inline으로 변경됨)
 if st.session_state.get("_ai_confirm_id"):
     _ai_confirm_dialog()
-elif st.session_state.get("_detail_id"):
-    _detail_dialog()
 
 
 def _set_page(p: int) -> None:
@@ -1784,8 +1755,34 @@ with tab1:
                         )
                     st.html("<div style='margin-top:8px;line-height:1.9'>" + "".join(chip_parts) + "</div>")
 
-                # 5축 progress bar는 제거 (공간 절약, 카드는 정량 정보 위주).
-                # 5축 + 산정 근거는 [상세 보기] 다이얼로그에서 충분히 확인 가능.
+                # ── 5축 mini 한 줄 (의미 있는 정보로 빈 공간 채움) ──
+                kw_s = float(row.get("keyword_score") or 0)
+                bg_s = float(row.get("budget_score") or 0)
+                cs_s = float(row.get("consortium_score") or 0)
+                cp_s = float(row.get("competitor_score") or 0)
+                tr_s = float(row.get("trl_score") or 0)
+                def _ac(v: float) -> str:
+                    if v >= 70: return "#16a34a"
+                    if v >= 50: return "#d97706"
+                    if v >= 30: return "#64748b"
+                    return "#dc2626"
+                axes_inline = [
+                    ("키워드", kw_s), ("예산", bg_s), ("컨소시엄", cs_s),
+                    ("경쟁", cp_s), ("TRL", tr_s),
+                ]
+                axes_html = " <span style='color:var(--text-faint)'>·</span> ".join(
+                    f"<span style='color:var(--text-muted)'>{name}</span> "
+                    f"<b style='color:{_ac(v)};font-feature-settings:&quot;tnum&quot; on'>{v:.0f}</b>"
+                    for name, v in axes_inline
+                )
+                st.html(
+                    f"<div style='margin-top:10px;padding:8px 12px;background:var(--surface-alt);"
+                    f"border-radius:8px;font-size:0.84rem;line-height:1.5'>"
+                    f"<span style='color:var(--text-faint);font-size:0.75em;font-weight:700;"
+                    f"letter-spacing:0.06em;text-transform:uppercase;margin-right:8px'>5축</span>"
+                    f"{axes_html}"
+                    f"</div>"
+                )
 
             with c2:
                 # ── 점수 컬럼 ── 종합 점수 + 예산 강조 (테마 적합도는 작게)
@@ -1819,10 +1816,15 @@ with tab1:
 
             # ── 액션 버튼 (좌측 컬럼 하단) ──
             ec1, ec2, ec3, ec4, _ = st.columns([1.1, 1.2, 1, 1, 3])
+            _detail_open = (st.session_state.get("_detail_id") == row["id"])
             with ec1:
-                if st.button("상세 보기", key=f"detail_{row['id']}",
-                             on_click=_open_detail, args=(row["id"],),
-                             use_container_width=True):
+                # 토글: 같은 ID면 닫힘 / 다른 ID면 그것만 열리고 이전은 자동 닫힘
+                if st.button(
+                    "▲ 상세 접기" if _detail_open else "▼ 상세 보기",
+                    key=f"detail_{row['id']}",
+                    on_click=_toggle_detail, args=(row["id"],),
+                    use_container_width=True,
+                ):
                     pass
             with ec2:
                 if st.button("AI 초안", key=f"ai_draft_{row['id']}",
@@ -1891,6 +1893,10 @@ with tab1:
                             )
                         st.cache_data.clear()
                         st.rerun()
+
+            # ── [상세 보기] 토글이 켜진 카드는 여기에 inline으로 펼침 ──
+            if _detail_open:
+                _render_detail_inline(row, row["id"])
 
     # 하단 페이지 네비 (카드 루프 종료 후)
     if not filtered.empty:
