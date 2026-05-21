@@ -1819,67 +1819,90 @@ with tab1:
                     "margin-bottom:8px'>· 숨김 처리됨 — 우측 [숨김 해제]로 복원</div>"
                 )
 
-            c1, c2 = st.columns([5, 1.4])
+            # ──────────────────────────────────────────────────────
+            # 카드 헤더 영역 — 인스타 피드 식 (좌: 기관/날짜  우: 점수/등급)
+            # 단일 컬럼 구조 (c1/c2 분리 폐기) — 정보 위계가 위→아래로 흐름
+            # ──────────────────────────────────────────────────────
+            import html as _html
+            agency = row.get("agency")
+            agency_str = str(agency) if (agency and pd.notna(agency)) else None
+            agency_badge = _agency_badge_html(row['source'], agency_str)
+            posted = row.get("posted_at") or ""
+
+            # 등급 라벨 (TOP/GOOD/FAIR/검토)
+            grade_label = (
+                "TOP" if total >= 90 else
+                "GOOD" if total >= 75 else
+                "FAIR" if total >= 60 else
+                "검토"
+            )
+            grade_color = (
+                "var(--warning)" if total >= 90 else
+                "var(--success)" if total >= 75 else
+                "#ca8a04" if total >= 60 else
+                "var(--text-muted)"
+            )
+            st.html(
+                "<div style='display:flex;justify-content:space-between;"
+                "align-items:flex-start;gap:14px;margin-bottom:12px;padding:14px 18px 0'>"
+                f"<div style='flex:1;min-width:0'>"
+                f"{agency_badge}"
+                f"<div style='font-size:12px;color:var(--text-faint);margin-top:4px'>"
+                f"{_html.escape(posted) if posted else ''}</div>"
+                f"</div>"
+                f"<div style='text-align:right;flex-shrink:0'>"
+                f"<div style='font-size:1.6rem;font-weight:700;color:var(--text);"
+                f"letter-spacing:-0.03em;line-height:1;font-feature-settings:\"tnum\"'>"
+                f"{total:.0f}<span style='font-size:0.55em;color:var(--text-faint);"
+                f"font-weight:500'>/100</span></div>"
+                f"<div style='font-size:11px;font-weight:700;color:{grade_color};"
+                f"letter-spacing:0.06em;margin-top:2px'>{grade_label}</div>"
+                f"</div>"
+                "</div>"
+            )
+
+            # ── 카드 본문 — 제목, 자격 경고, 메타 정보 ──
+            c1, c2 = st.columns([99, 1])  # c2는 사실상 placeholder (기존 점수 박스 자리)
             with c1:
-                # ── 제목 + 상태 배지 ──
+                # ── 제목 ──
                 title = row.get("title") or "(제목 없음)"
                 url = row.get("url") or ""
                 if not isinstance(title, str): title = str(title)
                 if not isinstance(url, str): url = ""
-                import html as _html
                 safe_title = _html.escape(title)
                 if url and url.startswith(("http://", "https://")):
                     safe_url = _html.escape(url, quote=True)
                     title_html = (
                         f'<a href="{safe_url}" target="_blank" rel="noopener noreferrer" '
                         f'style="color:var(--text);text-decoration:none">{safe_title}'
-                        f'<span style="color:var(--accent);margin-left:6px">↗</span></a>'
+                        f'<span style="color:var(--primary);margin-left:4px;font-size:0.85em">↗</span></a>'
                     )
                 else:
                     title_html = f'<span style="color:var(--text)">{safe_title}</span>'
 
-                # 자격 미달 / 불확실 시 추가 배지 (status_badge 오른쪽에)
+                st.html(
+                    f"<h3 style='font-size:1.2rem;font-weight:700;margin:0 0 10px;"
+                    f"line-height:1.45;letter-spacing:-0.02em;color:var(--text)'>"
+                    f"{title_html}</h3>"
+                )
+
+                # 자격 미달 / 불확실 한 줄 (단정)
                 _elig_status = row.get("eligibility_status")
                 _elig_note = row.get("eligibility_note") or ""
-                _badges_html = _status_badge(total)
                 if _elig_status == "blocked":
-                    _badges_html += (
-                        f"<span style='{_BADGE_BASE} #fca5a5;background:#fef2f2;"
-                        f"color:#991b1b;margin-left:6px' title='{_html.escape(_elig_note)}'>"
-                        f"⚠ 자격 미달</span>"
+                    st.html(
+                        f"<div style='color:var(--danger);font-size:13px;"
+                        f"margin-bottom:8px;font-weight:500'>"
+                        f"자격 미달 · {_html.escape(_elig_note)}</div>"
                     )
                 elif _elig_status == "unsure":
-                    _badges_html += (
-                        f"<span style='{_BADGE_BASE} #fde68a;background:#fffbeb;"
-                        f"color:#92400e;margin-left:6px' title='{_html.escape(_elig_note)}'>"
-                        f"? 자격 확인</span>"
+                    st.html(
+                        f"<div style='color:#a16207;font-size:13px;"
+                        f"margin-bottom:8px'>자격 확인 필요 · {_html.escape(_elig_note)}</div>"
                     )
 
-                st.html(
-                    f"<div style='display:flex;gap:12px;align-items:start;justify-content:space-between;margin-bottom:8px'>"
-                    f"  <h3 style='font-size:1.15rem;font-weight:700;margin:0;line-height:1.4;letter-spacing:-0.02em'>{title_html}</h3>"
-                    f"  <div style='flex-shrink:0;white-space:nowrap'>{_badges_html}</div>"
-                    f"</div>"
-                )
                 if not (url and url.startswith(("http://", "https://"))):
                     st.caption("원문 링크 없음")
-                # 자격 미달이면 본문 위에 한 줄 더 (사용자가 즉시 인지)
-                if _elig_status == "blocked" and _elig_note:
-                    st.html(
-                        f"<div style='background:#fef2f2;border-left:3px solid #ef4444;"
-                        f"padding:6px 10px;border-radius:4px;margin-bottom:8px;"
-                        f"font-size:0.82rem;color:#991b1b'>"
-                        f"🚫 {_html.escape(_elig_note)}</div>"
-                    )
-
-                # ── 기관 배지 (큰 컬러 스티커) ──
-                agency = row.get("agency")
-                agency_str = str(agency) if (agency and pd.notna(agency)) else None
-                st.html(
-                    f"<div style='margin-bottom:8px'>"
-                    f"{_agency_badge_html(row['source'], agency_str)}"
-                    f"</div>"
-                )
 
                 # ── 메타 행 ── (기관은 위 배지로 분리됨)
                 bits = []
@@ -1898,8 +1921,18 @@ with tab1:
                     else:
                         bits.append(f"마감 {deadline}")
                 bud = row.get("budget_mw")
-                if bud is not None and pd.notna(bud):
-                    bits.append(f"예산 <b style='color:var(--text)'>{int(bud)}</b>백만")
+                bud_period = row.get("budget_period") or ""
+                if bud is not None and pd.notna(bud) and int(bud) > 0:
+                    bv = int(bud)
+                    # 사람 친화 단위 (1000백만원 = 10억)
+                    if bv >= 1000:
+                        amt_str = f"{bv/1000:.1f}".rstrip("0").rstrip(".") + "억"
+                    else:
+                        amt_str = f"{bv}백만"
+                    bud_html = f"예산 <b style='color:var(--text);font-weight:600'>{amt_str}</b>"
+                    if bud_period and bud_period != "단년" and "미명시" not in bud_period:
+                        bud_html += f" <span style='color:var(--text-faint);font-weight:400'>· {_html.escape(bud_period)}</span>"
+                    bits.append(bud_html)
                 # 양식 첨부 수 — 같은 파일의 .hwp/.hwpx/.odt 묶어서 카운트
                 try:
                     import re as _re
@@ -1998,53 +2031,8 @@ with tab1:
                 )
 
             with c2:
-                # ── 점수 컬럼 ── 종합 점수 + 예산 강조 (테마 적합도는 작게)
-                bud_raw = row.get("budget_mw")
-                bud_period = row.get("budget_period") or ""
-                if bud_raw is not None and pd.notna(bud_raw) and bud_raw > 0:
-                    bud_val = int(bud_raw)
-                    # 백만원 → 사람 친화 단위 (1000백만원 = 10억)
-                    if bud_val >= 1000:
-                        bud_text = f"{bud_val/1000:.1f}".rstrip("0").rstrip(".") + "<span style='font-size:0.5em;color:var(--text-faint);font-weight:600'> 억</span>"
-                    else:
-                        bud_text = f"{bud_val}<span style='font-size:0.5em;color:var(--text-faint);font-weight:600'> 백만</span>"
-                    # 기간/단위 라벨 — 사용자가 "몇 년치 / 몇 개월치"인지 명확히 보게
-                    period_html = ""
-                    if bud_period:
-                        if bud_period == "단년":
-                            pass  # 옛 라벨 — 무시
-                        elif "미명시" in bud_period:
-                            # 솔직하게 표시: 흐린 색으로
-                            period_html = (
-                                f"<div style='margin-top:2px;color:var(--text-faint);font-size:0.7rem;"
-                                f"font-weight:500;letter-spacing:-0.01em'>{bud_period}</div>"
-                            )
-                        else:
-                            # 명확한 기간 — 강조 색
-                            period_html = (
-                                f"<div style='margin-top:2px;color:#0369a1;font-size:0.72rem;font-weight:600;"
-                                f"letter-spacing:-0.01em;opacity:0.85;line-height:1.3'>{bud_period}</div>"
-                            )
-                    budget_block = (
-                        f"<div style='margin-top:14px;color:var(--text-muted);font-size:0.78rem;font-weight:600'>예산</div>"
-                        f"<div style='font-size:1.5rem;font-weight:700;color:#0369a1;letter-spacing:-0.04em;"
-                        f"line-height:1.1;font-feature-settings:\"tnum\" on'>{bud_text}</div>"
-                        f"{period_html}"
-                    )
-                else:
-                    budget_block = (
-                        f"<div style='margin-top:14px;color:var(--text-muted);font-size:0.78rem;font-weight:600'>예산</div>"
-                        f"<div style='font-size:0.95rem;color:var(--text-faint);font-weight:500;"
-                        f"line-height:1.1'>본문 미명시</div>"
-                    )
-                st.html(
-                    f"<div style='text-align:right'>"
-                    f"  <div style='color:var(--text-muted);font-size:0.78rem;font-weight:600;margin-bottom:2px'>종합 점수</div>"
-                    f"  <div style='font-size:2.4rem;font-weight:800;color:var(--text);letter-spacing:-0.05em;line-height:1;font-feature-settings:\"tnum\" on'>{total:.0f}<span style='font-size:0.4em;color:var(--text-faint);font-weight:600'> / 100</span></div>"
-                    f"  {budget_block}"
-                    f"  <div style='margin-top:10px;color:var(--text-faint);font-size:0.74rem'>테마 적합 <b style='color:var(--text-muted)'>{theme:.0f}</b></div>"
-                    f"</div>"
-                )
+                # 점수는 카드 헤더로 이동됨. c2는 placeholder.
+                pass
 
             # ── 액션 버튼 (좌측 컬럼 하단) ──
             ec1, ec2, ec3, ec4, _ = st.columns([1.1, 1.2, 1, 1, 3])
