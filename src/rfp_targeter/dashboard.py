@@ -252,6 +252,16 @@ h3 { font-size: 1.05rem !important; }
     border-color: var(--chip-border) !important;
     box-shadow: 0 8px 24px rgba(59, 130, 246, 0.10), 0 2px 6px rgba(15, 23, 42, 0.04) !important;
 }
+/* 오늘 신규 공고 카드 — 호버 시 노란 글로우로 변경 (NEW 스티커 강조).
+   카드 본문 첫 element가 NEW 띠(linear-gradient 들어간 height:4px div)일 때 적용 */
+[data-testid="stMain"] [data-testid="stVerticalBlockBorderWrapper"]:has(
+    > div > div > [data-testid="stElementContainer"]:first-of-type
+    [style*="linear-gradient(90deg,#fbbf24"]
+) {
+    border-color: #fde68a !important;
+    box-shadow: 0 0 0 1px #fde68a, 0 8px 24px rgba(245, 158, 11, 0.15),
+                0 2px 8px rgba(245, 158, 11, 0.10) !important;
+}
 
 /* === Metric (종합/테마 점수) — 흰 배경, 큰 숫자 === */
 [data-testid="stMetric"] {
@@ -556,12 +566,42 @@ a:hover {
 """
 )
 
-# 사이드바 상단에 ENKI WhiteHat 로고
+# 사이드바 상단에 ENKI WhiteHat 로고 (클릭 시 홈으로 — 모든 필터 리셋)
 from rfp_targeter.config import PROJECT_ROOT as _PR
 _LOGO = _PR / "assets" / "enki_logo.png"
+
+
+@st.cache_data
+def _logo_b64() -> str:
+    import base64
+    return base64.b64encode(_LOGO.read_bytes()).decode()
+
+
 if _LOGO.exists():
-    # 타이트 크롭본(1400×718, 2x retina 밀도) — 사이드바에서 width=220으로 렌더
-    st.sidebar.image(str(_LOGO), width=220)
+    # ?home=1 URL 파라미터 트릭 — 같은 탭에서 리로드 + 다음 사이클에서 감지·리셋
+    st.sidebar.markdown(
+        f'<a href="?home=1" target="_self" '
+        f'style="display:block;text-decoration:none;line-height:0">'
+        f'<img src="data:image/png;base64,{_logo_b64()}" '
+        f'style="width:220px;cursor:pointer;transition:opacity 0.15s" '
+        f'onmouseover="this.style.opacity=0.85" '
+        f'onmouseout="this.style.opacity=1" '
+        f'title="홈으로 (모든 필터 초기화)"></a>',
+        unsafe_allow_html=True,
+    )
+
+# 홈 신호 감지 — ?home=1 들어오면 모든 필터 초기화하고 query param 정리
+if st.query_params.get("home"):
+    for k in (
+        "search_query", "min_score", "kw_filter", "imminent_only",
+        "eligibility_mode_label", "current_page", "sort_by",
+        "_detail_id", "_ai_confirm_id", "_ai_running",
+        "include_dismissed",
+    ):
+        if k in st.session_state:
+            del st.session_state[k]
+    st.query_params.clear()
+    st.rerun()
 
 init_db()
 
@@ -648,8 +688,8 @@ if "search_query" not in st.session_state:
     st.session_state["search_query"] = ""
 if "sort_by" not in st.session_state:
     st.session_state["sort_by"] = "📅 최신 등록순"
-if "hide_ineligible" not in st.session_state:
-    st.session_state["hide_ineligible"] = False
+if "eligibility_mode_label" not in st.session_state:
+    st.session_state["eligibility_mode_label"] = "전체 (자격 미달 포함)"
 
 # 정렬 옵션 (라벨 → 내부 키) — 사이드바 selectbox와 정렬 로직에서 공유
 SORT_OPTIONS = {
@@ -738,10 +778,18 @@ only_open = st.sidebar.checkbox(
     "공모중만", key="only_open",
     help="공모 마감일이 지나지 않은 공고만 표시",
 )
-hide_ineligible = st.sidebar.checkbox(
-    "자격 가능만", key="hide_ineligible", value=False,
-    help="회사 연차로 신청 불가능한 공고(창업 N년 이내 사업) 자동 숨김",
+_ELIG_MODES = {
+    "전체 (자격 미달 포함)": "all",
+    "자격 가능만": "eligible_only",
+    "자격 미달만 (참고용)": "blocked_only",
+}
+eligibility_mode_label = st.sidebar.selectbox(
+    "자격 분류",
+    list(_ELIG_MODES.keys()),
+    key="eligibility_mode_label",
+    help="회사 연차(2016년 설립 = 10년차)로 신청 가능한 공고만/미달만 분류",
 )
+eligibility_mode = _ELIG_MODES[eligibility_mode_label]
 
 # 2. 점수 — 최소 점수
 st.sidebar.markdown("### 점수")
@@ -760,9 +808,12 @@ sort_label = st.session_state.get("sort_by", "📅 최신 등록순")
 base = df[df["source"].isin(sources)]
 if only_open and "days_left" in base:
     base = base[base["days_left"].fillna(999) >= 0]
-if hide_ineligible and "eligibility_status" in base.columns:
-    # blocked 만 명시적으로 제거. unsure/ok/unknown/NULL 은 통과.
+if eligibility_mode == "eligible_only" and "eligibility_status" in base.columns:
+    # blocked 만 제거. unsure/ok/unknown/NULL 은 통과.
     base = base[base["eligibility_status"].fillna("unknown") != "blocked"]
+elif eligibility_mode == "blocked_only" and "eligibility_status" in base.columns:
+    # blocked 만 (자격 미달 공고 모음 — 추후 참고/검토용)
+    base = base[base["eligibility_status"] == "blocked"]
 
 # 자유 텍스트 검색 (제목·부서·요약·본문 — 모든 단어가 포함된 공고만)
 if search_query and search_query.strip():
@@ -985,7 +1036,7 @@ def _reset_all_filters() -> None:
     st.session_state["min_score"] = 0
     st.session_state["kw_filter"] = []
     st.session_state["imminent_only"] = False
-    st.session_state["hide_ineligible"] = False
+    st.session_state["eligibility_mode_label"] = "전체 (자격 미달 포함)"
     # only_open은 사용자가 일부러 켜둔 default라 유지
 
 
@@ -1008,8 +1059,10 @@ if selected_kws:
     _active_chips.append(f"<span style='{_CHIP_NORMAL}'>키워드 · {_kw_disp}</span>")
 if imm_active:
     _active_chips.append(f"<span style='{_CHIP_WARN}'>마감 ≤ 7일</span>")
-if hide_ineligible:
+if eligibility_mode == "eligible_only":
     _active_chips.append(f"<span style='{_CHIP_NORMAL}'>자격 가능만</span>")
+elif eligibility_mode == "blocked_only":
+    _active_chips.append(f"<span style='{_CHIP_WARN}'>자격 미달만 (참고용)</span>")
 
 _FILTER_BAR_STYLE = ("display:flex;flex-wrap:wrap;gap:6px;align-items:center;"
                      "padding:10px 14px;background:#ffffff;border:1px solid #f1f5f9;"
@@ -1239,6 +1292,58 @@ def _open_detail(aid: int) -> None:
 
 if "_detail_id" not in st.session_state:
     st.session_state["_detail_id"] = None
+
+
+# ─── 기관 배지 (소스별 색·이모지·풀네임) ──────────────────────────────
+_AGENCY_META = {
+    "kisa":   {"label": "KISA",   "name": "한국인터넷진흥원",       "color": "#0c4a6e", "bg": "#e0f2fe", "icon": "🛡"},
+    "iitp":   {"label": "IITP",   "name": "정보통신기획평가원",     "color": "#1e3a8a", "bg": "#dbeafe", "icon": "🔬"},
+    "ntis":   {"label": "NTIS",   "name": "국가과학기술지식정보",   "color": "#1e40af", "bg": "#e0e7ff", "icon": "🧪"},
+    "kosa":   {"label": "KOSA",   "name": "한국SW산업협회",         "color": "#5b21b6", "bg": "#ede9fe", "icon": "💻"},
+    "nipa":   {"label": "NIPA",   "name": "정보통신산업진흥원",     "color": "#0e7490", "bg": "#cffafe", "icon": "🌐"},
+    "krit":   {"label": "KRIT",   "name": "국방기술진흥연구소",     "color": "#3f6212", "bg": "#ecfccb", "icon": "🛩"},
+    "mss":    {"label": "MSS",    "name": "중소벤처기업부",         "color": "#c2410c", "bg": "#fff7ed", "icon": "🏭"},
+    "koica":  {"label": "KOICA",  "name": "한국국제협력단",         "color": "#166534", "bg": "#dcfce7", "icon": "🌍"},
+    "bizinfo":{"label": "bizinfo","name": "기업마당",               "color": "#475569", "bg": "#f1f5f9", "icon": "📌"},
+}
+
+
+def _agency_badge_html(source: str, agency: str | None = None) -> str:
+    """기관 큰 배지 — 색/이모지/약어/풀네임."""
+    meta = _AGENCY_META.get(source, {
+        "label": source.upper(), "name": agency or "", "color": "#475569",
+        "bg": "#f1f5f9", "icon": "📋",
+    })
+    full = meta["name"]
+    # agency가 더 구체적이면 (예: 'KISA 입찰공고') 그걸 우선
+    if agency and agency.strip() and agency.strip() not in (meta["label"], full):
+        full = agency.strip()
+    import html as _h
+    return (
+        f"<span style='display:inline-flex;align-items:center;gap:6px;"
+        f"background:{meta['bg']};color:{meta['color']};"
+        f"padding:5px 11px;border-radius:8px;font-weight:700;"
+        f"font-size:0.82rem;border:1px solid {meta['color']}22;"
+        f"line-height:1.2'>"
+        f"<span style='font-size:1em'>{meta['icon']}</span>"
+        f"<span>{_h.escape(meta['label'])}</span>"
+        f"<span style='color:{meta['color']}99;font-weight:500;"
+        f"font-size:0.88em;margin-left:2px'>· {_h.escape(full)}</span>"
+        f"</span>"
+    )
+
+
+def _is_today_new(posted_at_str) -> bool:
+    """공고 등록일이 오늘인지."""
+    if not posted_at_str or pd.isna(posted_at_str):
+        return False
+    try:
+        ts = pd.to_datetime(posted_at_str, errors="coerce")
+        if pd.isna(ts):
+            return False
+        return ts.date() == datetime.now().date()
+    except Exception:
+        return False
 
 
 # ─── 상세 보기 다이얼로그 — 카드 [상세 보기] 클릭 시 ──────────────────────
@@ -1501,6 +1606,24 @@ with tab1:
                 f"border-bottom-left-radius:16px'></div>"
             )
 
+            # ── 오늘 신규 공고: NEW 스티커 + 카드 노란 스포트라이트 ──
+            _is_new = _is_today_new(row.get("posted_at"))
+            if _is_new:
+                # 상단 그라데이션 띠 + 우상단 회전 NEW 스티커
+                st.html(
+                    "<div style='position:absolute;top:0;left:0;right:0;height:4px;"
+                    "background:linear-gradient(90deg,#fbbf24,#f59e0b,#ea580c);"
+                    "border-radius:16px 16px 0 0;z-index:5'></div>"
+                    "<div style='position:absolute;top:-12px;right:14px;"
+                    "background:linear-gradient(135deg,#fbbf24 0%,#f59e0b 100%);"
+                    "color:#fff;padding:6px 14px;border-radius:999px;"
+                    "font-weight:800;font-size:0.74rem;letter-spacing:0.06em;"
+                    "transform:rotate(8deg);"
+                    "box-shadow:0 6px 16px rgba(245,158,11,0.45),0 2px 4px rgba(245,158,11,0.3);"
+                    "z-index:10;font-family:Pretendard Variable,Pretendard,sans-serif'>"
+                    "✨ NEW</div>"
+                )
+
             # ── 숨김 상태 배지 (목록에 포함된 dismissed 항목) ──
             if row.get("is_dismissed"):
                 st.html(
@@ -1565,12 +1688,17 @@ with tab1:
                         f"🚫 {_html.escape(_elig_note)}</div>"
                     )
 
-                # ── 메타 행 ──
-                bits = []
+                # ── 기관 배지 (큰 컬러 스티커) ──
                 agency = row.get("agency")
-                if agency and pd.notna(agency):
-                    bits.append(f"<b style='color:var(--text-soft)'>{_html.escape(str(agency))}</b>")
-                bits.append(f"<code style='color:var(--text-muted);background:var(--surface-alt);padding:1px 6px;border-radius:4px;font-size:0.78em'>{row['source']}</code>")
+                agency_str = str(agency) if (agency and pd.notna(agency)) else None
+                st.html(
+                    f"<div style='margin-bottom:8px'>"
+                    f"{_agency_badge_html(row['source'], agency_str)}"
+                    f"</div>"
+                )
+
+                # ── 메타 행 ── (기관은 위 배지로 분리됨)
+                bits = []
                 deadline = row.get("deadline_at")
                 if deadline and pd.notna(deadline):
                     days = row.get("days_left")
