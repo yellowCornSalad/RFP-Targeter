@@ -122,6 +122,16 @@ _PERIOD_PAREN_MONTHS = re.compile(
     r"\(\s*(?:약\s*)?(\d{1,3})\s*개월\s*\)|"
     r"\(\s*(\d{1,2})\s*년\s*(\d{1,2})?\s*개월?\s*\)"
 )
+# "사업기간 : 계약체결일 ~ 2026.12.18" / "사업기간 : 2026.7.1 ~ 2027.12.31"
+# 종료일만 명시된 경우 — 시작이 추상(계약체결일)이라도 종료일은 의미 있음.
+_PERIOD_END_DATE = re.compile(
+    r"(?:사업\s*기간|계약\s*기간|협약\s*기간|수행\s*기간|용역\s*기간|이행\s*기간|연구\s*기간)"
+    r"\s*[:\s]?\s*"
+    r"(?:계약\s*체결일|협약\s*체결일|계약일|협약일|체결일|착수일|발주일|"
+    r"['‘’‛ʼ`＇]?\d{2,4}\s*[.\-년]\s*\d{1,2}\s*[.\-월]\s*\d{1,2}\s*\.?)?"
+    r"\s*[~∼-]\s*"
+    r"['‘’‛ʼ`＇]?(\d{2,4})\s*[.\-년]\s*(\d{1,2})\s*[.\-월]\s*(\d{1,2})"
+)
 # 단독 기간 표현 — 년 또는 개월
 _DURATION_STANDALONE = re.compile(
     r"\(\s*(\d{1,2})\s*년\s*간?\s*\)|"           # (5년) (5년간) → group 1
@@ -233,6 +243,31 @@ def _normalize_year(y: int) -> int:
     if y < 100:
         return 2000 + y
     return y
+
+
+def _find_end_date_in(text_block: str) -> str | None:
+    """본문에서 '사업기간 ... ~ YYYY.MM.DD' 형태로 종료일만 명시된 경우 추출.
+
+    시작이 '계약체결일'/'협약일' 같은 추상 시점이라 정확한 개월수 계산 불가하지만
+    종료일은 의미 있는 정보 — "~ 2026.12.18 까지" 형태 라벨로 사용자에게 노출.
+
+    Returns:
+        "YYYY.MM.DD" 형식 문자열 또는 None
+    """
+    m = _PERIOD_END_DATE.search(text_block)
+    if not m:
+        return None
+    try:
+        y = int(m.group(1))
+        mo = int(m.group(2))
+        d = int(m.group(3))
+    except (ValueError, TypeError):
+        return None
+    if y < 100:
+        y = 2000 + y
+    if not (1 <= mo <= 12 and 1 <= d <= 31 and 2020 <= y <= 2099):
+        return None
+    return f"{y}.{mo:02d}.{d:02d}"
 
 
 def _find_duration_in(text_block: str) -> tuple[int | None, int | None]:
@@ -401,18 +436,31 @@ def _detect_period(text: str, amount_start: int, amount_end: int) -> tuple[str, 
 
     # ── 6. 넓은 컨텍스트에서 사업기간 ─────────────────────────────
     dm, yrs = _find_duration_in(wider)
-    if dm and yrs:
-        return f"총 {yrs}년간", dm, yrs
     if dm:
-        return f"총 {dm}개월", dm, None
+        if dm < 12:
+            return f"총 {dm}개월간", dm, None
+        if dm % 12 != 0:
+            y_part = dm // 12
+            m_part = dm % 12
+            return f"총 {y_part}년 {m_part}개월", dm, yrs
+        if yrs:
+            return f"총 {yrs}년간", dm, yrs
+        return f"총 {dm}개월간", dm, None
 
-    # ── 7. 연도 라벨 (넓은 컨텍스트) ─────────────────────────────
+    # ── 7. 종료일만 명시 ("사업기간: 계약체결일 ~ 2026.12.18") ──
+    # KISA 입찰공고처럼 시작이 추상 시점이라 정확한 개월수 불가하지만
+    # 종료일만 있어도 사용자에겐 의미 있는 정보. raw 그대로 표시.
+    end_date = _find_end_date_in(wider)
+    if end_date:
+        return f"~ {end_date}까지", None, None
+
+    # ── 8. 연도 라벨 (넓은 컨텍스트) ─────────────────────────────
     m_year = _PERIOD_YEAR_LABEL.search(wider)
     if m_year:
         y = _normalize_year(int(m_year.group(1)))
         return f"{y}년분", None, 1
 
-    # ── 8. fallback ──────────────────────────────────────────────
+    # ── 9. fallback ──────────────────────────────────────────────
     return "기간 미명시", None, None
 
 
