@@ -102,13 +102,32 @@ _UNIT_PRICE_PREFIX = re.compile(
 # 4) 기간 — "연간" / "N년" / "N개월" / 차년도
 # ─────────────────────────────────────────────────────────────────────────────
 _PERIOD_YEAR_LABEL = re.compile(
-    r"['‘'`]?(\d{2,4})\s*년"  # '26년, 2026년
+    r"['‘’‛ʼ`＇]?(\d{2,4})\s*년"  # '26년, '26년, 2026년 (다양한 typographic apostrophe)
 )
-# 사업기간은 prefix 바로 다음에 (3자 이내) N개월/N년 형식으로만 인정.
+# 사업기간은 prefix 바로 다음에 (5자 이내) N개월/N년 형식으로만 인정.
 # 가운데 다른 텍스트(예산, 출연금 등) 끼면 그건 연도 라벨이지 기간 아님.
 _PERIOD_DURATION = re.compile(
-    r"(?:총\s*)?(?:사업\s*기간|연구\s*기간|총\s*연구\s*기간|수행\s*기간|총\s*사업\s*기간|연구\s*개발\s*기간)"
+    r"(?:총\s*)?(?:사업\s*기간|연구\s*기간|총\s*연구\s*기간|수행\s*기간|총\s*사업\s*기간|"
+    r"연구\s*개발\s*기간|전체\s*사업\s*기간|총\s*기간)"
     r"\s*[:\s\-=()]{0,5}\s*(\d{1,3})\s*(개월|년)\b"
+)
+# 단독 기간 표현 — 년 또는 개월
+_DURATION_STANDALONE = re.compile(
+    r"\(\s*(\d{1,2})\s*년\s*간?\s*\)|"           # (5년) (5년간) → group 1
+    r"(\d{1,2})\s*개\s*년\s*사업|"                # 5개년 사업 → group 2
+    r"총\s*(\d{1,2})\s*년\s*간?(?:\s|$|[,.])|"   # 총 5년 → group 3
+    r"(\d{1,2})\s*년\s*간(?:\s|$|[,.])"           # 5년간 → group 4
+)
+# 개월 단위 기간 (별도 — _find_duration_in 에서 이 결과만 따로 처리)
+_DURATION_MONTHS_STANDALONE = re.compile(
+    r"(\d{1,3})\s*개월\s*(?:사업|간|동안|이내)|"  # 60개월 사업 / 36개월 간
+    r"총\s*(\d{1,3})\s*개월"                      # 총 36개월
+)
+# 연도 범위 — 모든 따옴표 문자 포함: ' ’ ‘ ` ' " ＇
+# 정부 공고 본문에 자주 나오는 typographic apostrophe: U+2019 ('), U+2018 (‘), U+0027 (')
+_QUOTE_CHARS = r"['‘’‛ʼ`＇]?"
+_RANGE_YEARS = re.compile(
+    rf"{_QUOTE_CHARS}(\d{{2,4}})\s*년\s*~\s*{_QUOTE_CHARS}(\d{{2,4}})\s*년"
 )
 _PERIOD_CHAJEONDO = re.compile(r"(\d)\s*차\s*년도")
 _PERIOD_ANNUAL = re.compile(r"연\s*간|연\s*\d|/\s*년\b|당\s*연\b")
@@ -138,9 +157,9 @@ _PATTERN_CELL = re.compile(
 
 # 연도 + 금액 (prefix 없이) — "'26년 20억원", "2026년 50억원"
 _PATTERN_YEAR_AMOUNT = re.compile(
-    r"['‘'`]?(\d{2,4})\s*년\s*"     # group 1: year
-    + _NUM +                          # group 2: amount
-    r"\s*" + _UNIT_MONEY +            # group 3: unit
+    r"['‘’‛ʼ`＇]?(\d{2,4})\s*년\s*"     # group 1: year (다양한 apostrophe)
+    + _NUM +                              # group 2: amount
+    r"\s*" + _UNIT_MONEY +                # group 3: unit
     r"(?:\s*(내외|이내|규모|수준))?"
 )
 
@@ -198,55 +217,146 @@ def _has_exclude_word(snippet: str) -> bool:
     return _EXCLUDE_WORDS.search(snippet) is not None
 
 
-def _detect_period(context: str, amount_pos: int = 0) -> tuple[str, int | None, int | None]:
-    """매칭 주변 텍스트에서 기간 정보 식별.
+def _normalize_year(y: int) -> int:
+    """2자리 연도면 2000+ 보정."""
+    if y < 100:
+        return 2000 + y
+    return y
 
-    우선순위:
-        1. 총 사업기간/연구기간 N개월/년 → "총 N개월" (가장 권위)
-        2. 총사업비/총연구비 키워드 → "총사업비"
-        3. 차년도 N → "N차년도"
-        4. 연간/연 → "연간"
-        5. 연도 라벨 ('26년) → "26년 단년"
-        6. 그 외 → "단년"
 
-    amount_pos: context 내 amount의 위치 (오프셋). 이걸로 amount보다 앞에 있는 키워드만 우선.
-
-    Returns (period_label, duration_months, years_covered).
-    """
-    # 1. 총 사업기간/연구기간 (최우선)
-    m = _PERIOD_DURATION.search(context)
-    duration_months = None
-    years = None
+def _find_duration_in(text_block: str) -> tuple[int | None, int | None]:
+    """텍스트 블록에서 사업기간 추출. Returns (duration_months, years)."""
+    # 1. "사업기간 N년/N개월"
+    m = _PERIOD_DURATION.search(text_block)
     if m:
         n = int(m.group(1))
         if m.group(2) == "년":
-            duration_months = n * 12
-            years = n
+            return n * 12, n
         else:
-            duration_months = n
-            years = max(1, round(n / 12))
-        # "총 연구기간" 명시되어 있으면 그게 가장 권위 있는 기간
-        return f"총 {duration_months}개월", duration_months, years
+            return n, max(1, round(n / 12))
+    # 2. 년 단위 단독 표현
+    m = _DURATION_STANDALONE.search(text_block)
+    if m:
+        val = m.group(1) or m.group(2) or m.group(3) or m.group(4)
+        if val:
+            n = int(val)
+            if 1 <= n <= 30:
+                return n * 12, n
+    # 3. 개월 단위 단독 표현 ("60개월 사업")
+    m = _DURATION_MONTHS_STANDALONE.search(text_block)
+    if m:
+        val = m.group(1) or m.group(2)
+        if val:
+            months = int(val)
+            if 1 <= months <= 360:  # 30년 이내
+                return months, max(1, round(months / 12))
+    # 4. 연도 범위 "'26년~'30년"
+    m = _RANGE_YEARS.search(text_block)
+    if m:
+        y1 = _normalize_year(int(m.group(1)))
+        y2 = _normalize_year(int(m.group(2)))
+        n_years = y2 - y1 + 1
+        if 1 <= n_years <= 30:
+            return n_years * 12, n_years
+    return None, None
 
-    # 2. 총사업비/총연구비 키워드
-    if re.search(r"총\s*사업\s*비|총\s*연구\s*비|총\s*예산|총\s*투자", context):
-        return "총사업비", duration_months, years
 
-    # 3. 차년도 N (사업기간 명시 없을 때만)
-    m_cha = _PERIOD_CHAJEONDO.search(context)
+def _detect_period(text: str, amount_start: int, amount_end: int) -> tuple[str, int | None, int | None]:
+    """금액 위치 기반 정밀 기간 분석.
+
+    우선순위 (amount 직전 ±25자 = 가장 신뢰):
+        1. "연 X" / "연간 X" / "/년 X" → "연간" (+ 전체 사업기간 동반 시 "연간 / 5년 사업")
+        2. "총 X" (총사업비) → 사업기간 동반 시 "총 5년간 (26~30)"
+        3. "N차년도 X" → "N차년도"
+        4. "'26년 X" → "26년분 (5년 사업 26~30)" 또는 "2026년분"
+        5. "과제당 X" / "과제별 X" → "과제당"
+
+    그 외 (직전 prefix 없음):
+        6. 컨텍스트(±80자)에서 사업기간 추출
+        7. 연도 라벨
+        8. fallback: "기간 미명시"
+
+    Returns (period_label, duration_months, years_covered).
+    """
+    # 직전 25자 (immediate context — 가장 신뢰할 만한 라벨)
+    immediate = text[max(0, amount_start - 25):amount_start]
+    # 넓은 컨텍스트 (사업기간/범위 탐색용)
+    wider = text[max(0, amount_start - 200):amount_end + 100]
+
+    # ── 1. 연간 ───────────────────────────────────────────────────
+    if re.search(r"연\s*간\s*$|(?:^|[\s/])연\s*$|/\s*년\s*$|당\s*연\s*$", immediate):
+        dm, yrs = _find_duration_in(wider)
+        if dm:
+            return f"연간 / {yrs}년 사업" if yrs else f"연간 / {dm}개월 사업", dm, yrs
+        return "연간", None, None
+
+    # ── 2. 총 X (총사업비) ────────────────────────────────────────
+    # 직전 25자 안에 "총" 또는 "총사업비/연구비/예산/투자" 명시 → 총사업비
+    is_total = (
+        re.search(r"(?:^|[\s,(:])총\s*$", immediate)
+        or re.search(r"총\s*(?:사업\s*비|연구\s*비|예\s*산|투자)", immediate)
+    )
+    if is_total:
+        dm, yrs = _find_duration_in(wider)
+        # 범위 별도 추출 (연도 표시용)
+        m_range = _RANGE_YEARS.search(wider)
+        if m_range:
+            y1 = _normalize_year(int(m_range.group(1)))
+            y2 = _normalize_year(int(m_range.group(2)))
+            n_yrs = y2 - y1 + 1
+            if 1 <= n_yrs <= 30:
+                return f"총 {n_yrs}년 ({y1}~{y2})", n_yrs * 12, n_yrs
+        if yrs:
+            return f"총 {yrs}년간", dm, yrs
+        if dm:
+            return f"총 {dm}개월", dm, None
+        return "총사업비 (기간 미명시)", None, None
+
+    # ── 3. N차년도 ───────────────────────────────────────────────
+    m_cha = re.search(r"(\d)\s*차\s*년도\s*$", immediate)
     if m_cha:
-        return f"{m_cha.group(1)}차년도", duration_months, years
+        n_cha = m_cha.group(1)
+        dm, yrs = _find_duration_in(wider)
+        if yrs:
+            return f"{n_cha}차년도 (총 {yrs}년 사업)", dm, yrs
+        return f"{n_cha}차년도", dm, yrs
 
-    # 4. 연간
-    if _PERIOD_ANNUAL.search(context) or "/년" in context or "내외/년" in context:
-        return "연간", duration_months, years
-
-    # 5. 연도 단일 ('26년, 2026년)
-    m_year = _PERIOD_YEAR_LABEL.search(context)
+    # ── 4. 연도 라벨 ('26년 또는 2026년) ─────────────────────────
+    m_year = re.search(r"['‘’‛ʼ`＇]?(\d{2,4})\s*년\s*$", immediate)
     if m_year:
-        return f"{m_year.group(1)}년 단년", duration_months, 1
+        y = _normalize_year(int(m_year.group(1)))
+        # 같은 컨텍스트에 연도 범위 있으면 → "26년분 (5년 사업 26~30)"
+        m_range = _RANGE_YEARS.search(wider)
+        if m_range:
+            y1 = _normalize_year(int(m_range.group(1)))
+            y2 = _normalize_year(int(m_range.group(2)))
+            n_yrs = y2 - y1 + 1
+            if 1 <= n_yrs <= 30:
+                return f"{y}년분 (총 {n_yrs}년 사업 {y1}~{y2})", n_yrs * 12, n_yrs
+        return f"{y}년분", None, 1
 
-    return "단년", duration_months, years
+    # ── 5. 과제당 ────────────────────────────────────────────────
+    if re.search(r"과제\s*당\s*$|과제\s*별\s*$|과제\s*당\s*연\s*$", immediate):
+        dm, yrs = _find_duration_in(wider)
+        if yrs:
+            return f"과제당 / 총 {yrs}년", dm, yrs
+        return "과제당", dm, yrs
+
+    # ── 6. 넓은 컨텍스트에서 사업기간 ─────────────────────────────
+    dm, yrs = _find_duration_in(wider)
+    if dm and yrs:
+        return f"총 {yrs}년간", dm, yrs
+    if dm:
+        return f"총 {dm}개월", dm, None
+
+    # ── 7. 연도 라벨 (넓은 컨텍스트) ─────────────────────────────
+    m_year = _PERIOD_YEAR_LABEL.search(wider)
+    if m_year:
+        y = _normalize_year(int(m_year.group(1)))
+        return f"{y}년분", None, 1
+
+    # ── 8. fallback ──────────────────────────────────────────────
+    return "기간 미명시", None, None
 
 
 def _excerpt(text: str, start: int, end: int, pad: int = 40) -> str:
@@ -284,12 +394,6 @@ def extract_budget_info(text: str | None) -> BudgetInfo | None:
     for m in _PATTERN_PREFIXED.finditer(text):
         num_str = m.group(2)
         unit = m.group(3)
-        gap = m.group("gap") or ""
-
-        # 매칭 주변 ±80자 컨텍스트
-        ctx_start = max(0, m.start() - 80)
-        ctx_end = min(len(text), m.end() + 80)
-        context = text[ctx_start:ctx_end]
 
         # 제외 키워드 가까이 있으면 skip (특히 prefix 직전 30자 내)
         nearby = text[max(0, m.start() - 30):m.start() + 30]
@@ -306,7 +410,10 @@ def extract_budget_info(text: str | None) -> BudgetInfo | None:
         if mw is None:
             continue
 
-        period_label, duration_months, years = _detect_period(context)
+        # 금액 위치 기반 정밀 period 분석
+        period_label, duration_months, years = _detect_period(
+            text, num_start, m.end(3),
+        )
         excerpt = _excerpt(text, m.start(), m.end())
 
         candidates.append((m.start(), BudgetInfo(
@@ -344,12 +451,7 @@ def extract_budget_info(text: str | None) -> BudgetInfo | None:
         if mw is None:
             continue
 
-        ctx_start = max(0, m.start() - 60)
-        ctx_end = min(len(text), m.end() + 60)
-        context = text[ctx_start:ctx_end]
-        period_label, duration_months, years = _detect_period(context)
-        if period_label == "단년":
-            period_label = f"{year_str}년 단년"
+        period_label, duration_months, years = _detect_period(text, m.start(2), m.end(2))
 
         excerpt = _excerpt(text, m.start(), m.end())
 
@@ -376,10 +478,7 @@ def extract_budget_info(text: str | None) -> BudgetInfo | None:
         mw = _unit_to_mw(num_str, unit)
         if mw is None:
             continue
-        ctx_start = max(0, m.start() - 80)
-        ctx_end = min(len(text), m.end() + 80)
-        context = text[ctx_start:ctx_end]
-        period_label, duration_months, years = _detect_period(context)
+        period_label, duration_months, years = _detect_period(text, m.start(1), m.end(1))
         excerpt = _excerpt(text, m.start(), m.end())
         candidates.append((m.start(), BudgetInfo(
             mw=mw,

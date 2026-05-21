@@ -1909,13 +1909,23 @@ with tab1:
                         bud_text = f"{bud_val/1000:.1f}".rstrip("0").rstrip(".") + "<span style='font-size:0.5em;color:var(--text-faint);font-weight:600'> 억</span>"
                     else:
                         bud_text = f"{bud_val}<span style='font-size:0.5em;color:var(--text-faint);font-weight:600'> 백만</span>"
-                    # 기간/단위 라벨 (연간, 총사업비, N차년도 등)
+                    # 기간/단위 라벨 — 사용자가 "몇 년치 / 몇 개월치"인지 명확히 보게
                     period_html = ""
-                    if bud_period and bud_period not in ("단년", "unknown"):
-                        period_html = (
-                            f"<div style='margin-top:2px;color:#0369a1;font-size:0.72rem;font-weight:600;"
-                            f"letter-spacing:-0.01em;opacity:0.8'>{bud_period}</div>"
-                        )
+                    if bud_period:
+                        if bud_period == "단년":
+                            pass  # 옛 라벨 — 무시
+                        elif "미명시" in bud_period:
+                            # 솔직하게 표시: 흐린 색으로
+                            period_html = (
+                                f"<div style='margin-top:2px;color:var(--text-faint);font-size:0.7rem;"
+                                f"font-weight:500;letter-spacing:-0.01em'>{bud_period}</div>"
+                            )
+                        else:
+                            # 명확한 기간 — 강조 색
+                            period_html = (
+                                f"<div style='margin-top:2px;color:#0369a1;font-size:0.72rem;font-weight:600;"
+                                f"letter-spacing:-0.01em;opacity:0.85;line-height:1.3'>{bud_period}</div>"
+                            )
                     budget_block = (
                         f"<div style='margin-top:14px;color:var(--text-muted);font-size:0.78rem;font-weight:600'>예산</div>"
                         f"<div style='font-size:1.5rem;font-weight:700;color:#0369a1;letter-spacing:-0.04em;"
