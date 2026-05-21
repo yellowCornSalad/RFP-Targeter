@@ -109,7 +109,8 @@ _PERIOD_YEAR_LABEL = re.compile(
 _PERIOD_DURATION = re.compile(
     r"(?:총\s*)?(?:사업\s*기간|연구\s*기간|총\s*연구\s*기간|수행\s*기간|총\s*사업\s*기간|"
     r"연구\s*개발\s*기간|전체\s*사업\s*기간|총\s*기간|지원\s*기간|협약\s*기간|계약\s*기간)"
-    r"[^()\n]{0,80}?(?:\(\s*약?\s*)?(\d{1,3})\s*(개월|년)\b"
+    r"[^()\n]{0,80}?(?:\(\s*약?\s*)?(?<!\d)(\d{1,3})\s*(개월|년)\b"
+    # (?<!\d) lookbehind: 매칭된 숫자 직전이 숫자면 거부 (4자리 연도 잘려서 들어가는 것 방지)
 )
 # "X년 Y개월" 형식 별도 (총 사업기간 3년 9개월)
 _PERIOD_YEARMONTH = re.compile(
@@ -235,8 +236,12 @@ def _normalize_year(y: int) -> int:
 
 
 def _find_duration_in(text_block: str) -> tuple[int | None, int | None]:
-    """텍스트 블록에서 사업기간 추출. Returns (duration_months, years)."""
-    # 1. "사업기간 ... 3년 9개월" (혼합 표현)
+    """텍스트 블록에서 사업기간 추출. Returns (duration_months, years).
+
+    중요: prefix 뒤에 잡힌 숫자가 연도 라벨('26년, 2026년)인 경우 거부.
+    사업기간은 30년을 넘는 경우 사실상 없으므로 cap.
+    """
+    # 1. "사업기간 ... 3년 9개월" (혼합 표현) — 가장 명확
     m = _PERIOD_YEARMONTH.search(text_block)
     if m:
         y = int(m.group(1))
@@ -245,12 +250,25 @@ def _find_duration_in(text_block: str) -> tuple[int | None, int | None]:
             total = y * 12 + mo
             return total, y if mo == 0 else y + (1 if mo >= 6 else 0)
     # 2. "사업기간 ... N개월" / "사업기간 ... N년"
-    m = _PERIOD_DURATION.search(text_block)
-    if m:
-        n = int(m.group(1))
-        if m.group(2) == "년":
+    for m in _PERIOD_DURATION.finditer(text_block):
+        n_str = m.group(1)
+        unit = m.group(2)
+        # 매칭된 숫자 직전 문자 확인 — 따옴표면 연도 라벨이지 사업기간 아님
+        num_start = m.start(1)
+        char_before = text_block[num_start - 1] if num_start > 0 else ""
+        if char_before in "'‘’‛ʼ`＇":
+            continue  # '26년, '26년 → 연도 라벨, skip
+        # 4자리 숫자도 연도 (2026년)
+        if len(n_str) >= 4:
+            continue
+        n = int(n_str)
+        if unit == "년":
+            if n > 30:  # 사업기간 30년 초과 → 의심 (보통 큰 연도 매칭 오류)
+                continue
             return n * 12, n
-        else:
+        else:  # 개월
+            if n > 360:
+                continue
             return n, max(1, round(n / 12))
     # 3. 년 단위 단독 표현 — "(5년간)", "5개년 사업"
     m = _DURATION_STANDALONE.search(text_block)
