@@ -4,14 +4,20 @@
 """
 from __future__ import annotations
 
+# Streamlit Cloud는 dashboard.py를 직접 실행 → src/ 가 sys.path 에 없어서
+# `rfp_targeter` import 실패. 패키지 부모 디렉토리(=src/)를 명시적으로 추가.
+import sys
+from pathlib import Path
+_SRC_DIR = Path(__file__).resolve().parents[1]
+if str(_SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(_SRC_DIR))
+
 import json
 from datetime import datetime
 
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-
-from pathlib import Path
 
 from rfp_targeter.config import profile
 from rfp_targeter.db.models import get_conn, init_db, list_security_announcements
