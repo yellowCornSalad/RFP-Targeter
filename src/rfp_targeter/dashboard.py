@@ -189,15 +189,18 @@ svg[class*="icon"], i[class*="icon"] {
     text-transform: none !important;
 }
 
-/* === 전체 배경 — BMW 톤 (회색 배경 + 흰 카드 떠보이게) === */
-[data-testid="stAppViewContainer"], [data-testid="stMain"] {
-    background: #f5f5f5 !important;
+/* === 전체 배경 — BMW 톤 (진한 회색 + 흰 카드 확실히 떠보이게) === */
+[data-testid="stAppViewContainer"], [data-testid="stMain"],
+[data-testid="stAppViewContainer"] > div,
+.stApp {
+    background: #e8e8e8 !important;
 }
 .main .block-container, [data-testid="stMain"] .block-container {
     padding-top: 1.5rem !important;
     padding-left: 2rem !important;
     padding-right: 2rem !important;
-    max-width: 1440px;  /* BMW 그리드 톤 — 3-column 카드 충분 공간 */
+    max-width: 1440px;
+    background: transparent !important;
 }
 
 /* === Streamlit 기본 데코 숨김 (Deploy 버튼 위 영역, 햄버거 메뉴 등) === */
@@ -205,10 +208,10 @@ svg[class*="icon"], i[class*="icon"] {
 [data-testid="stDecoration"] { display: none !important; }
 #MainMenu, footer { visibility: hidden; }
 
-/* === 사이드바 — BMW 식 흰 배경 + 우측 구분선 === */
+/* === 사이드바 — BMW 흰색 (메인 진한 회색과 대비) === */
 section[data-testid="stSidebar"] {
     background: #ffffff !important;
-    border-right: 1px solid #e5e5e5 !important;
+    border-right: 1px solid #d4d4d4 !important;
 }
 section[data-testid="stSidebar"] [data-testid="stSidebarHeader"] {
     padding: 0.25rem 0.5rem !important;
@@ -351,17 +354,18 @@ h4 { font-size: 0.9rem !important; font-weight: 600 !important; }
     color: #ffffff !important;
 }
 
-/* === 카드 컨테이너 — BMW 식 (각진 카드, 흰 배경, 회색 위로 떠보이게) === */
+/* === 카드 컨테이너 — BMW 식 (각진 카드 + 진한 그림자로 회색 위 떠보이게) === */
 [data-testid="stMain"] [data-testid="stVerticalBlockBorderWrapper"] {
     border: none !important;
     border-radius: 4px !important;
     background: #ffffff !important;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.10), 0 1px 2px rgba(0, 0, 0, 0.06) !important;
     transition: box-shadow 0.18s ease, transform 0.18s ease !important;
-    margin-bottom: 16px !important;
+    margin-bottom: 20px !important;
 }
 [data-testid="stMain"] [data-testid="stVerticalBlockBorderWrapper"]:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.08) !important;
+    transform: translateY(-1px);
 }
 /* 카드 내부 여백 — BMW 식 여유 */
 [data-testid="stMain"] [data-testid="stVerticalBlockBorderWrapper"] > div > div {
@@ -435,18 +439,29 @@ h4 { font-size: 0.9rem !important; font-weight: 600 !important; }
     background: #111 !important;
 }
 
-/* === Multiselect 칩 — BMW 식 회색 배경 + 검정 글자 (파란색 X) === */
+/* === Multiselect 칩 — BMW 식 검정 강제 (streamlit 인라인 style 덮어쓰기) ===
+   Streamlit 1.40+ 가 inline background-color 를 직접 박아넣어서 더 강한 셀렉터 필요 */
 [data-testid="stMultiSelect"] span[data-baseweb="tag"],
-[data-baseweb="tag"][role="button"] {
-    background: #f0f0f0 !important;
-    color: #111 !important;
-    border: 1px solid #d4d4d4 !important;
+[data-testid="stMultiSelect"] div[data-baseweb="tag"],
+[data-baseweb="tag"],
+[data-baseweb="tag"] > div,
+[data-baseweb="tag"] > span,
+section[data-testid="stSidebar"] [data-baseweb="tag"] {
+    background: #111111 !important;
+    background-color: #111111 !important;
+    color: #ffffff !important;
+    border: 1px solid #111111 !important;
     border-radius: 2px !important;
-    font-weight: 500 !important;
+    font-weight: 600 !important;
 }
-[data-testid="stMultiSelect"] span[data-baseweb="tag"] svg,
+[data-testid="stMultiSelect"] [data-baseweb="tag"] *,
+[data-baseweb="tag"] * {
+    color: #ffffff !important;
+}
+[data-testid="stMultiSelect"] [data-baseweb="tag"] svg,
 [data-baseweb="tag"] svg {
-    fill: #666 !important;
+    fill: #ffffff !important;
+    color: #ffffff !important;
 }
 
 /* === Checkbox — BMW 검정 === */
