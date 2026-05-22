@@ -14,7 +14,7 @@ from rfp_targeter.db.models import (
 from rfp_targeter.config import profile
 from rfp_targeter.filters.eligibility import check_eligibility
 from rfp_targeter.filters.security_filter import SecurityFilter
-from rfp_targeter.notifier.slack import notify_new_announcements
+from rfp_targeter.notifier.slack import dispatch_pending_alerts
 from rfp_targeter.scoring import compute_score
 
 log = logging.getLogger(__name__)
@@ -238,8 +238,11 @@ def run_once() -> list[RunStats]:
         _established_year = None
     stats: list[RunStats] = []
 
-    # 사이클 동안 추가된 신규 보안 공고 모음 — 마지막에 슬랙 일괄 발송
-    cycle_new_alerts: list = []  # [(Announcement, Score), ...]
+    # ⚠️ 이전엔 cycle_new_alerts 로컬 리스트로 이번 사이클 신규만 즉시 발송했음.
+    # 변경: 영업시간(평일 09~18 KST)만 발송하는 요구사항 →
+    # 신규 공고는 alerted_at IS NULL 인 채로 DB에 누적되고,
+    # dispatch_pending_alerts() 가 영업시간이면 묶음 발송 + alerted_at 표시.
+    # → 사이클 끝에 호출 (아래)
 
     for crawler in enabled_crawlers(settings()):
         s = RunStats(source=crawler.source)
@@ -279,9 +282,8 @@ def run_once() -> list[RunStats]:
                         s.filtered_in += 1
                         score = compute_score(a)
                         upsert_score(conn, score)
-                        # 이번 사이클 신규 + 보안 통과 → 슬랙 알림 대상
-                        if is_new:
-                            cycle_new_alerts.append((a, score))
+                        # 신규 + 보안 통과 — upsert_announcement INSERT 분기에서 alerted_at=NULL
+                        # 으로 들어옴 → dispatch_pending_alerts() 가 영업시간에 큐 처리
 
             with get_conn() as conn:
                 log_fetch_finish(conn, log_id, s.new, s.updated)
@@ -309,14 +311,12 @@ def run_once() -> list[RunStats]:
     except Exception:
         log.exception("source verify failed (pipeline 계속)")
 
-    # 사이클 끝 — 신규 보안 공고가 1건+ 있으면 슬랙 일괄 발송
-    if cycle_new_alerts:
-        from datetime import datetime as _dt
-        cycle_label = _dt.now().strftime("%Y-%m-%d %H:%M")
-        try:
-            notify_new_announcements(cycle_new_alerts, cycle_label=cycle_label)
-        except Exception:
-            # 알림 실패가 파이프라인 전체를 죽이지 않게
-            log.exception("slack alert dispatch failed (pipeline 계속)")
+    # 사이클 끝 — 영업시간(평일 09~18 KST)이면 alerted_at IS NULL 보안 신규를 묶음 발송.
+    # 영업시간 외엔 누적만, 다음 영업일 09시 첫 cron이 통합 발송.
+    # 예: 5/11(월) 21시 신규 → 5/12(화) 09시 cron이 묶음 알림.
+    try:
+        dispatch_pending_alerts()
+    except Exception:
+        log.exception("slack dispatch_pending_alerts failed (pipeline 계속)")
 
     return stats

@@ -23,17 +23,48 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import datetime
 from typing import Iterable
 
 import requests
 
+try:
+    from zoneinfo import ZoneInfo
+    KST = ZoneInfo("Asia/Seoul")
+except ImportError:
+    # Python < 3.9 폴백 (이 프로젝트는 3.11+이라 도달 안 함)
+    from datetime import timezone, timedelta
+    KST = timezone(timedelta(hours=9))
+
 from rfp_targeter.config import secrets, settings
-from rfp_targeter.db.models import Announcement, Score
+from rfp_targeter.db.models import Announcement, Score, get_conn
 
 log = logging.getLogger(__name__)
 
 # 대시보드 base URL (settings.yaml에 override 가능)
-DEFAULT_DASHBOARD_URL = "http://localhost:8501"
+DEFAULT_DASHBOARD_URL = "https://enkirfp.streamlit.app"
+
+# 영업시간 — 사용자 요청: 평일 09:00 ~ 18:00 KST 만 슬랙 알림
+# 그 외 시간 들어온 신규 보안 공고는 alerted_at NULL 인 채로 누적 →
+# 다음 영업시간 첫 cron(평일 09시)에 묶음 발송
+DEFAULT_BIZ_HOUR_START = 9
+DEFAULT_BIZ_HOUR_END = 18  # 18시 정각 cron까지 포함, 19시부터 누적
+
+
+def _is_business_hours(now: datetime | None = None) -> bool:
+    """현재 시각이 평일 09:00 ~ 18:00 KST 인지.
+
+    settings.yaml의 alert.business_hours.{start,end,weekdays_only} 로 오버라이드 가능.
+    """
+    cfg = ((settings().get("alert") or {}).get("business_hours") or {})
+    start_h = int(cfg.get("start", DEFAULT_BIZ_HOUR_START))
+    end_h = int(cfg.get("end", DEFAULT_BIZ_HOUR_END))
+    weekdays_only = bool(cfg.get("weekdays_only", True))
+
+    now = now or datetime.now(KST)
+    if weekdays_only and now.weekday() >= 5:  # 5=Sat, 6=Sun
+        return False
+    return start_h <= now.hour <= end_h
 
 
 def _grade(total: float) -> tuple[str, str, str]:
@@ -241,3 +272,109 @@ def notify_new_announcements(
     except Exception as e:
         log.error("slack alert 발송 실패: %s", e)
         return False
+
+
+def _post_webhook(payload: dict) -> bool:
+    """범용 Slack webhook POST — 회귀 경보 등 다른 알림에서 재사용."""
+    cfg = (settings().get("alert") or {})
+    if not cfg.get("slack_enabled", False):
+        return False
+    webhook = ((secrets().get("slack") or {}).get("webhook_url") or "").strip()
+    if not webhook or webhook == "???":
+        return False
+    try:
+        r = requests.post(webhook, json=payload, timeout=10)
+        r.raise_for_status()
+        return True
+    except Exception as e:
+        log.error("slack webhook 발송 실패: %s", e)
+        return False
+
+
+def dispatch_pending_alerts() -> bool:
+    """매 cron 끝에 호출 — 평일 09~18시 KST 면 alerted_at IS NULL 보안 공고 묶음 발송.
+
+    영업시간 외에는 발송 X (큐에 누적 그대로 둠).
+    다음 영업일 09시 첫 cron에 어젯밤+오늘새벽 미발송 신규 모두 한 번에 전달.
+
+    Returns: True = 발송 성공, False = skip (영업시간 외 / 0건 / webhook 미설정)
+    """
+    now = datetime.now(KST)
+    if not _is_business_hours(now):
+        log.info("slack alert: 영업시간 외(%s) — 누적만, 발송 skip", now.strftime("%a %H:%M"))
+        return False
+
+    # DB에서 alerted_at IS NULL 보안 통과 row + score 모두 가져오기
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """SELECT a.id, a.source, a.external_id, a.title, a.url, a.agency,
+                              a.posted_at, a.deadline_at, a.budget_mw, a.budget_period,
+                              a.matched_keywords_json, a.eligibility_status, a.eligibility_note,
+                              s.keyword_score, s.budget_score, s.consortium_score,
+                              s.competitor_score, s.trl_score, s.total_score, s.theme_fit
+                       FROM announcement a
+                       LEFT JOIN score s ON s.announcement_id = a.id
+                       WHERE a.is_security = TRUE
+                         AND a.alerted_at IS NULL
+                         AND a.is_dismissed = FALSE
+                       ORDER BY a.posted_at DESC NULLS LAST, s.total_score DESC NULLS LAST"""
+                )
+                rows = cur.fetchall()
+    except Exception:
+        log.exception("dispatch_pending_alerts: DB 조회 실패")
+        return False
+
+    if not rows:
+        log.info("slack alert: 영업시간(%s)이지만 미발송 공고 0건 — skip", now.strftime("%H:%M"))
+        return False
+
+    # Announcement / Score 객체 재구성
+    items = []
+    for r in rows:
+        try:
+            mk = json.loads(r["matched_keywords_json"] or "[]")
+        except Exception:
+            mk = []
+        a = Announcement(
+            source=r["source"], external_id=r["external_id"], title=r["title"],
+            url=r["url"], agency=r["agency"], posted_at=r["posted_at"],
+            deadline_at=r["deadline_at"], budget_mw=r["budget_mw"],
+            budget_period=r["budget_period"], matched_keywords=mk,
+            eligibility_status=r["eligibility_status"], eligibility_note=r["eligibility_note"],
+            is_security=True,
+        )
+        s = Score(
+            announcement_id=r["id"],
+            keyword_score=float(r["keyword_score"] or 0),
+            budget_score=float(r["budget_score"] or 0),
+            consortium_score=float(r["consortium_score"] or 0),
+            competitor_score=float(r["competitor_score"] or 0),
+            trl_score=float(r["trl_score"] or 0),
+            total_score=float(r["total_score"] or 0),
+            theme_fit=float(r["theme_fit"] or 0),
+            rationale={},
+        )
+        items.append((a, s))
+
+    # 영업시간 첫 알림(09시)에는 어젯밤 누적분이라 라벨 다르게
+    if now.hour == 9 and len(items) > 5:
+        label = f"{now.strftime('%m-%d %H:%M')} · 영업시간 시작 (누적 {len(items)}건)"
+    else:
+        label = now.strftime("%Y-%m-%d %H:%M")
+
+    sent = notify_new_announcements(items, cycle_label=label)
+    if not sent:
+        return False
+
+    # 발송 성공 — alerted_at 일괄 UPDATE
+    ids = [r["id"] for r in rows]
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("UPDATE announcement SET alerted_at = NOW() WHERE id = ANY(%s)", (ids,))
+        log.info("slack alert: %d건 발송 완료 + alerted_at 표시", len(ids))
+    except Exception:
+        log.exception("alerted_at UPDATE 실패 (알림은 이미 발송됨)")
+    return True
