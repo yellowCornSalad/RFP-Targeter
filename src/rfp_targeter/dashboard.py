@@ -1849,17 +1849,54 @@ def _render_detail_inline(row, aid):
         clean = _re_local.sub(r"\s+", " ", clean)
         clean = _re_local.sub(r"\[첨부 본문\]\s*", "", clean)
 
+        # KISA·정부 사이트 chrome 텍스트 제거 (메뉴·공유·navigation 잡음)
+        _CHROME_PATTERNS = [
+            r"알림마당\s*입찰공고\s*인쇄하기\s*공유하기\s*닫기\s*트위터\s*페이스북",
+            r"인쇄하기\s*공유하기\s*닫기\s*트위터\s*페이스북",
+            r"공유하기\s*닫기\s*트위터\s*페이스북",
+            r"등록일\s*\d{4}-\d{2}-\d{2}\s*조회\s*\d+",
+            r"바로가기\s*메뉴\s*본문\s*바로가기\s*주메뉴\s*바로가기\s*푸터\s*바로가기",
+            r"이전\s*글\s*다음\s*글\s*목록",
+            r"※\s*입찰설명회는\s*별도\s*진행하지\s*않으며.{0,200}?변경될\s*수\s*있습니다\s*\.",  # 너무 긴 boilerplate
+        ]
+        for pat in _CHROME_PATTERNS:
+            clean = _re_local.sub(pat, " ", clean)
+        # ===== 같은 구분선 (3자 이상 반복) 제거
+        clean = _re_local.sub(r"[=\-_*]{4,}", " ", clean)
+        # 공백 다시 정규화
+        clean = _re_local.sub(r"\s+", " ", clean).strip()
+
         # 정부 공문 마커별 줄바꿈
         clean = _re_local.sub(r"\s*([□▣■▶])\s*", r"\n\n§§HEAD§§\1 ", clean)
         clean = _re_local.sub(r"\s*([○●◆◇▷▸])\s*", r"\n\1 ", clean)
         clean = _re_local.sub(r"\s*(※)\s*", r"\n§§NOTE§§\1 ", clean)
         clean = _re_local.sub(r"\s*([①-⑳])\s*", r"\n\1 ", clean)
         clean = _re_local.sub(r"\s+(·|‧|・)\s*", r"\n  \1 ", clean)
-        # 마침표·콜론 후 한글/숫자 시작 → 줄바꿈 (마커 없는 본문도 단락 분리)
-        clean = _re_local.sub(r"([.!?])\s+(?=[가-힣가-힣A-Z\d])", r"\1\n", clean)
-        # 다중 공백 줄 정리
+        # 마침표·콜론 후 한글 5자 이상 시작 → 줄바꿈 (짧은 토막 분리 방지)
+        clean = _re_local.sub(r"([.!?])\s+(?=[가-힣A-Z][가-힣A-Z\d]{4,})", r"\1\n", clean)
+        # 다중 빈 줄 정리
         clean = _re_local.sub(r"\n{3,}", "\n\n", clean)
-        clean = clean.strip()
+
+        # 짧은 단편 줄 (3자 이하 또는 숫자만) 제거 — '6.', '9.', '16.' 같은 거
+        _lines = clean.split("\n")
+        _filtered = []
+        for ln in _lines:
+            stripped = ln.strip()
+            if not stripped:
+                _filtered.append(ln)
+                continue
+            # §§HEAD§§ / §§NOTE§§ 마커 있는 줄은 유지
+            if "§§" in stripped:
+                _filtered.append(ln)
+                continue
+            # 숫자·구두점만 있는 짧은 줄 (예: "6.", "9.", "16.") 제거
+            if _re_local.fullmatch(r"[\d\s.,:()-]+", stripped) and len(stripped) <= 8:
+                continue
+            # 3자 이하 매우 짧은 줄도 제거
+            if len(stripped) <= 3:
+                continue
+            _filtered.append(ln)
+        clean = "\n".join(_filtered).strip()
 
         MAX = 2000  # 1500 → 2000 (더 풍부)
         truncated = len(clean) > MAX
