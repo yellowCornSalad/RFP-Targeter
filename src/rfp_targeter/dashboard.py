@@ -205,10 +205,10 @@ svg[class*="icon"], i[class*="icon"] {
 [data-testid="stDecoration"] { display: none !important; }
 #MainMenu, footer { visibility: hidden; }
 
-/* === 사이드바 === */
+/* === 사이드바 — BMW 식 흰 배경 + 우측 구분선 === */
 section[data-testid="stSidebar"] {
-    background: var(--surface) !important;
-    border-right: 1px solid var(--border) !important;
+    background: #ffffff !important;
+    border-right: 1px solid #e5e5e5 !important;
 }
 section[data-testid="stSidebar"] [data-testid="stSidebarHeader"] {
     padding: 0.25rem 0.5rem !important;
@@ -282,46 +282,58 @@ h2 { font-size: 1.15rem !important; margin-top: 0.5rem !important; }
 h3 { font-size: 1rem !important; font-weight: 600 !important; }
 h4 { font-size: 0.9rem !important; font-weight: 600 !important; }
 
-/* === Tabs — 미니멀 언더라인 === */
+/* === Tabs — BMW 식 가로 메뉴 (검정 액센트) === */
 [data-testid="stTabs"] [role="tablist"] {
-    gap: 0.25rem;
-    border-bottom: 1px solid var(--border) !important;
-    margin-bottom: 1.25rem;
+    gap: 0;
+    border-bottom: 1px solid #ddd !important;
+    margin-bottom: 1.5rem;
 }
 [data-testid="stTabs"] [role="tab"] {
-    color: var(--text-muted) !important;
+    color: #666 !important;
     font-weight: 500 !important;
-    padding: 0.65rem 1rem !important;
+    padding: 0.75rem 1.5rem !important;
     border-bottom: 2px solid transparent !important;
-    transition: all 0.15s ease;
+    transition: color 0.15s ease, border-color 0.15s ease;
+    border-radius: 0 !important;
 }
 [data-testid="stTabs"] [role="tab"]:hover {
-    color: var(--primary) !important;
+    color: #111 !important;
 }
 [data-testid="stTabs"] [role="tab"][aria-selected="true"] {
-    color: var(--primary) !important;
+    color: #111 !important;
     font-weight: 700 !important;
-    border-bottom-color: var(--accent) !important;
+    border-bottom-color: #111 !important;
 }
 
-/* === 일반 버튼 — 깔끔한 아웃라인 (토스/네이버 톤) === */
+/* === 일반 버튼 — BMW 톤 (각진 모서리, flat, 절제된 hover) === */
 [data-testid="stButton"] > button,
 [data-testid="stDownloadButton"] > button {
-    border-radius: var(--radius) !important;
+    border-radius: 2px !important;
     border: 1px solid var(--border) !important;
     background: var(--surface) !important;
     color: var(--text) !important;
     font-weight: 500 !important;
     font-size: 0.875rem !important;
-    padding: 0.5rem 0.95rem !important;
-    transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease !important;
+    padding: 0.55rem 1rem !important;
+    transition: border-color 0.15s ease, background 0.15s ease !important;
     box-shadow: none !important;
 }
 [data-testid="stButton"] > button:hover:not(:disabled),
 [data-testid="stDownloadButton"] > button:hover:not(:disabled) {
-    border-color: var(--border-strong) !important;
-    background: var(--surface-alt) !important;
+    border-color: #333 !important;
+    background: #fafafa !important;
     color: var(--text) !important;
+}
+/* Primary 버튼 — BMW 식 검정 (강조 액션) */
+[data-testid="stButton"] > button[kind="primary"] {
+    background: #111 !important;
+    border-color: #111 !important;
+    color: #fff !important;
+}
+[data-testid="stButton"] > button[kind="primary"]:hover:not(:disabled) {
+    background: #333 !important;
+    border-color: #333 !important;
+    color: #fff !important;
 }
 [data-testid="stButton"] > button:disabled {
     opacity: 0.45 !important;
@@ -382,11 +394,11 @@ h4 { font-size: 0.9rem !important; font-weight: 600 !important; }
     font-size: 0.85rem !important;
 }
 
-/* === Expander — 카드 친화 === */
+/* === Expander — BMW 식 단정 (각진 모서리, 흰 배경) === */
 [data-testid="stExpander"] {
-    border: 1px solid var(--border) !important;
-    border-radius: 10px !important;
-    background: var(--surface-alt) !important;
+    border: 1px solid #e5e5e5 !important;
+    border-radius: 2px !important;
+    background: #ffffff !important;
     box-shadow: none !important;
 }
 [data-testid="stExpander"] summary {
@@ -398,19 +410,19 @@ h4 { font-size: 0.9rem !important; font-weight: 600 !important; }
     color: var(--primary) !important;
 }
 
-/* === 입력/선택 위젯 — 통일된 라운드 + 보더 === */
+/* === 입력/선택 위젯 — BMW 식 각진 모서리 === */
 [data-testid="stTextInput"] input,
 [data-testid="stNumberInput"] input,
 [data-testid="stTextArea"] textarea,
 [data-baseweb="select"] > div,
 [data-baseweb="popover"] {
-    border-radius: 10px !important;
-    border-color: var(--border-strong) !important;
+    border-radius: 2px !important;
+    border-color: #d4d4d4 !important;
 }
 [data-testid="stTextInput"] input:focus,
 [data-baseweb="select"] > div:focus-within {
-    border-color: var(--accent) !important;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15) !important;
+    border-color: #111 !important;
+    box-shadow: 0 0 0 1px #111 !important;
 }
 
 /* === Slider — 인디고 thumb (트랙은 Streamlit 기본 유지) === */
