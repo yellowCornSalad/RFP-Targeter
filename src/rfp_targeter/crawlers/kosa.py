@@ -1,16 +1,22 @@
-"""KOSA (한국SW산업협회) 입찰안내 게시판 크롤러.
+"""KOSA (한국SW산업협회) 게시판 크롤러 — 유관기관 안내 + 입찰안내.
 
-소스: https://www.sw.or.kr/site/sw/ex/board/List.do?cbIdx=381
-- cbIdx=381 = 입찰안내 (KOSA 자체 발주 SW R&D 용역 — 본문 1000자+)
-- 정적 JSP 테이블 — BeautifulSoup으로 파싱
-- robots.txt: 일반 UA 전체 차단(`Disallow: /`), Googlebot/Yeti(네이버)만 Allow
+소스 게시판 (메인페이지 navigation 분석 기반):
+- cbIdx=382 = **유관기관** ← 메인! 정부기관/테크노파크/평가원이 SW 기업 모집하는 R&D 공고 모음
+  · 예: "[인천테크노파크] 2026년 AX 디바이스 개발 실증 사업 수요기업 모집공고"
+  · 예: "[한국문화기술기획평가원] 신규 연구개발과제 기술 수요조사 안내"
+  · → 회사가 신청 가능한 정부 R&D
+- cbIdx=381 = 입찰안내 (KOSA 자체 운영 용역 발주, 보조)
+
+정적 JSP 테이블 — BeautifulSoup으로 파싱.
+robots.txt: 일반 UA 전체 차단(`Disallow: /`), Googlebot/Yeti(네이버)만 Allow
   → User-Agent를 Googlebot로 명시 (정책 준수)
 
-⚠️ 이전 cbIdx=290 (정부지원사업)/292 (공지사항)은 본문이 비어있는 게시판이었음.
-   메인 사이트맵 확인 결과 KOSA 실제 사업공고는 cbIdx=381 (입찰안내).
-   기존 DB 290/292 row는 폐기 권장.
+⚠️ 이전 변경 이력:
+  - cbIdx=290 (정부지원사업) / 292 (공지사항)은 본문 비어있는 legacy 게시판 — 폐기됨
+  - cbIdx=381 단일 사용 → 회사 본업 매칭 0% (KOSA 자체 입찰은 회사가 신청 X)
+  - **cbIdx=382 추가가 진짜 가치** (정부기관 R&D 모집공고 모음)
 
-회사 관점: SW R&D 용역 — 보안 키워드 통과분 자동 매칭. KISA 입찰공고와 유사한 톤.
+회사 관점: SW·AI·디지털 R&D 사업이 빈번 → 보안 키워드 통과분 자동 매칭.
 """
 from __future__ import annotations
 
@@ -27,10 +33,13 @@ from rfp_targeter.db.models import Announcement
 log = logging.getLogger(__name__)
 
 BASE = "https://www.sw.or.kr"
-# 게시판 ID: 입찰안내(SW R&D 용역 — 본문 풍부)
+# 게시판 ID: 유관기관(메인 — 정부 R&D 모집) + 입찰안내(보조 — KOSA 자체 용역)
 BOARDS = [
+    ("382", "KOSA 유관기관 안내"),
     ("381", "KOSA 입찰안내"),
 ]
+# 게시판 별 weight (max_per_source 분배). 유관기관이 메인이라 75%
+_BOARD_WEIGHTS = {"382": 0.75, "381": 0.25}
 
 # robots.txt 준수 — Googlebot만 허용된 사이트이므로 명시
 KOSA_UA = (
@@ -49,8 +58,11 @@ class KOSACrawler(BaseCrawler):
 
     def list_announcements(self) -> Iterator[Announcement]:
         rows_per_page = 10
-        # 입찰안내(381) 단일 게시판이므로 max_per_source 전체 할당
-        budget = {b[0]: self.max_per_source for b in BOARDS}
+        # 게시판 별 weight 기반 분배 (382 메인 75%, 381 보조 25%)
+        budget = {
+            b[0]: max(1, int(self.max_per_source * _BOARD_WEIGHTS.get(b[0], 0.5)))
+            for b in BOARDS
+        }
 
         for cb_idx, label in BOARDS:
             limit = budget[cb_idx]
