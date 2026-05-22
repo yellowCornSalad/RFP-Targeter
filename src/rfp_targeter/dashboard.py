@@ -372,27 +372,53 @@ h4 { font-size: 0.9rem !important; font-weight: 600 !important; }
     color: #ffffff !important;
 }
 
-/* === 카드 컨테이너 — BMW 식 컴팩트 (정보 비해 카드 작게) === */
+/* === 카드 컨테이너 — BMW 식 컴팩트 (공백 최소화) === */
 [data-testid="stMain"] [data-testid="stVerticalBlockBorderWrapper"] {
     border: none !important;
     border-radius: 4px !important;
     background: #ffffff !important;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08) !important;
     transition: box-shadow 0.18s ease !important;
-    margin-bottom: 12px !important;
+    margin-bottom: 10px !important;
 }
 [data-testid="stMain"] [data-testid="stVerticalBlockBorderWrapper"]:hover {
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.10) !important;
 }
-/* 카드 내부 여백 — 컴팩트 */
+/* 카드 내부 padding 최소화 */
 [data-testid="stMain"] [data-testid="stVerticalBlockBorderWrapper"] > div > div {
-    padding: 4px !important;
+    padding: 2px !important;
 }
-/* 카드 안 제목 h3 — 큰 글씨 → 적당히 */
+/* ★ 카드 안 element 사이 gap 강제 0 (streamlit 기본 16px 제거) ★ */
+[data-testid="stMain"] [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stVerticalBlock"] {
+    gap: 0 !important;
+}
+[data-testid="stMain"] [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stElementContainer"] {
+    margin: 0 !important;
+    padding: 0 !important;
+}
+[data-testid="stMain"] [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stMarkdownContainer"] {
+    margin: 0 !important;
+    padding: 0 !important;
+}
+[data-testid="stMain"] [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stMarkdown"] {
+    margin: 0 !important;
+}
+[data-testid="stMain"] [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"] {
+    gap: 6px !important;
+}
+/* 카드 안 제목 h3 */
 [data-testid="stMain"] [data-testid="stVerticalBlockBorderWrapper"] h3 {
     font-size: 1.02rem !important;
-    line-height: 1.4 !important;
-    margin: 0 0 6px !important;
+    line-height: 1.35 !important;
+    margin: 4px 14px !important;
+}
+/* 카드 안 다음 row 추가 element padding */
+[data-testid="stMain"] [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stElementContainer"] > div {
+    padding: 0 14px !important;
+}
+/* 액션 버튼 row */
+[data-testid="stMain"] [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"] {
+    padding: 6px 14px 8px !important;
 }
 /* 오늘 신규 공고 카드 — 미세한 상단 빨간 액센트 라인 + 단정한 boder */
 [data-testid="stMain"] [data-testid="stVerticalBlockBorderWrapper"]:has(
