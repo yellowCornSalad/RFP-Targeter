@@ -26,7 +26,11 @@ from rfp_targeter.db.models import Announcement
 log = logging.getLogger(__name__)
 
 # KOICA OpenAPI base — 연간발주계획 endpoint
-ENDPOINT = "http://openapi.koica.go.kr/api/ws/PrcureService/getOrprPlanInfoList"
+# 2026-05 검증: openapi.koica.go.kr 직접 endpoint = unreachable (Connection timeout)
+# 대신 data.go.kr 통합 게이트웨이(apis.data.go.kr/3039908) 사용 — 살아있음.
+ENDPOINT_PRIMARY = "https://apis.data.go.kr/3039908/OdaPosbnsAList/getSttofnationCoopOdaPosbnsAList"
+ENDPOINT_FALLBACK = "http://openapi.koica.go.kr/api/ws/PrcureService/getOrprPlanInfoList"
+ENDPOINT = ENDPOINT_PRIMARY  # 기존 호환
 
 
 class KOICACrawler(BaseCrawler):
@@ -55,24 +59,31 @@ class KOICACrawler(BaseCrawler):
         for year in years:
             page_no = 1
             while seen < self.max_per_source:
+                # data.go.kr 게이트웨이 params (소문자 표준 — primary endpoint)
                 params = {
                     "serviceKey": self.service_key,
+                    "numOfRows": str(page_size),
+                    "pageNo": str(page_no),
                     "P_YEAR": str(year),
                     "P_PAGE_NO": str(page_no),
                     "P_PAGE_SIZE": str(page_size),
+                    "type": "xml",
                 }
-                url = f"{ENDPOINT}?{urlencode(params, doseq=True)}"
-                try:
-                    r = requests.get(url, timeout=self.timeout)
-                    r.raise_for_status()
-                except Exception as e:
-                    log.warning("koica year=%d page=%d fetch fail: %s",
-                                year, page_no, e)
-                    break
-
-                items = self._parse_xml(r.text)
-                if not items:
-                    log.info("koica year=%d: 더 이상 항목 없음 (page %d)",
+                items = None
+                # 1차: data.go.kr 게이트웨이
+                for endpoint in (ENDPOINT_PRIMARY, ENDPOINT_FALLBACK):
+                    url = f"{endpoint}?{urlencode(params, doseq=True)}"
+                    try:
+                        r = requests.get(url, timeout=self.timeout)
+                        r.raise_for_status()
+                        items = self._parse_xml(r.text)
+                        if items:
+                            break
+                    except Exception as e:
+                        log.debug("koica %s fetch fail: %s", endpoint[:50], e)
+                        continue
+                if items is None or len(items) == 0:
+                    log.info("koica year=%d: 항목 없음 또는 endpoint 미가용 (page %d)",
                              year, page_no)
                     break
 

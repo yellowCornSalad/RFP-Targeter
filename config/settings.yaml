@@ -59,11 +59,10 @@ sources:
 
   # KOICA — 한국국제협력단 ODA 조달정보 (data.go.kr 3039908 OpenAPI)
   # serviceKey는 secrets.yaml의 data_go_kr.service_key 재사용
-  # 2026-05 현재 openapi.koica.go.kr 서버 unreachable (Connection timeout).
-  # 향후 서버 복구 시 enabled=true. 어댑터는 그대로 유지.
+  # 2026-05: openapi.koica.go.kr 직접 endpoint 죽음 → apis.data.go.kr 게이트웨이로 우회.
   koica:
-    enabled: false
-    base_url: "http://openapi.koica.go.kr"
+    enabled: true
+    base_url: "https://apis.data.go.kr"
     max_per_source: 50
 
   # NIPA — 정보통신산업진흥원 사업·입찰공고

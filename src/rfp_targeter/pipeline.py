@@ -29,6 +29,37 @@ class RunStats:
     error: str | None = None
 
 
+_REQUIRED_SOURCES = {
+    "kisa": "KISA", "kosa": "KOSA", "iitp": "IITP",
+    "krit": "KRIT", "koica": "KOICA", "nipa": "NIPA",
+    "mss": "중기부",
+}
+
+
+def _verify_required_sources(stats: list) -> None:
+    """매 크롤 사이클 끝에 사용자 명시 7개 source 누락 감지.
+
+    사용자 요구: KISA · KOSA · IITP · KRIT · KOICA · NIPA · 중기부(MSS)
+    어느 하나라도 0건이거나 비활성화되어 있으면 WARNING 로그.
+    """
+    stat_by_src = {s.source: s for s in stats}
+    issues = []
+    for src, name in _REQUIRED_SOURCES.items():
+        s = stat_by_src.get(src)
+        if s is None:
+            issues.append(f"{name}({src}) 비활성화 또는 미실행")
+        elif s.error:
+            issues.append(f"{name}({src}) 에러: {s.error[:80]}")
+        elif s.new == 0 and s.updated == 0:
+            issues.append(f"{name}({src}) 신규/갱신 0건")
+    if issues:
+        log.warning("⚠ 필수 source 점검 — 문제 %d건:", len(issues))
+        for i in issues:
+            log.warning("  · %s", i)
+    else:
+        log.info("✓ 필수 7개 source 정상")
+
+
 def _backfill_missing_attachments(max_per_source: int = 20) -> None:
     """크롤 사이클 끝에 호출 — KISA/NIPA/MSS 중 첨부 없는 row 재처리.
 
@@ -186,6 +217,12 @@ def run_once() -> list[RunStats]:
         _backfill_missing_attachments()
     except Exception:
         log.exception("attachment backfill failed (pipeline 계속)")
+
+    # 사이클 끝 — 사용자 명시 7개 source 누락 자동 검증 (사용자 요청)
+    try:
+        _verify_required_sources(stats)
+    except Exception:
+        log.exception("source verify failed (pipeline 계속)")
 
     # 사이클 끝 — 신규 보안 공고가 1건+ 있으면 슬랙 일괄 발송
     if cycle_new_alerts:
