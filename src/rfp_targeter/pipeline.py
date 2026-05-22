@@ -36,6 +36,55 @@ _REQUIRED_SOURCES = {
 }
 
 
+# 첨부 추출률 회귀 감지 — Slack 경보 임계값 (사용자 명시: KISA 50건+ 유지)
+_ATT_RATE_ALERT_THRESHOLD = {
+    "kisa": 80.0,  # 입찰공고는 첨부 거의 100%여야
+    "nipa": 80.0,
+    "mss":  80.0,
+    "iitp": 90.0,
+    # kosa/krit는 본문에 첨부 자체 없는 게 정상 — 모니터 제외
+}
+
+
+def _alert_attachment_regression(db_counts: dict[str, tuple[int, int]]) -> None:
+    """첨부 추출률이 임계값 미만이면 Slack 경보. 회귀 즉시 감지용.
+
+    이 함수는 cron 끝에 호출됨. 만약 KISA 첨부율이 50% 미만이면
+    "긴급 회귀" 메시지를 Slack에 push.
+    """
+    regressions = []
+    for src, threshold in _ATT_RATE_ALERT_THRESHOLD.items():
+        total, att = db_counts.get(src, (0, 0))
+        if total < 5:  # 데이터 너무 적으면 노이즈 — 패스
+            continue
+        rate = 100 * att / total
+        if rate < threshold:
+            regressions.append({
+                "source": src,
+                "total": total,
+                "with_att": att,
+                "rate": rate,
+                "threshold": threshold,
+            })
+    if not regressions:
+        return
+
+    log.warning("⚠ 첨부 회귀 감지 %d건 — Slack 경보 push", len(regressions))
+    # Slack webhook 호출
+    try:
+        from rfp_targeter.notifier.slack import _post_webhook  # type: ignore
+        lines = ["🚨 *첨부 추출률 회귀 감지*"]
+        for r in regressions:
+            lines.append(
+                f"• `{r['source']}`: {r['with_att']}/{r['total']}건 "
+                f"({r['rate']:.0f}%) — 임계 {r['threshold']:.0f}% 미만"
+            )
+        lines.append("`scripts/backfill_attachments.py` 실행 권장")
+        _post_webhook({"text": "\n".join(lines)})
+    except Exception:
+        log.exception("회귀 경보 Slack 발송 실패")
+
+
 def _verify_required_sources(stats: list) -> None:
     """매 크롤 사이클 끝에 사용자 명시 7개 source + 첨부 누락 감지.
 
@@ -88,6 +137,12 @@ def _verify_required_sources(stats: list) -> None:
             log.warning("  ✗ %s", i)
     else:
         log.info("✓ 모든 7개 source 정상")
+
+    # 회귀 자동 경보 — KISA/NIPA/MSS/IITP 첨부율 임계값 미만이면 Slack 즉시 알림
+    try:
+        _alert_attachment_regression(db_counts)
+    except Exception:
+        log.exception("회귀 경보 호출 실패 (pipeline 계속)")
 
 
 def _backfill_missing_attachments(max_per_source: int = 100) -> None:

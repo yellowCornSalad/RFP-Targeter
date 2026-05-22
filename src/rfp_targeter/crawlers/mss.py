@@ -148,12 +148,29 @@ class MSSCrawler(BaseCrawler):
         mgr = _pick(item, _FIELD_MAP["manager"]) or ""
         contact_line = " · ".join(filter(None, [dept, mgr]))
 
+        # API의 dataContents 필드 — HTML 엔티티 + 태그 정제
+        raw_summary = _pick(item, _FIELD_MAP["summary"]) or ""
+        if raw_summary:
+            import html as _html
+            raw_summary = _html.unescape(raw_summary)
+            raw_summary = _re.sub(r"<br\s*/?>", "\n", raw_summary)
+            raw_summary = _re.sub(r"&nbsp;", " ", raw_summary)
+            raw_summary = _re.sub(r"<[^>]+>", "", raw_summary)
+            raw_summary = _re.sub(r"\s+", " ", raw_summary).strip()
+
         attachments = []
         for f in item.get("_files", []):
             attachments.append({
                 "name": f["name"], "url": f["url"], "local_path": None,
                 "category": classify(f["name"]),
             })
+
+        # body = 제목 + 담당자 + 본문(API dataContents). API에 dataContents 있으면
+        # 그것이 가장 풍부한 본문 (mss.go.kr 직접 fetch는 robots/SSL 차단)
+        body_parts = [title]
+        if contact_line: body_parts.append(contact_line)
+        if raw_summary and raw_summary != title: body_parts.append(raw_summary)
+        body_text = "\n\n".join(body_parts)
 
         return Announcement(
             source=self.source,
@@ -163,8 +180,8 @@ class MSSCrawler(BaseCrawler):
             agency=_pick(item, _FIELD_MAP["agency"]) or "중소벤처기업부",
             posted_at=_pick(item, _FIELD_MAP["posted_at"]),
             deadline_at=_pick(item, _FIELD_MAP["deadline_at"]),
-            summary=_pick(item, _FIELD_MAP["summary"]) or contact_line or None,
-            body=f"{title}\n{contact_line}",
+            summary=raw_summary or contact_line or None,
+            body=body_text,
             attachments=attachments,
         )
 

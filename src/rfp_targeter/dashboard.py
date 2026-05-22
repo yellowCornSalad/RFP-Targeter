@@ -197,11 +197,29 @@ svg[class*="icon"], i[class*="icon"] {
     background: #e8e8e8 !important;
 }
 .main .block-container, [data-testid="stMain"] .block-container {
-    padding-top: 1.5rem !important;
+    padding-top: 1rem !important;
     padding-left: 2rem !important;
     padding-right: 2rem !important;
-    max-width: 1440px;
+    max-width: 1600px;  /* BMW 와이드 — 2-column 카드 그리드 충분 공간 */
     background: transparent !important;
+}
+
+/* === 사이드바 폭 조정 — BMW 식 컴팩트 (280px) === */
+section[data-testid="stSidebar"] {
+    width: 280px !important;
+    min-width: 280px !important;
+}
+section[data-testid="stSidebar"][aria-expanded="true"] {
+    min-width: 280px !important;
+    max-width: 280px !important;
+}
+section[data-testid="stSidebar"] > div {
+    width: 280px !important;
+}
+/* 사이드바 내부 패딩 더 컴팩트 */
+section[data-testid="stSidebar"] [data-testid="stSidebarContent"] {
+    padding-left: 0.85rem !important;
+    padding-right: 0.85rem !important;
 }
 
 /* === Streamlit 기본 데코 숨김 (Deploy 버튼 위 영역, 햄버거 메뉴 등) === */
@@ -256,14 +274,24 @@ section[data-testid="stSidebar"] hr {
     border-color: var(--border) !important;
     margin: 1rem 0 !important;
 }
+/* 사이드바 섹션 헤더 — BMW 식 강한 톤 (uppercase + tracking + 상단 보더) */
 section[data-testid="stSidebar"] h3 {
-    font-size: 12px !important;
-    text-transform: none !important;
-    letter-spacing: 0 !important;
-    color: var(--text-muted) !important;
-    font-weight: 600 !important;
-    margin-top: 1.4rem !important;
-    margin-bottom: 0.5rem !important;
+    font-size: 11px !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.08em !important;
+    color: #111 !important;
+    font-weight: 800 !important;
+    margin-top: 1.6rem !important;
+    margin-bottom: 0.55rem !important;
+    padding-top: 0.85rem !important;
+    border-top: 1px solid #e5e5e5 !important;
+}
+/* 첫 번째 h3 는 위 보더 제거 (사이드바 헤더 직후라 중복) */
+section[data-testid="stSidebar"] [data-testid="stSidebarContent"] > div > div > div > div > div:first-of-type h3,
+section[data-testid="stSidebar"] h3:first-of-type {
+    border-top: none !important;
+    padding-top: 0 !important;
+    margin-top: 0.75rem !important;
 }
 /* 사이드바 라벨 (selectbox 등) — 더 작고 단정 */
 section[data-testid="stSidebar"] label,
@@ -372,7 +400,7 @@ h4 { font-size: 0.9rem !important; font-weight: 600 !important; }
     color: #ffffff !important;
 }
 
-/* === 카드 컨테이너 — BMW 식 컴팩트 (공백 최소화) === */
+/* === 카드 컨테이너 — BMW 식 (컴팩트) === */
 [data-testid="stMain"] [data-testid="stVerticalBlockBorderWrapper"] {
     border: none !important;
     border-radius: 4px !important;
@@ -941,6 +969,117 @@ if df.empty:
     )
     st.stop()
 
+# ─── 카드 본문 휑함 보강 helper — body에서 핵심 정보 추출 (hallucination 방지) ───
+def _extract_key_facts(body: str | None) -> list[str]:
+    """본문에서 카드에 표시할 facts 추출 (사업기간·소요예산·낙찰방법 등).
+    hallucination 방지 — 본문에 명시된 패턴만 추출. 못 찾으면 빈 리스트.
+    """
+    if not body or not isinstance(body, str):
+        return []
+    import re as _re
+    head = body[:3000]  # 본문 머리 — 입찰공고는 대부분 앞쪽에 facts
+    head = _re.sub(r"\s+", " ", head)
+    out: list[tuple[str, str]] = []
+    # 1) 사업기간 — "사업기간 : 계약체결일 ~ 2026. 12. 31."
+    m = _re.search(r"사업\s*기간\s*[:：]\s*([^.①②③④⑤◆●○□■▶※]{6,80}?)(?=\s*(?:①|②|③|◆|●|○|□|■|▶|※|\s2\.|낙찰자|입찰|$))", head)
+    if m:
+        val = _re.sub(r"\s+", " ", m.group(1)).strip(" .,")
+        if 4 < len(val) < 70:
+            out.append(("기간", val))
+    # 2) 소요예산 / 사업비 — "소요예산 : 332,000,000 원" "사업비 : ..."
+    m = _re.search(r"(?:소요\s*예산|사업\s*비|예산\s*\(?\s*총\s*\)?|총\s*사업비)\s*[:：]\s*([^.①②③④⑤◆●○□■▶※]{4,80}?)(?=\s*(?:①|②|③|◆|●|○|□|■|▶|※|\s2\.|사업\s*기간|낙찰자|$))", head)
+    if m:
+        val = _re.sub(r"\s+", " ", m.group(1)).strip(" .,")
+        # 1억 미만은 표기 명확화 위해 그대로 두기
+        if 3 < len(val) < 80 and any(c.isdigit() for c in val):
+            out.append(("예산", val))
+    # ❌ 낙찰자 결정방법은 정부 R&D 공고 표준 문구 ("기획재정부 계약예규 협상에 의한 ...")
+    #    모든 카드 동일 → 정보 가치 0 → 사용자 피드백 반영해서 제거
+    return [f"{k}: {v}" for k, v in out[:2]]  # 카드는 최대 2줄
+
+
+def _extract_card_excerpt(body: str | None, max_len: int = 160) -> str:
+    """본문에서 카드용 핵심 1문장 추출 (facts 못 찾았을 때 폴백).
+    머리말(알림마당·입찰공고·인쇄하기·트위터 등) 스킵.
+    """
+    if not body or not isinstance(body, str):
+        return ""
+    import re as _re
+    txt = body
+    # 1) 의미 있는 시작점 마커
+    SKIP_MARKERS = [
+        "□ 사업개요", "□ 사업 개요", "○ 사업개요", "○ 사업 개요",
+        "■ 사업개요", "■ 사업 개요",
+        "1. 사업개요", "1. 사업 개요",
+        "사업명:", "사업명 :", "추진 배경", "사업 목적",
+        "□ 추진 목적", "○ 추진 목적", "◆ 추진 목적",
+        "공고합니다", "안내드립니다", "모집합니다",
+    ]
+    cut = -1
+    for m in SKIP_MARKERS:
+        idx = txt.find(m)
+        if idx >= 0 and (cut < 0 or idx < cut):
+            cut = idx
+    if cut >= 0:
+        txt = txt[cut:]
+    else:
+        # 머리말 잡음 스킵 (KISA 머리말은 모두 표 형식)
+        for noise in ["인쇄하기 공유하기 닫기", "트위터 페이스북", "==========="]:
+            i = txt.find(noise)
+            if i >= 0:
+                txt = txt[i + len(noise):].lstrip(" =\t\n")
+                break
+    txt = _re.sub(r"\s+", " ", txt).strip()
+    # 표 머리(관리번호 ... 입찰방법) 다음으로 한번 더 건너뛰기
+    for table_head in ["관리번호", "계 약 건 명", "사업명 사업기간"]:
+        i = txt.find(table_head)
+        if 0 <= i < 80:
+            # 이 뒤 의미있는 문장 찾기 — 마침표나 절 마커 다음으로 점프
+            j = txt.find(". ", i + len(table_head))
+            if 0 < j < i + 300:
+                txt = txt[j + 2:]
+                break
+    if len(txt) < 30:
+        return ""
+    # max_len 안에서 자연스럽게 자르기
+    snippet = txt[:max_len + 60]
+    cuts = [snippet.find(c, max_len // 2) for c in [".", "다 ", ". ", "?"]]
+    cuts = [c for c in cuts if 0 < c <= max_len + 50]
+    if cuts:
+        snippet = snippet[: min(cuts) + 1]
+    else:
+        snippet = snippet[:max_len] + "…"
+    return snippet.strip()
+
+
+def _extract_contact(body: str | None) -> str:
+    """본문에서 담당자 정보 1줄 추출.
+    KISA: "담당부서 블록체인AI확산팀 전화 061-820-3938"
+    IITP: "담당자 홍길동 (02-1234-5678)"
+    """
+    if not body or not isinstance(body, str):
+        return ""
+    import re as _re
+    head = body[:800]  # KISA·IITP 머리말에 담당자 있음
+    # 1) "담당부서 X 전화 NNN-NNNN-NNNN" 패턴
+    m = _re.search(r"담당부서\s*([^\s].{0,30}?)\s*(?:전화|☎|TEL)\s*([\d\-\.\s]{8,18})", head)
+    if m:
+        dept = m.group(1).strip()
+        tel = _re.sub(r"\s+", "", m.group(2)).strip(".-")
+        return f"{dept} · {tel}"
+    # 2) "문의 X (NNN-NNNN-NNNN)" 패턴
+    m = _re.search(r"(?:문의처?|담당자)\s*[:：]?\s*([^\(\n]{1,30})\s*\(?\s*([\d]{2,4}-[\d]{3,4}-[\d]{4})", head)
+    if m:
+        who = m.group(1).strip().rstrip(":：")
+        tel = m.group(2)
+        return f"{who} · {tel}"
+    # 3) 전화번호만이라도
+    m = _re.search(r"(0\d{1,2}-\d{3,4}-\d{4})", head)
+    if m:
+        return m.group(1)
+    return ""
+
+
 # session_state로 KPI 클릭 ↔ 사이드바 슬라이더 동기화
 if "min_score" not in st.session_state:
     st.session_state["min_score"] = 0
@@ -1050,9 +1189,27 @@ if _qp_src and _qp_src in (_options + _extra):
 else:
     _default_srcs = _options    # 전체 (7개 모두)
 
+# 오늘 등록 + 보안 통과 + 숨김 아님인 공고의 source별 카운트 → 사이드바 옵션 NEW 배지
+_today = datetime.now().date()
+if "posted_at_dt" in df.columns and not df.empty:
+    _today_df = df[
+        (df["posted_at_dt"].dt.date == _today)
+        & (df.get("is_dismissed", False) == False)  # noqa: E712
+    ]
+    _today_by_src: dict[str, int] = _today_df["source"].value_counts().to_dict()
+else:
+    _today_by_src = {}
+
+def _src_label(s: str) -> str:
+    """source 옵션 표시 — 오늘 신규 있으면 🆕 N건 배지 부착."""
+    name = s.upper() if s != "mss" else "중기부"
+    n = _today_by_src.get(s, 0)
+    return f"{name}  🆕 {n}" if n > 0 else name
+
 sources = st.sidebar.multiselect(
     "기관 / 소스", _options + _extra,
     default=_default_srcs,
+    format_func=_src_label,
 )
 only_open = st.sidebar.checkbox(
     "공모중만", key="only_open",
@@ -1254,6 +1411,17 @@ for src, label in _REQ7:
     sub_color = "#bbb" if is_active else "#666"
     border = "#111" if is_active else "#d4d4d4"
 
+    # 오늘 신규 등록 N건 — 사이드바 multiselect와 동일 카운트 (위에서 계산)
+    _new_n = _today_by_src.get(src, 0)
+    new_badge = (
+        f"<span style='position:absolute;top:-6px;right:-6px;"
+        f"background:#dc2626;color:#fff;font-size:10px;font-weight:800;"
+        f"letter-spacing:0.04em;padding:2px 6px;border-radius:10px;"
+        f"box-shadow:0 1px 3px rgba(220,38,38,0.4);line-height:1.2;"
+        f"min-width:36px;text-align:center'>🆕 {_new_n}</span>"
+        if _new_n > 0 else ""
+    )
+
     # 클릭 토글: 같은 카드면 해제, 다른 카드면 그것 활성
     next_qp = "" if is_active else f"?src={src}"
     _cards_html.append(
@@ -1261,6 +1429,7 @@ for src, label in _REQ7:
         f"<div style='background:{bg};border:1px solid {border};"
         f"border-radius:2px;padding:14px 12px;min-width:0;cursor:pointer;"
         f"transition:all 0.15s ease;position:relative'>"
+        f"{new_badge}"
         f"<div style='display:flex;align-items:center;justify-content:space-between;"
         f"margin-bottom:8px'>"
         f"<span style='font-weight:700;color:{text_color};font-size:14px;"
@@ -1858,13 +2027,72 @@ def _render_detail_inline(row, aid):
             r"바로가기\s*메뉴\s*본문\s*바로가기\s*주메뉴\s*바로가기\s*푸터\s*바로가기",
             r"이전\s*글\s*다음\s*글\s*목록",
             r"※\s*입찰설명회는\s*별도\s*진행하지\s*않으며.{0,200}?변경될\s*수\s*있습니다\s*\.",  # 너무 긴 boilerplate
+            # === KOSA(sw.or.kr) 네비 메뉴 — "바로가기 메뉴 ... 채용안내" 까지가 사이트 전체 메뉴
+            #     실제 본문은 "공지사항 상세정보 보기 제목" 부터 시작. 그 앞까지 통째로 제거.
+            r"바로가기\s*메뉴\s*본문\s*바로가기\s*주메뉴.*?(?=공지사항\s*상세정보\s*보기|상세정보\s*보기)",
+            r"KOSA\s*Menu\s*회원가입\s*로그인\s*KOSA\s*전체메뉴.*?(?=알림마당\s*협회에서)",
+            r"알림마당\s*협회에서\s*활동하고\s*있는\s*다양한\s*소식을\s*알려\s*드립니다\s*\.\s*글씨크게.*?(?=공지사항\s*상세정보|제목\s)",
+            # KOSA 푸터 — "이용약관 ... 사업자번호" 이후 끝까지
+            r"이용약관\s*개인정보처리방침\s*찾아오시는\s*길\s*사이트맵.*$",
+            # 빈 메타 라인 ("이전글 목록 다음글", "구분 공지사항")
+            r"이전글\s*목록\s*다음글",
         ]
         for pat in _CHROME_PATTERNS:
-            clean = _re_local.sub(pat, " ", clean)
+            clean = _re_local.sub(pat, " ", clean, flags=_re_local.DOTALL)
         # ===== 같은 구분선 (3자 이상 반복) 제거
         clean = _re_local.sub(r"[=\-_*]{4,}", " ", clean)
         # 공백 다시 정규화
         clean = _re_local.sub(r"\s+", " ", clean).strip()
+
+        # ──────────────────────────────────────────────────────
+        # 정부 사이트 HTML→텍스트 변환 잡음 정리 (KISA 본문 가독성)
+        # ──────────────────────────────────────────────────────
+        # 1) 날짜 패턴만 좁게 압축 — "2026. 6. 9. 11 : 00" → "2026.6.9. 11:00"
+        #    "2026. 12. 31. 2. 낙찰자" 같은 케이스에서 31.과 2. 가 붙지 않게.
+        #    년(4자리) + 점 + 월(1~2) + 점 + 일(1~2) + 점 — 정확히 날짜만 매칭
+        clean = _re_local.sub(
+            r"(\d{4})\.\s+(\d{1,2})\.\s+(\d{1,2})\.", r"\1.\2.\3.", clean,
+        )
+        # 시각: HH:MM — 콜론 양옆 공백만
+        clean = _re_local.sub(r"(\d{1,2})\s*:\s*(\d{2})", r"\1:\2", clean)
+        # 2) 한글 한 글자씩 띄어 있는 표 헤더: "사 업 기 간" → "사업기간"
+        #    2~5자 한글이 모두 공백으로 분리된 경우 (실제 글자 띄어쓰기는 1글자만 분리되는 일이 거의 없음)
+        clean = _re_local.sub(r"(?<![가-힣])([가-힣])\s([가-힣])\s([가-힣])\s([가-힣])(?![가-힣])", r"\1\2\3\4", clean)
+        clean = _re_local.sub(r"(?<![가-힣])([가-힣])\s([가-힣])\s([가-힣])(?![가-힣])", r"\1\2\3", clean)
+        # 3) 숫자 + 한글 단위 공백: "2026 년", "10 일", "1 개월", "100 건"
+        clean = _re_local.sub(
+            r"(\d)\s+(년|월|일|시|분|초|개월|주|건|명|회|차|호|위|등|급|점|배|배수|만|억|원|%|％)",
+            r"\1\2", clean,
+        )
+        # 4) 콤마 자릿수 + "원" 사이 공백: "332,000,000 원" → "332,000,000원"
+        clean = _re_local.sub(r"(\d{1,3}(?:,\d{3})+)\s+원", r"\1원", clean)
+        # 5) 괄호 내부 공백 압축: "( 부가세포함 )" → "(부가세포함)"
+        clean = _re_local.sub(r"\(\s+", "(", clean)
+        clean = _re_local.sub(r"\s+\)", ")", clean)
+        # 6) 따옴표 내부 공백: '" 협상에 의한 "' → '"협상에 의한"'
+        clean = _re_local.sub(r'"\s+', '"', clean)
+        clean = _re_local.sub(r'\s+"', '"', clean)
+        # 7) 번호 점 분리: "1 ." "2 ." → "1." "2." (목차 번호)
+        clean = _re_local.sub(r"(\d)\s+\.\s+(?=[가-힣])", r"\1. ", clean)
+        # 8) 영문/약어 단위 공백: "30 %", "5 GB" 등
+        clean = _re_local.sub(r"(\d)\s+(%|％|MB|GB|TB|KB|kg|km|cm|mm)", r"\1\2", clean)
+        # 9) 표 패턴 분해 (KISA 입찰공고 — 표 헤더+row 가 한 줄로 붙어옴)
+        #    "1. 입찰에 부치는 사항 관리번호 계약건명 등록마감일시 제안서평가일(예정) 입찰방법" 헤더 다음
+        #    값들이 이어지면 표 헤더 자체를 줄바꿈 + 값들도 줄바꿈
+        clean = _re_local.sub(
+            r"1\.\s*입찰에\s*부치는\s*사항\s+관리번호\s+계약건명\s+등록마감일시\s+제안서평가일\s*\(예정\)\s+입찰방법\s+",
+            "\n\n§§HEAD§§□ 입찰에 부치는 사항\n",
+            clean,
+        )
+        # "낙찰자 결정방법", "입찰 참가자격" 같은 큰 헤더 — 다음 내용과 분리
+        clean = _re_local.sub(
+            r"\s+(\d\.\s*(?:낙찰자\s*결정\s*방법|입찰\s*참가\s*자격|입찰\s*및\s*계약\s*방법|기타\s*사항|입찰\s*보증금|예정가격|제안서\s*평가)[^.①②③\n]{0,40})",
+            r"\n\n§§HEAD§§\1\n",
+            clean,
+        )
+        # 공백 한번 더 정리 (위 치환들이 중복 공백 만들 수 있음)
+        clean = _re_local.sub(r"[ \t]+", " ", clean)
+        clean = _re_local.sub(r" *\n *", "\n", clean)
 
         # 정부 공문 마커별 줄바꿈
         clean = _re_local.sub(r"\s*([□▣■▶])\s*", r"\n\n§§HEAD§§\1 ", clean)
@@ -2139,7 +2367,9 @@ with tab1:
             agency = row.get("agency")
             agency_str = str(agency) if (agency and pd.notna(agency)) else None
             agency_badge = _agency_badge_html(row['source'], agency_str)
-            posted = row.get("posted_at") or ""
+            # posted_at이 NaN(float)일 수 있음 — pd.notna로 확실히 가드
+            _p = row.get("posted_at")
+            posted = str(_p) if _p is not None and pd.notna(_p) else ""
 
             # 등급 라벨 (TOP/GOOD/FAIR/검토)
             grade_label = (
@@ -2162,17 +2392,20 @@ with tab1:
                 if _is_new else ""
             )
 
-            # 카드 우측 점수 아래 예산 표시 — '몇 년간 얼마' 명확히
+            # 카드 우측 점수 아래 — 예산/기간 우선, 없으면 마감일/담당자 폴백 (항상 표시)
             _bud_raw = row.get("budget_mw")
             _bud_period_raw = row.get("budget_period") or ""
+            _body_for_facts = row.get("body") or ""
+            _card_facts = _extract_key_facts(_body_for_facts)  # 본문 추출 fallback
+            _card_contact = _extract_contact(_body_for_facts)
             budget_html = ""
             if _bud_raw is not None and pd.notna(_bud_raw) and int(_bud_raw) > 0:
+                # 1순위: 정제된 budget_mw (확신 있는 정규화 값)
                 _bv = int(_bud_raw)
                 if _bv >= 1000:
                     _amt = f"{_bv/1000:.1f}".rstrip("0").rstrip(".") + "억"
                 else:
                     _amt = f"{_bv}백만"
-                # 기간: '단년' / '기간 미명시' 도 보여줌 (사용자 본문 검증 위해)
                 _period_disp = _bud_period_raw if _bud_period_raw else ""
                 _period_color = "#666" if "미명시" not in _period_disp else "#999"
                 budget_html = (
@@ -2186,6 +2419,39 @@ with tab1:
                        if _period_disp else "")
                     + "</div>"
                 )
+            else:
+                # 우측은 무조건 [예산 + 기간] 자리 — 마감/담당자 폴백 X (좌측 메타에 이미 있음)
+                # 사용자 일관성 요청: 모든 카드 우측은 같은 슬롯
+                _raw_budget_fact = next((f[4:] for f in _card_facts if f.startswith("예산:")), "")
+                _raw_period_fact = next((f[4:] for f in _card_facts if f.startswith("기간:")), "")
+                if _raw_budget_fact:
+                    # 2순위: 본문 명시 raw 예산 (정규화 안됐지만 표시 가치 있음)
+                    _short = _raw_budget_fact[:24] + ("…" if len(_raw_budget_fact) > 24 else "")
+                    budget_html = (
+                        f"<div style='margin-top:10px;text-align:right'>"
+                        f"<div style='color:#666;font-size:10px;font-weight:600;"
+                        f"letter-spacing:0.06em;text-transform:uppercase;margin-bottom:3px'>예산</div>"
+                        f"<div style='color:#111;font-weight:700;font-size:0.95rem;"
+                        f"line-height:1.2;font-feature-settings:\"tnum\"'>"
+                        f"{_html.escape(_short)}</div>"
+                        + (f"<div style='color:#666;font-size:11px;margin-top:3px;"
+                           f"line-height:1.3'>{_html.escape(_raw_period_fact[:30])}</div>"
+                           if _raw_period_fact else "")
+                        + "</div>"
+                    )
+                else:
+                    # 3순위: 예산 미명시 — 우측 자리 일관성 유지 (기간만 있으면 기간 표시)
+                    budget_html = (
+                        f"<div style='margin-top:10px;text-align:right'>"
+                        f"<div style='color:#999;font-size:10px;font-weight:600;"
+                        f"letter-spacing:0.06em;text-transform:uppercase;margin-bottom:3px'>예산</div>"
+                        f"<div style='color:#aaa;font-size:13px;line-height:1.2;"
+                        f"font-weight:500'>미명시</div>"
+                        + (f"<div style='color:#888;font-size:11px;margin-top:4px;"
+                           f"line-height:1.3'>{_html.escape(_raw_period_fact[:30])}</div>"
+                           if _raw_period_fact else "")
+                        + "</div>"
+                    )
 
             st.html(
                 "<div style='display:flex;justify-content:space-between;"
@@ -2271,16 +2537,18 @@ with tab1:
                     else:
                         bits.append(f"마감 {deadline}")
                 # 예산은 카드 우측 상단 점수 아래로 이동 — 메타 줄에 중복 표시 안 함
-                # 양식 첨부 수 — 같은 파일의 .hwp/.hwpx/.odt 묶어서 카운트
+                # 첨부: 전체 N건 (양식뿐 아니라 모든 첨부 — odt 중복만 제외) + 양식이 있으면 따로
                 try:
                     import re as _re
                     from rfp_targeter.attachments import classify as _cls
                     atts = json.loads(row.get("attachments_json") or "[]")
+                    # odt는 hwp 중복이라 제외
+                    atts = [x for x in atts if isinstance(x, dict)
+                            and not str(x.get("name", "")).lower().endswith(".odt")]
+                    total_att_n = len(atts)
                     seen_bases: set[str] = set()
                     form_n = 0
                     for x in atts:
-                        if not isinstance(x, dict):
-                            continue
                         cat = x.get("category") or _cls(x.get("name", ""))
                         if cat != "form":
                             continue
@@ -2288,23 +2556,74 @@ with tab1:
                         if base and base not in seen_bases:
                             seen_bases.add(base)
                             form_n += 1
-                    if form_n > 0:
-                        bits.append(f"양식 <b>{form_n}</b>개")
+                    if total_att_n > 0:
+                        att_label = (
+                            f"📎 첨부 <b>{total_att_n}</b>건"
+                            + (f" <span style='color:var(--text-faint)'>(양식 {form_n})</span>"
+                               if form_n > 0 else "")
+                        )
+                        bits.append(att_label)
                 except Exception:
                     pass
+                # 담당자 (본문에서 추출) — 카드 본문에 한 줄 정보 추가
+                if _card_contact:
+                    bits.append(
+                        f"<span style='color:var(--text-soft)'>담당</span> "
+                        f"<b style='color:var(--text);font-weight:600'>{_html.escape(_card_contact)}</b>"
+                    )
                 st.html(
                     f"<div style='color:var(--text-muted);font-size:0.85em;margin-bottom:8px'>"
                     + " <span style='color:var(--text-faint);margin:0 4px'>·</span> ".join(bits)
                     + "</div>"
                 )
 
+                # 카드 본문 영역 우선순위: AI 요약 → summary → facts (예산 제외) → excerpt
+                _ai_sum = row.get("ai_summary")
                 summary = row.get("summary")
-                if summary and pd.notna(summary) and isinstance(summary, str):
+                if _ai_sum and pd.notna(_ai_sum) and isinstance(_ai_sum, str) and len(_ai_sum) > 10:
+                    # 1순위: LLM 자동 요약 (DB에 캐시됨) — 본문 핵심만 1~2문장
+                    st.html(
+                        f"<div style='background:#fafafa;border-left:3px solid #111;"
+                        f"padding:10px 14px;margin-bottom:8px;"
+                        f"color:var(--text);font-size:0.93em;line-height:1.6;"
+                        f"font-weight:500'>"
+                        f"<span style='color:#666;font-size:10px;font-weight:700;"
+                        f"letter-spacing:0.08em;margin-right:6px'>AI 요약</span>"
+                        f"{_html.escape(_ai_sum)}</div>"
+                    )
+                elif summary and pd.notna(summary) and isinstance(summary, str):
+                    # 2순위: 크롤러에서 추출한 summary 필드
                     st.html(
                         f"<div style='color:var(--text-soft);font-size:0.92em;line-height:1.55;margin-bottom:6px'>"
                         f"{_html.escape(summary[:240] + ('...' if len(summary) > 240 else ''))}"
                         f"</div>"
                     )
+                else:
+                    # 3순위: 본문 facts (예산은 점수 아래로, "선정"은 표준 문구라 제거됨)
+                    _facts_for_body = [f for f in _card_facts if not f.startswith("예산:")]
+                    if _facts_for_body:
+                        _fact_html = " &nbsp;<span style='color:var(--text-faint)'>·</span>&nbsp; ".join(
+                            f"<span style='color:var(--text-muted);font-size:11px;"
+                            f"font-weight:600;letter-spacing:0.04em'>{_html.escape(f[:3])}</span> "
+                            f"<span style='color:var(--text-soft);font-size:13px'>"
+                            f"{_html.escape(f[4:][:60])}</span>"
+                            for f in _facts_for_body[:2]
+                        )
+                        st.html(
+                            f"<div style='background:#fafafa;border:1px solid #ececec;"
+                            f"border-radius:3px;padding:8px 12px;margin-bottom:8px;"
+                            f"line-height:1.6'>{_fact_html}</div>"
+                        )
+                    else:
+                        # 4순위: 본문 첫 문장 폴백
+                        _excerpt = _extract_card_excerpt(_body_for_facts)
+                        if _excerpt:
+                            st.html(
+                                f"<div style='color:var(--text-soft);font-size:0.9em;"
+                                f"line-height:1.55;margin-bottom:6px;"
+                                f"display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;"
+                                f"overflow:hidden'>{_html.escape(_excerpt)}</div>"
+                            )
 
                 # ── 매칭 키워드 칩 ──
                 mkj = row.get("matched_keywords_json")

@@ -158,7 +158,14 @@ def upsert_announcement(conn: psycopg.Connection, a: Announcement) -> bool:
         # · budget_mw / period / excerpt : 새 추출 실패해도 기존 값 유지
         # · body : 빈 문자열이면 기존 본문 유지
         # (크롤러가 일시적으로 fetch 실패하거나 사이트 구조 변경 시 데이터 보존)
-        attachments_str = json.dumps(a.attachments, ensure_ascii=False)
+        # 가드 강화: a.attachments가 None/빈/[Falsy]든 모두 '[]' 로 정규화 후 CASE WHEN.
+        # IS NULL / 'null' 문자열 / 빈 dict 등 엣지 케이스도 보호.
+        if not a.attachments or not isinstance(a.attachments, list):
+            attachments_str = "[]"
+        else:
+            # 빈 dict 만 있는 리스트도 빈 취급
+            real_atts = [x for x in a.attachments if isinstance(x, dict) and x.get("name")]
+            attachments_str = json.dumps(real_atts, ensure_ascii=False) if real_atts else "[]"
         cur.execute(
             """
             UPDATE announcement SET

@@ -1,13 +1,16 @@
-"""KOSA (한국SW산업협회) 정부지원사업 게시판 크롤러.
+"""KOSA (한국SW산업협회) 입찰안내 게시판 크롤러.
 
-소스: https://www.sw.or.kr/site/sw/ex/board/List.do?cbIdx=290
-- cbIdx=290 = 정부지원사업 (R&D·사업공고 핵심)
-- cbIdx=292 = 공지사항 (보조)
+소스: https://www.sw.or.kr/site/sw/ex/board/List.do?cbIdx=381
+- cbIdx=381 = 입찰안내 (KOSA 자체 발주 SW R&D 용역 — 본문 1000자+)
 - 정적 JSP 테이블 — BeautifulSoup으로 파싱
 - robots.txt: 일반 UA 전체 차단(`Disallow: /`), Googlebot/Yeti(네이버)만 Allow
   → User-Agent를 Googlebot로 명시 (정책 준수)
 
-회사 관점: SW산업·디지털 R&D 사업이 자주 올라옴 → 보안 키워드 통과분 자동 매칭.
+⚠️ 이전 cbIdx=290 (정부지원사업)/292 (공지사항)은 본문이 비어있는 게시판이었음.
+   메인 사이트맵 확인 결과 KOSA 실제 사업공고는 cbIdx=381 (입찰안내).
+   기존 DB 290/292 row는 폐기 권장.
+
+회사 관점: SW R&D 용역 — 보안 키워드 통과분 자동 매칭. KISA 입찰공고와 유사한 톤.
 """
 from __future__ import annotations
 
@@ -24,10 +27,9 @@ from rfp_targeter.db.models import Announcement
 log = logging.getLogger(__name__)
 
 BASE = "https://www.sw.or.kr"
-# 게시판 ID: 정부지원사업 우선, 공지 보조
+# 게시판 ID: 입찰안내(SW R&D 용역 — 본문 풍부)
 BOARDS = [
-    ("290", "KOSA 정부지원사업"),
-    ("292", "KOSA 공지사항"),
+    ("381", "KOSA 입찰안내"),
 ]
 
 # robots.txt 준수 — Googlebot만 허용된 사이트이므로 명시
@@ -47,11 +49,8 @@ class KOSACrawler(BaseCrawler):
 
     def list_announcements(self) -> Iterator[Announcement]:
         rows_per_page = 10
-        # 정부지원사업에 80%, 공지에 20%
-        budget = {
-            "290": max(1, int(self.max_per_source * 0.8)),
-            "292": max(1, self.max_per_source - int(self.max_per_source * 0.8)),
-        }
+        # 입찰안내(381) 단일 게시판이므로 max_per_source 전체 할당
+        budget = {b[0]: self.max_per_source for b in BOARDS}
 
         for cb_idx, label in BOARDS:
             limit = budget[cb_idx]
@@ -131,15 +130,19 @@ class KOSACrawler(BaseCrawler):
         soup = BeautifulSoup(r.text, "lxml")
         for tag in soup(["script", "style", "noscript", "header", "footer", "nav"]):
             tag.decompose()
-        # KOSA 게시판 상세는 일반적으로 div.bv_cont 또는 div.bbs_content
+        # KOSA 게시판 상세는 table.view 안에 메타+본문 — 다른 셀렉터는 사이트 네비 잡음
+        # soup.body 폴백 쓰면 전체 메뉴 텍스트가 들어가니 절대 X
         main = (
-            soup.select_one("div.bv_cont")
+            soup.select_one("table.view")
+            or soup.select_one("div.bv_cont")
             or soup.select_one("div.bbs_content")
             or soup.select_one("div.cont")
             or soup.select_one("article")
-            or soup.body
         )
-        body = re.sub(r"\s+", " ", main.get_text(" ") if main else "").strip()[:10000]
+        if main is None:
+            log.warning("kosa detail: 본문 영역 못 찾음 %s — body 빈채로 진행", a.external_id)
+            return a
+        body = re.sub(r"\s+", " ", main.get_text(" ")).strip()[:10000]
         a.body = body
 
         # 마감일

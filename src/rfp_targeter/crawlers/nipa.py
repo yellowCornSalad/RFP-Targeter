@@ -162,18 +162,23 @@ class NIPACrawler(BaseCrawler):
         if attachments:
             a.attachments = attachments
 
-        # 본문 정리: 잡태그 제거 후 본문 영역 추출
-        for tag in soup(["script", "style", "noscript", "header", "footer", "nav"]):
-            tag.decompose()
+        # ⚠️ NIPA 페이지는 본문(div.tbCont)을 <nav>·<header> 안에 둠 (잘못된 시멘틱 HTML).
+        # 따라서 decompose 전에 본문 영역 먼저 추출!
         main = (
             soup.select_one("div.tbCont")
-            or soup.select_one("div.body")
             or soup.select_one("div.bbs_view")
             or soup.select_one("div.viewArea")
-            or soup.select_one("div.cont")
             or soup.select_one("article")
-            or soup.body
         )
+        if main is None:
+            # 폴백 — decompose 후 main 시도 (위 셀렉터 모두 매칭 안 됐을 때)
+            for tag in soup(["script", "style", "noscript", "header", "footer", "nav"]):
+                tag.decompose()
+            main = soup.select_one("div.cont") or soup.body
+        else:
+            # main 안의 script/style만 제거 (본문 자체는 유지)
+            for tag in main(["script", "style", "noscript"]):
+                tag.decompose()
         body = re.sub(r"\s+", " ", main.get_text(" ") if main else "").strip()[:10000]
         a.body = body
 
