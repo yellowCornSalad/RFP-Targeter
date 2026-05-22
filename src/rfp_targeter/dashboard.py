@@ -189,15 +189,15 @@ svg[class*="icon"], i[class*="icon"] {
     text-transform: none !important;
 }
 
-/* === 전체 배경 — 인스타 피드처럼 메인 영역 좁게 (사이드 여백 ↑) === */
+/* === 전체 배경 — BMW 톤 (회색 배경 + 흰 카드 떠보이게) === */
 [data-testid="stAppViewContainer"], [data-testid="stMain"] {
-    background: var(--bg) !important;
+    background: #f5f5f5 !important;
 }
 .main .block-container, [data-testid="stMain"] .block-container {
     padding-top: 1.5rem !important;
-    padding-left: 2.5rem !important;
-    padding-right: 2.5rem !important;
-    max-width: 1080px;  /* 카드들이 인스타 피드 폭처럼 가운데 정렬 */
+    padding-left: 2rem !important;
+    padding-right: 2rem !important;
+    max-width: 1440px;  /* BMW 그리드 톤 — 3-column 카드 충분 공간 */
 }
 
 /* === Streamlit 기본 데코 숨김 (Deploy 버튼 위 영역, 햄버거 메뉴 등) === */
@@ -339,22 +339,21 @@ h4 { font-size: 0.9rem !important; font-weight: 600 !important; }
     color: #ffffff !important;
 }
 
-/* === 카드 컨테이너 — 인스타그램 피드 톤 (넓은 여백, 절제된 그림자) === */
+/* === 카드 컨테이너 — BMW 식 (각진 카드, 흰 배경, 회색 위로 떠보이게) === */
 [data-testid="stMain"] [data-testid="stVerticalBlockBorderWrapper"] {
-    border: 1px solid var(--border) !important;
-    border-radius: var(--radius-lg) !important;
-    background: var(--surface) !important;
-    box-shadow: none !important;
-    transition: border-color 0.18s ease, box-shadow 0.18s ease !important;
+    border: none !important;
+    border-radius: 4px !important;
+    background: #ffffff !important;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+    transition: box-shadow 0.18s ease, transform 0.18s ease !important;
     margin-bottom: 16px !important;
 }
 [data-testid="stMain"] [data-testid="stVerticalBlockBorderWrapper"]:hover {
-    border-color: var(--border-strong) !important;
-    box-shadow: var(--shadow-xs) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
 }
-/* 카드 내부 여백 — 인스타 피드처럼 여유롭게 */
+/* 카드 내부 여백 — BMW 식 여유 */
 [data-testid="stMain"] [data-testid="stVerticalBlockBorderWrapper"] > div > div {
-    padding: 4px 4px !important;
+    padding: 8px !important;
 }
 /* 오늘 신규 공고 카드 — 미세한 상단 빨간 액센트 라인 + 단정한 boder */
 [data-testid="stMain"] [data-testid="stVerticalBlockBorderWrapper"]:has(
@@ -992,31 +991,37 @@ st.sidebar.caption(f"표시 중 {len(filtered)} / 전체 {len(df)}")
 # ─── Top app bar ──────────────────────────────────────────────────────────
 _today_n = int((df.get("posted_at_dt", pd.Series(dtype="datetime64[ns]"))
                 .dt.date == datetime.now().date()).sum()) if "posted_at_dt" in df else 0
+# BMW 식 큰 상단 헤더 — 회색 배경 위 흰 카드, 큰 타이틀 + 부제
 _appbar_html = f"""
-<div style="display:flex;align-items:center;justify-content:space-between;
-            padding:14px 20px;background:#ffffff;border:1px solid #f1f5f9;
-            border-radius:14px;margin-bottom:18px;
-            box-shadow:0 1px 3px rgba(15,23,42,0.04)">
-  <div style="display:flex;align-items:center;gap:14px">
-    <span style="color:#94a3b8;font-size:0.72rem;text-transform:uppercase;
-                 letter-spacing:0.12em;font-weight:700">대시보드</span>
-    <span style="color:#cbd5e1">/</span>
-    <span style="font-size:1.05rem;font-weight:700;color:#0f172a;letter-spacing:-0.02em">
-      RFP 공고 탐색
-    </span>
-    <span style="background:#eff6ff;color:#1d4ed8;padding:3px 10px;
-                 border-radius:999px;font-size:0.75rem;font-weight:700;
-                 border:1px solid #bfdbfe;margin-left:4px">
-      {len(df):,}건 수집
-    </span>
-  </div>
-  <div style="display:flex;align-items:center;gap:10px;color:#64748b;font-size:0.82rem">
-    <span><span style="width:6px;height:6px;border-radius:50%;background:#16a34a;
-                       display:inline-block;margin-right:6px"></span>
-      오늘 신규 <b style="color:#0f172a">{_today_n}</b>건
-    </span>
-    <span style="color:#cbd5e1">·</span>
-    <span>업데이트 {datetime.now().strftime('%H:%M')}</span>
+<div style="background:#ffffff;padding:32px 36px;margin:-8px -8px 24px;
+            border-radius:4px;box-shadow:0 1px 2px rgba(0,0,0,0.05)">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;
+              flex-wrap:wrap;gap:16px">
+    <div>
+      <div style="color:#999;font-size:12px;letter-spacing:0.05em;margin-bottom:6px;
+                  font-weight:500">대시보드 · RFP-Targeter</div>
+      <h1 style="font-size:1.75rem;font-weight:800;color:#111;
+                 letter-spacing:-0.025em;margin:0;line-height:1.2">
+        RFP 공고 탐색 &amp; 점수 비교
+      </h1>
+      <div style="color:#666;font-size:0.95rem;margin-top:8px;line-height:1.5;max-width:680px">
+        7개 정부기관(IITP·KISA·NIPA·MSS·KOSA·KRIT·KOICA)에서 발주한 RFP 공고를
+        엔키화이트햇 본업 적합도 5축으로 자동 점수화.
+      </div>
+    </div>
+    <div style="text-align:right;flex-shrink:0">
+      <div style="font-size:2rem;font-weight:800;color:#111;letter-spacing:-0.03em;
+                  line-height:1;font-feature-settings:'tnum'">{len(df):,}<span style="font-size:0.5em;color:#666;font-weight:500;margin-left:4px">건</span></div>
+      <div style="color:#666;font-size:12px;margin-top:6px;display:flex;
+                  align-items:center;gap:10px;justify-content:flex-end">
+        <span><span style="display:inline-block;width:6px;height:6px;border-radius:50%;
+                           background:#10b981;margin-right:5px"></span>
+          오늘 +{_today_n}건
+        </span>
+        <span style="color:#ccc">·</span>
+        <span>{datetime.now().strftime('%m.%d %H:%M')}</span>
+      </div>
+    </div>
   </div>
 </div>
 """
