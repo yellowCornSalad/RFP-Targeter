@@ -102,34 +102,35 @@ st.html(
 <link rel="stylesheet"
     href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <style>
-/* === 색상 토큰 — 토스·네이버 스타일 (단정한 단일 액센트 + 중립 그레이) === */
+/* === 색상 토큰 — BMW 톤 (검정 + 흰 + 회색 그라데이션) === */
 :root {
-    --bg:            #ffffff;
-    --bg-warm:       #fafafa;
-    --surface:       #ffffff;
-    --surface-alt:   #f9fafb;       /* gray-50 */
-    --surface-sunk:  #f3f4f6;       /* gray-100 */
-    --border:        #e5e7eb;       /* gray-200 — 명확하나 부드러운 */
-    --border-strong: #d1d5db;       /* gray-300 */
-    --border-soft:   #f3f4f6;       /* 거의 안 보임 */
-    --text:          #111827;       /* gray-900 — 중립 진한 검정 */
-    --text-muted:    #6b7280;       /* gray-500 */
-    --text-soft:     #4b5563;       /* gray-600 */
-    --text-faint:    #9ca3af;       /* gray-400 */
-    --primary:       #2563eb;       /* blue-600 — 토스 파랑 톤 */
-    --primary-soft:  #1d4ed8;       /* blue-700 */
-    --primary-dark:  #1e3a8a;       /* blue-900 */
-    --accent:        #2563eb;       /* primary와 통일 (단일 액센트) */
-    --accent-hover:  #1d4ed8;
-    --accent-soft:   #eff6ff;       /* blue-50 */
-    --chip-text:     #1e40af;
-    --chip-border:   #dbeafe;       /* blue-100 */
-    --success:       #059669;       /* emerald-600 */
-    --success-soft:  #ecfdf5;
+    --bg:            #e8e8e8;       /* 메인 회색 배경 (BMW) */
+    --bg-warm:       #f0f0f0;
+    --surface:       #ffffff;       /* 카드 흰색 */
+    --surface-alt:   #f7f7f7;       /* 보조 흰색 */
+    --surface-sunk:  #ebebeb;
+    --border:        #d4d4d4;       /* BMW 회색 보더 */
+    --border-strong: #999999;       /* BMW 진한 회색 */
+    --border-soft:   #e8e8e8;
+    --text:          #111111;       /* BMW 검정 텍스트 */
+    --text-muted:    #666666;       /* BMW 중간 회색 */
+    --text-soft:     #333333;       /* BMW 진한 회색 */
+    --text-faint:    #999999;       /* BMW 옅은 회색 */
+    --primary:       #000000;       /* BMW 검정 액센트 */
+    --primary-soft:  #111111;
+    --primary-dark:  #000000;
+    --accent:        #000000;       /* primary = accent (검정 통일) */
+    --accent-hover:  #333333;
+    --accent-soft:   #f0f0f0;       /* 검정 soft = 회색 */
+    --chip-text:     #111111;
+    --chip-border:   #d4d4d4;
+    --bmw-blue:      #1c69d4;       /* BMW 보조 액센트 — 링크만 */
+    --success:       #008c4e;       /* BMW 친화 초록 */
+    --success-soft:  #e8f5ec;
     --warning:       #d97706;
-    --warning-soft:  #fffbeb;
-    --danger:        #dc2626;
-    --danger-soft:   #fef2f2;
+    --warning-soft:  #fff7ed;
+    --danger:        #c0392b;
+    --danger-soft:   #fdedeb;
     /* Shadow tokens — 매우 절제 */
     --shadow-xs:     0 1px 2px rgba(0, 0, 0, 0.04);
     --shadow-sm:     0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
@@ -473,17 +474,64 @@ section[data-testid="stSidebar"] [data-baseweb="tag"] {
 
 /* === Streamlit Primary Button 강제 검정 (KPI 활성 카드 포함) === */
 button[kind="primary"],
+button[kind="primary"] *,
 [data-testid="stButton"] button[kind="primary"],
-button[data-testid="baseButton-primary"] {
-    background-color: #111 !important;
-    border-color: #111 !important;
+[data-testid="stButton"] button[kind="primary"] *,
+button[data-testid="baseButton-primary"],
+button[data-testid="baseButton-primary"] * {
+    background-color: #000000 !important;
+    border-color: #000000 !important;
     color: #ffffff !important;
 }
 button[kind="primary"]:hover:not(:disabled),
 [data-testid="stButton"] button[kind="primary"]:hover:not(:disabled) {
-    background-color: #333 !important;
-    border-color: #333 !important;
+    background-color: #333333 !important;
+    border-color: #333333 !important;
     color: #ffffff !important;
+}
+
+/* === Streamlit BaseWeb 컴포넌트 강제 BMW 톤 ===
+   BaseWeb 인라인 style을 모두 덮기 위한 와일드카드 셀렉터 */
+/* multiselect 칩 (사이드바·메인 다) */
+[data-baseweb="tag"] {
+    background: #000000 !important;
+    background-color: #000000 !important;
+    border-color: #000000 !important;
+    color: #ffffff !important;
+}
+[data-baseweb="tag"] > div,
+[data-baseweb="tag"] > span,
+[data-baseweb="tag"] * {
+    color: #ffffff !important;
+    background: transparent !important;
+}
+[data-baseweb="tag"] svg,
+[data-baseweb="tag"] path {
+    fill: #ffffff !important;
+    color: #ffffff !important;
+    stroke: #ffffff !important;
+}
+/* Slider thumb + 채워진 트랙 */
+[data-baseweb="slider"] [role="slider"],
+[data-baseweb="slider"] [role="slider"] > div {
+    background: #000000 !important;
+    background-color: #000000 !important;
+}
+[data-baseweb="slider"] div[data-testid] {
+    background: #000000 !important;
+}
+/* Checkbox 체크된 상태 */
+[data-baseweb="checkbox"] [aria-checked="true"],
+[data-baseweb="checkbox"] [data-checked="true"],
+[data-testid="stCheckbox"] [aria-checked="true"] {
+    background: #000000 !important;
+    background-color: #000000 !important;
+    border-color: #000000 !important;
+}
+/* Select 드롭다운 활성 옵션 */
+[data-baseweb="menu"] li[aria-selected="true"] {
+    background: #f0f0f0 !important;
+    color: #000000 !important;
 }
 
 /* === 사이드바 select/multiselect 박스 self === */
@@ -526,15 +574,15 @@ code:not(pre code) {
     box-shadow: 0 24px 64px rgba(15, 23, 42, 0.22) !important;
 }
 
-/* === 링크 === */
+/* === 링크 — BMW 블루 (보조 액센트), 호버 시 밑줄 === */
 a {
-    color: var(--accent) !important;
+    color: var(--bmw-blue) !important;
     text-decoration: none !important;
     border-bottom: 1px solid transparent;
     transition: border-color 0.15s ease;
 }
 a:hover {
-    border-bottom-color: var(--accent) !important;
+    border-bottom-color: var(--bmw-blue) !important;
 }
 
 /* === Scrollbar (Webkit) — 미니멀 === */
