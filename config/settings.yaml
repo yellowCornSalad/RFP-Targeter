@@ -101,10 +101,15 @@ auto_draft:
   enabled: true
   min_total_score: 70  # 100점 만점 기준
 
-# 슬랙 알림 (Incoming Webhook) — 매 크롤 사이클 신규 보안 공고 즉시 푸시
+# 슬랙 알림 (Incoming Webhook) — 평일 09~18 KST 영업시간 매시 cron 사이클 발사
+# 영업시간 외 신규는 alerted_at=NULL로 누적 → 다음 영업일 09시 묶음 발송
 alert:
   slack_enabled: true               # secrets.yaml의 slack.webhook_url 필요
-  dashboard_url: "http://localhost:8501"  # 클라우드 배포 시 실제 URL로 교체
+  dashboard_url: "https://enkirfp.streamlit.app"  # Streamlit Cloud 배포 URL
+  business_hours:
+    start: 9                        # 09시부터
+    end: 18                         # 18시까지 (포함)
+    weekdays_only: true             # 평일만
 
 # 회사 프로필 추출 대상
 profile_extraction:
