@@ -1702,65 +1702,72 @@ def _render_detail_inline(row, aid):
         )
 
         import re as _re_local
-        clean = _h.unescape(body)                      # &amp; → &, &nbsp; → ' '
-        clean = clean.replace("​", "")            # zero-width space
-        clean = _re_local.sub(r"\s+", " ", clean)      # 공백 정규화
-
-        # 상단 첨부 본문 안내 prefix 제거 (이미 첨부 섹션에서 표시됨)
+        clean = _h.unescape(body)
+        clean = clean.replace("​", "").replace("\xa0", " ")
+        clean = _re_local.sub(r"\s+", " ", clean)
         clean = _re_local.sub(r"\[첨부 본문\]\s*", "", clean)
 
-        # 큰 섹션 마커 — 빈 줄 + 굵게
+        # 정부 공문 마커별 줄바꿈
         clean = _re_local.sub(r"\s*([□▣■▶])\s*", r"\n\n§§HEAD§§\1 ", clean)
-        # 중간 항목 마커 — 줄바꿈
         clean = _re_local.sub(r"\s*([○●◆◇▷▸])\s*", r"\n\1 ", clean)
-        # 강조 주석
         clean = _re_local.sub(r"\s*(※)\s*", r"\n§§NOTE§§\1 ", clean)
-        # 원형 숫자 (①②③)
         clean = _re_local.sub(r"\s*([①-⑳])\s*", r"\n\1 ", clean)
-        # 가운데점 들여쓰기
         clean = _re_local.sub(r"\s+(·|‧|・)\s*", r"\n  \1 ", clean)
+        # 마침표·콜론 후 한글/숫자 시작 → 줄바꿈 (마커 없는 본문도 단락 분리)
+        clean = _re_local.sub(r"([.!?])\s+(?=[가-힣가-힣A-Z\d])", r"\1\n", clean)
+        # 다중 공백 줄 정리
+        clean = _re_local.sub(r"\n{3,}", "\n\n", clean)
         clean = clean.strip()
 
-        # 1500자 제한 (이전 800자보다 더 보이게)
-        MAX = 1500
+        MAX = 2000  # 1500 → 2000 (더 풍부)
         truncated = len(clean) > MAX
         if truncated:
             clean = clean[:MAX]
-            # 마지막 줄 잘리면 그 줄 통째로 제거 (덜 지저분)
             last_nl = clean.rfind("\n")
             if last_nl > 0:
                 clean = clean[:last_nl]
 
-        # HTML로 렌더 — 줄 단위 처리해서 큰 헤딩/주석 강조
         lines_html = []
         for line in clean.split("\n"):
             line = line.strip()
             if not line:
-                lines_html.append("<br>")
+                lines_html.append("<div style='height:8px'></div>")
                 continue
             esc = _h.escape(line)
             if "§§HEAD§§" in line:
                 esc = _h.escape(line.replace("§§HEAD§§", ""))
                 lines_html.append(
-                    f"<div style='font-weight:700;color:var(--text);"
-                    f"margin-top:8px;font-size:0.95em'>{esc}</div>"
+                    f"<div style='font-weight:700;color:#111;"
+                    f"margin:14px 0 6px;font-size:1rem;"
+                    f"padding-bottom:4px;border-bottom:1px solid #e5e5e5'>{esc}</div>"
                 )
             elif "§§NOTE§§" in line:
                 esc = _h.escape(line.replace("§§NOTE§§", ""))
                 lines_html.append(
-                    f"<div style='color:#0369a1;font-style:italic;"
-                    f"margin:4px 0 4px 4px;font-size:0.88em'>{esc}</div>"
+                    f"<div style='color:#666;font-style:normal;"
+                    f"margin:6px 0 6px 8px;font-size:0.93em;"
+                    f"padding:6px 10px;background:#f9f9f9;border-left:3px solid #d4d4d4;"
+                    f"border-radius:2px'>{esc}</div>"
                 )
             else:
-                lines_html.append(f"<div style='margin:2px 0'>{esc}</div>")
+                lines_html.append(
+                    f"<div style='margin:5px 0;color:#333'>{esc}</div>"
+                )
 
         st.html(
-            f"<div style='color:var(--text-soft);font-size:0.88em;line-height:1.65;"
-            f"background:var(--surface-alt);padding:14px 16px;border-radius:8px;"
-            f"max-height:480px;overflow-y:auto;font-family:Pretendard,sans-serif'>"
+            f"<div style='font-size:0.98em;line-height:1.85;"
+            f"background:#ffffff;padding:24px 28px;"
+            f"border:1px solid #e5e5e5;border-radius:2px;"
+            f"max-height:700px;overflow-y:auto;font-family:Pretendard,sans-serif;"
+            f"letter-spacing:-0.005em'>"
             f"{''.join(lines_html)}"
-            f"{'<div style=color:var(--text-faint);font-size:0.82em;margin-top:10px;border-top:1px dashed var(--border);padding-top:8px>… 이하 생략 — 원문 사이트에서 전체 확인</div>' if truncated else ''}"
-            f"</div>"
+            + (
+                f"<div style='color:#999;font-size:0.85em;margin-top:14px;"
+                f"padding-top:12px;border-top:1px solid #e5e5e5'>"
+                f"… 이하 생략 — 원문 사이트에서 전체 확인</div>"
+                if truncated else ""
+            )
+            + "</div>"
         )
 
     # 첨부 — 클릭 가능한 다운로드 링크
