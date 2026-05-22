@@ -355,22 +355,27 @@ h4 { font-size: 0.9rem !important; font-weight: 600 !important; }
     color: #ffffff !important;
 }
 
-/* === 카드 컨테이너 — BMW 식 (각진 카드 + 진한 그림자로 회색 위 떠보이게) === */
+/* === 카드 컨테이너 — BMW 식 컴팩트 (정보 비해 카드 작게) === */
 [data-testid="stMain"] [data-testid="stVerticalBlockBorderWrapper"] {
     border: none !important;
     border-radius: 4px !important;
     background: #ffffff !important;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.10), 0 1px 2px rgba(0, 0, 0, 0.06) !important;
-    transition: box-shadow 0.18s ease, transform 0.18s ease !important;
-    margin-bottom: 20px !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08) !important;
+    transition: box-shadow 0.18s ease !important;
+    margin-bottom: 12px !important;
 }
 [data-testid="stMain"] [data-testid="stVerticalBlockBorderWrapper"]:hover {
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.08) !important;
-    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.10) !important;
 }
-/* 카드 내부 여백 — BMW 식 여유 */
+/* 카드 내부 여백 — 컴팩트 */
 [data-testid="stMain"] [data-testid="stVerticalBlockBorderWrapper"] > div > div {
-    padding: 8px !important;
+    padding: 4px !important;
+}
+/* 카드 안 제목 h3 — 큰 글씨 → 적당히 */
+[data-testid="stMain"] [data-testid="stVerticalBlockBorderWrapper"] h3 {
+    font-size: 1.02rem !important;
+    line-height: 1.4 !important;
+    margin: 0 0 6px !important;
 }
 /* 오늘 신규 공고 카드 — 미세한 상단 빨간 액센트 라인 + 단정한 boder */
 [data-testid="stMain"] [data-testid="stVerticalBlockBorderWrapper"]:has(
@@ -472,21 +477,31 @@ section[data-testid="stSidebar"] [data-baseweb="tag"] {
     border-color: #111 !important;
 }
 
-/* === Streamlit Primary Button 강제 검정 (KPI 활성 카드 포함) === */
+/* === Streamlit Primary Button 강제 검정 + 흰 글자 (KPI 활성 카드) ===
+   markdown bold(**), em(*) 등 모든 자식 태그까지 흰색 강제 */
 button[kind="primary"],
-button[kind="primary"] *,
 [data-testid="stButton"] button[kind="primary"],
-[data-testid="stButton"] button[kind="primary"] *,
-button[data-testid="baseButton-primary"],
-button[data-testid="baseButton-primary"] * {
+button[data-testid="baseButton-primary"] {
     background-color: #000000 !important;
     border-color: #000000 !important;
     color: #ffffff !important;
 }
-button[kind="primary"]:hover:not(:disabled),
-[data-testid="stButton"] button[kind="primary"]:hover:not(:disabled) {
+button[kind="primary"] *,
+button[kind="primary"] p,
+button[kind="primary"] strong,
+button[kind="primary"] em,
+button[kind="primary"] span,
+button[kind="primary"] div,
+[data-testid="stButton"] button[kind="primary"] *,
+button[data-testid="baseButton-primary"] * {
+    color: #ffffff !important;
+    background: transparent !important;
+}
+button[kind="primary"]:hover:not(:disabled) {
     background-color: #333333 !important;
     border-color: #333333 !important;
+}
+button[kind="primary"]:hover:not(:disabled) * {
     color: #ffffff !important;
 }
 
@@ -2068,19 +2083,20 @@ with tab1:
             )
             st.html(
                 "<div style='display:flex;justify-content:space-between;"
-                "align-items:flex-start;gap:14px;margin-bottom:12px;padding:14px 18px 0'>"
-                f"<div style='flex:1;min-width:0'>"
+                "align-items:center;gap:14px;margin-bottom:8px;padding:10px 14px 0'>"
+                f"<div style='flex:1;min-width:0;display:flex;align-items:center;gap:10px'>"
                 f"{agency_badge}"
-                f"<div style='font-size:12px;color:var(--text-faint);margin-top:4px'>"
-                f"{_html.escape(posted) if posted else ''}</div>"
+                f"<span style='font-size:11px;color:var(--text-faint)'>"
+                f"{_html.escape(posted) if posted else ''}</span>"
                 f"</div>"
-                f"<div style='text-align:right;flex-shrink:0'>"
-                f"<div style='font-size:1.6rem;font-weight:700;color:var(--text);"
+                f"<div style='text-align:right;flex-shrink:0;display:flex;"
+                f"align-items:baseline;gap:6px'>"
+                f"<span style='font-size:11px;font-weight:700;color:{grade_color};"
+                f"letter-spacing:0.04em'>{grade_label}</span>"
+                f"<span style='font-size:1.3rem;font-weight:700;color:var(--text);"
                 f"letter-spacing:-0.03em;line-height:1;font-feature-settings:\"tnum\"'>"
-                f"{total:.0f}<span style='font-size:0.55em;color:var(--text-faint);"
-                f"font-weight:500'>/100</span></div>"
-                f"<div style='font-size:11px;font-weight:700;color:{grade_color};"
-                f"letter-spacing:0.06em;margin-top:2px'>{grade_label}</div>"
+                f"{total:.0f}<span style='font-size:0.5em;color:var(--text-faint);"
+                f"font-weight:500;margin-left:2px'>/100</span></span>"
                 f"</div>"
                 "</div>"
             )
