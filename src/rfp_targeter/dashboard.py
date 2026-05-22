@@ -2098,9 +2098,35 @@ with tab1:
                 "letter-spacing:0.06em;margin-left:6px;flex-shrink:0'>NEW</span>"
                 if _is_new else ""
             )
+
+            # 카드 우측 점수 아래 예산 표시 — '몇 년간 얼마' 명확히
+            _bud_raw = row.get("budget_mw")
+            _bud_period_raw = row.get("budget_period") or ""
+            budget_html = ""
+            if _bud_raw is not None and pd.notna(_bud_raw) and int(_bud_raw) > 0:
+                _bv = int(_bud_raw)
+                if _bv >= 1000:
+                    _amt = f"{_bv/1000:.1f}".rstrip("0").rstrip(".") + "억"
+                else:
+                    _amt = f"{_bv}백만"
+                # 기간: '단년' / '기간 미명시' 도 보여줌 (사용자 본문 검증 위해)
+                _period_disp = _bud_period_raw if _bud_period_raw else ""
+                _period_color = "#666" if "미명시" not in _period_disp else "#999"
+                budget_html = (
+                    f"<div style='margin-top:10px;text-align:right'>"
+                    f"<div style='color:#666;font-size:10px;font-weight:600;"
+                    f"letter-spacing:0.06em;text-transform:uppercase;margin-bottom:3px'>예산</div>"
+                    f"<div style='color:#111;font-weight:700;font-size:1.1rem;"
+                    f"font-feature-settings:\"tnum\";line-height:1.1'>{_amt}</div>"
+                    + (f"<div style='color:{_period_color};font-size:11px;margin-top:3px;"
+                       f"line-height:1.3'>{_html.escape(_period_disp)}</div>"
+                       if _period_disp else "")
+                    + "</div>"
+                )
+
             st.html(
                 "<div style='display:flex;justify-content:space-between;"
-                "align-items:center;gap:14px;margin-bottom:8px;padding:10px 14px 0'>"
+                "align-items:flex-start;gap:14px;margin-bottom:8px;padding:10px 14px 0'>"
                 f"<div style='flex:1;min-width:0;display:flex;align-items:center;gap:10px;"
                 f"flex-wrap:wrap'>"
                 f"{agency_badge}"
@@ -2108,14 +2134,16 @@ with tab1:
                 f"{_html.escape(posted) if posted else ''}</span>"
                 f"{new_badge}"
                 f"</div>"
-                f"<div style='text-align:right;flex-shrink:0;display:flex;"
-                f"align-items:baseline;gap:8px'>"
+                f"<div style='text-align:right;flex-shrink:0'>"
+                f"<div style='display:flex;align-items:baseline;gap:8px;justify-content:flex-end'>"
                 f"<span style='font-size:11px;font-weight:700;color:{grade_color};"
                 f"letter-spacing:0.04em'>{grade_label}</span>"
                 f"<span style='font-size:1.3rem;font-weight:700;color:var(--text);"
                 f"letter-spacing:-0.03em;line-height:1;font-feature-settings:\"tnum\"'>"
                 f"{total:.0f}<span style='font-size:0.5em;color:var(--text-faint);"
                 f"font-weight:500;margin-left:2px'>/100</span></span>"
+                f"</div>"
+                f"{budget_html}"
                 f"</div>"
                 "</div>"
             )
@@ -2179,19 +2207,7 @@ with tab1:
                         bits.append(f"마감 {tag}")
                     else:
                         bits.append(f"마감 {deadline}")
-                bud = row.get("budget_mw")
-                bud_period = row.get("budget_period") or ""
-                if bud is not None and pd.notna(bud) and int(bud) > 0:
-                    bv = int(bud)
-                    # 사람 친화 단위 (1000백만원 = 10억)
-                    if bv >= 1000:
-                        amt_str = f"{bv/1000:.1f}".rstrip("0").rstrip(".") + "억"
-                    else:
-                        amt_str = f"{bv}백만"
-                    bud_html = f"예산 <b style='color:var(--text);font-weight:600'>{amt_str}</b>"
-                    if bud_period and bud_period != "단년" and "미명시" not in bud_period:
-                        bud_html += f" <span style='color:var(--text-faint);font-weight:400'>· {_html.escape(bud_period)}</span>"
-                    bits.append(bud_html)
+                # 예산은 카드 우측 상단 점수 아래로 이동 — 메타 줄에 중복 표시 안 함
                 # 양식 첨부 수 — 같은 파일의 .hwp/.hwpx/.odt 묶어서 카운트
                 try:
                     import re as _re
