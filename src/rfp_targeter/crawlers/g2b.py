@@ -27,13 +27,20 @@ from rfp_targeter.db.models import Announcement
 
 log = logging.getLogger(__name__)
 
-ENDPOINT = "https://apis.data.go.kr/1230000/ad/BidPublicInfoService/getBidPblancListInfoServcPPSSrch"
+BASE_URL = "https://apis.data.go.kr/1230000/ad/BidPublicInfoService"
+# 활용신청한 4개 검색 엔드포인트 — 발주 종류별 검색 (KOICA ODA는 공사/용역/외자/물품 다 있음)
+ENDPOINTS = [
+    ("용역", f"{BASE_URL}/getBidPblancListInfoServcPPSSrch"),
+    ("공사", f"{BASE_URL}/getBidPblancListInfoCnstwkPPSSrch"),
+    ("물품", f"{BASE_URL}/getBidPblancListInfoThngPPSSrch"),
+    ("외자", f"{BASE_URL}/getBidPblancListInfoFrgcptPPSSrch"),
+]
+ENDPOINT = ENDPOINTS[0][1]  # 호환
 
 # KOICA·외교부·국제협력 관련 발주처 키워드 — 이걸로 G2B 결과 필터
 KOICA_DEMANDORG_KEYWORDS = [
     "한국국제협력단", "KOICA",
     "외교부", "재외동포청",
-    # ODA 사업 다른 발주처
     "한국국제보건의료재단", "KOFIH",
 ]
 
@@ -59,49 +66,57 @@ class G2BCrawler(BaseCrawler):
             return
 
         from datetime import datetime, timedelta
-        # 최근 90일 입찰만
+        # 최근 180일 입찰 (KOICA는 발주 빈도 낮아 기간 넓힘)
         now = datetime.now()
-        from_dt = (now - timedelta(days=90)).strftime("%Y%m%d") + "0000"
+        from_dt = (now - timedelta(days=180)).strftime("%Y%m%d") + "0000"
         to_dt = now.strftime("%Y%m%d") + "2359"
 
-        page = 1
         seen = 0
-        while seen < self.max_per_source:
-            params = {
-                "serviceKey": self.service_key,
-                "numOfRows": "100",
-                "pageNo": str(page),
-                "inqryDiv": "1",  # 1: 등록일자 기준
-                "inqryBgnDt": from_dt,
-                "inqryEndDt": to_dt,
-                "type": "xml",
-            }
-            url = f"{ENDPOINT}?{urlencode(params)}"
-            try:
-                r = requests.get(url, timeout=self.timeout)
-                r.raise_for_status()
-            except Exception as e:
-                log.warning("g2b page %d fetch fail: %s", page, e)
-                break
-
-            items = self._parse_xml(r.text)
-            if not items:
-                break
-
-            for it in items:
-                a = self._item_to_announcement(it)
-                if a is None:
-                    continue
-                yield a
-                seen += 1
-                if seen >= self.max_per_source:
+        # 4종 발주 검색 endpoint 모두 순회 — KOICA ODA는 공사/용역/외자/물품 다 있음
+        for cat_label, ep_url in ENDPOINTS:
+            page = 1
+            cat_seen = 0
+            while seen < self.max_per_source:
+                params = {
+                    "serviceKey": self.service_key,
+                    "numOfRows": "100",
+                    "pageNo": str(page),
+                    "inqryDiv": "1",          # 1=등록일자 기준
+                    "inqryBgnDt": from_dt,
+                    "inqryEndDt": to_dt,
+                    "type": "xml",
+                    "ntceInsttNm": "한국국제협력단",  # 공고기관 직접 필터 (서버측)
+                }
+                url = f"{ep_url}?{urlencode(params)}"
+                try:
+                    r = requests.get(url, timeout=self.timeout)
+                    r.raise_for_status()
+                except Exception as e:
+                    log.warning("g2b [%s] page %d fetch fail: %s", cat_label, page, e)
                     break
 
-            if len(items) < 100:
-                break
-            page += 1
+                items = self._parse_xml(r.text)
+                if not items:
+                    break
 
-        log.info("g2b (KOICA 필터): %d건 수집", seen)
+                for it in items:
+                    a = self._item_to_announcement(it)
+                    if a is None:
+                        continue
+                    yield a
+                    seen += 1
+                    cat_seen += 1
+                    if seen >= self.max_per_source:
+                        break
+
+                if len(items) < 100:
+                    break
+                page += 1
+            log.info("g2b [%s]: %d건 (누적 %d)", cat_label, cat_seen, seen)
+            if seen >= self.max_per_source:
+                break
+
+        log.info("g2b (KOICA 필터): 총 %d건 수집", seen)
 
     def _parse_xml(self, text: str) -> list[dict]:
         try:
