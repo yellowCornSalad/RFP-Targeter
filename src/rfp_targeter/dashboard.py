@@ -425,26 +425,56 @@ h4 { font-size: 0.9rem !important; font-weight: 600 !important; }
     box-shadow: 0 0 0 1px #111 !important;
 }
 
-/* === Slider — 인디고 thumb (트랙은 Streamlit 기본 유지) === */
+/* === Slider — BMW 검정 thumb + 검정 트랙 === */
 [data-testid="stSlider"] [data-baseweb="slider"] [role="slider"] {
-    background: var(--accent) !important;
+    background: #111 !important;
     border: 2px solid #ffffff !important;
-    box-shadow: 0 0 0 1px var(--accent) !important;
+    box-shadow: 0 0 0 1px #111 !important;
+}
+[data-testid="stSlider"] [data-baseweb="slider"] > div > div > div {
+    background: #111 !important;
 }
 
-/* === Multiselect 칩 === */
-[data-testid="stMultiSelect"] span[data-baseweb="tag"] {
-    background: var(--accent-soft) !important;
-    color: var(--primary-soft) !important;
-    border: 1px solid #c7d2fe !important;
-    border-radius: 6px !important;
+/* === Multiselect 칩 — BMW 식 회색 배경 + 검정 글자 (파란색 X) === */
+[data-testid="stMultiSelect"] span[data-baseweb="tag"],
+[data-baseweb="tag"][role="button"] {
+    background: #f0f0f0 !important;
+    color: #111 !important;
+    border: 1px solid #d4d4d4 !important;
+    border-radius: 2px !important;
     font-weight: 500 !important;
 }
+[data-testid="stMultiSelect"] span[data-baseweb="tag"] svg,
+[data-baseweb="tag"] svg {
+    fill: #666 !important;
+}
 
-/* === Checkbox === */
-[data-testid="stCheckbox"] [data-baseweb="checkbox"] [data-checked="true"] {
-    background: var(--accent) !important;
-    border-color: var(--accent) !important;
+/* === Checkbox — BMW 검정 === */
+[data-testid="stCheckbox"] [data-baseweb="checkbox"] [data-checked="true"],
+[data-testid="stCheckbox"] [data-baseweb="checkbox"] > div:first-child[aria-checked="true"] {
+    background: #111 !important;
+    border-color: #111 !important;
+}
+
+/* === Streamlit Primary Button 강제 검정 (KPI 활성 카드 포함) === */
+button[kind="primary"],
+[data-testid="stButton"] button[kind="primary"],
+button[data-testid="baseButton-primary"] {
+    background-color: #111 !important;
+    border-color: #111 !important;
+    color: #ffffff !important;
+}
+button[kind="primary"]:hover:not(:disabled),
+[data-testid="stButton"] button[kind="primary"]:hover:not(:disabled) {
+    background-color: #333 !important;
+    border-color: #333 !important;
+    color: #ffffff !important;
+}
+
+/* === 사이드바 select/multiselect 박스 self === */
+section[data-testid="stSidebar"] [data-baseweb="select"] > div {
+    background: #ffffff !important;
+    border-color: #d4d4d4 !important;
 }
 
 /* === Divider === */
@@ -1803,19 +1833,19 @@ with tab1:
 
     for _, row in page_df.iterrows():
         with st.container(border=True):
-            # ── 좌측 점수 컬러 밴드 — 단색 4px (네이버 톤) ──
+            # ── 좌측 점수 컬러 밴드 — BMW 식 (등급별 단색, 검정 강조 + 채도 절제) ──
             total = float(row.get("total_score") or 0)
             theme = float(row.get("theme_fit") or 0)
             _band_color = (
-                "#f59e0b" if total >= 90 else   # TOP
-                "#10b981" if total >= 75 else   # GOOD
-                "#facc15" if total >= 60 else   # FAIR
-                "#e5e7eb"                        # LOW
+                "#111111" if total >= 90 else   # TOP — BMW 검정 (최고 강조)
+                "#0066b1" if total >= 75 else   # GOOD — BMW 블루
+                "#888888" if total >= 60 else   # FAIR — 중성 회색
+                "#e5e5e5"                        # LOW — 옅은 회색
             )
             st.html(
                 f"<div style='position:absolute;left:0;top:0;bottom:0;width:3px;"
-                f"background:{_band_color};border-top-left-radius:12px;"
-                f"border-bottom-left-radius:12px'></div>"
+                f"background:{_band_color};border-top-left-radius:4px;"
+                f"border-bottom-left-radius:4px'></div>"
             )
 
             # ── 오늘 신규 공고: 작은 NEW 라벨 (회전·그라데이션 X) ──
