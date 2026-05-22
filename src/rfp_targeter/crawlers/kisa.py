@@ -100,23 +100,44 @@ class KISACrawler(BaseCrawler):
         )
 
     def fetch_detail(self, a: Announcement) -> Announcement:
-        try:
-            r = self.fetch(a.url)
-        except Exception as e:
-            log.debug("kisa detail fetch fail %s: %s", a.external_id, e)
+        # ⚠️ KISA 입찰공고(board 403)는 반드시 첨부 있음.
+        # 첨부 0건 추출되면 일시적 fetch 실패 가능성 → 최대 2회 재시도.
+        is_bid = a.external_id.startswith("403-")
+        max_attempts = 2 if is_bid else 1
+        r = None
+        for attempt in range(max_attempts):
+            try:
+                r = self.fetch(a.url)
+                break
+            except Exception as e:
+                if attempt < max_attempts - 1:
+                    import time as _time
+                    _time.sleep(1.5)  # 재시도 전 대기
+                    continue
+                log.debug("kisa detail fetch fail %s: %s", a.external_id, e)
+                return a
+        if r is None:
             return a
 
         soup = BeautifulSoup(r.text, "lxml")
         for tag in soup(["script", "style", "noscript", "header", "footer", "nav"]):
             tag.decompose()
-        # KISA 게시판 상세 본문은 div.cont
         main = soup.select_one("div.cont") or soup.select_one("article") or soup.body
         body = re.sub(r"\s+", " ", main.get_text(" ") if main else "").strip()[:10000]
         a.body = body
 
-        # 첨부파일 — onclick="fnPostAttachDownload(menuSeq, postSeq, attachSeq, lang)" 파싱
-        # 다운로드 URL: /post/fileDownload?menuSeq=X&postSeq=Y&attachSeq=Z&lang_type=KO
+        # 첨부파일 추출 — board 403은 첨부 0이면 한번 더 fetch + 재시도
         attachments = self._extract_attachments(soup, a.external_id)
+        if not attachments and is_bid and max_attempts > 1:
+            try:
+                import time as _time
+                _time.sleep(1.0)
+                r2 = self.fetch(a.url)
+                soup2 = BeautifulSoup(r2.text, "lxml")
+                attachments = self._extract_attachments(soup2, a.external_id)
+                log.info("kisa [%s] 첨부 재시도 → %d건", a.external_id, len(attachments))
+            except Exception:
+                pass
         if attachments:
             a.attachments = attachments
 

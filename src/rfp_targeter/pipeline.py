@@ -29,6 +29,67 @@ class RunStats:
     error: str | None = None
 
 
+def _backfill_missing_attachments(max_per_source: int = 20) -> None:
+    """크롤 사이클 끝에 호출 — KISA/NIPA/MSS 중 첨부 없는 row 재처리.
+
+    이유: 매시 cron 크롤이 일시적 fetch 실패로 첨부 [] 저장하는 경우
+    누적적으로 첨부 누락. 사이클 끝에 가장 최근 N건 재시도해서 복구.
+    각 source 당 20건 제한 (cron 시간 폭 보호).
+    """
+    from rfp_targeter.crawlers.kisa import KISACrawler
+    from rfp_targeter.crawlers.nipa import NIPACrawler
+    from rfp_targeter.crawlers.mss import MSSCrawler
+
+    candidates = {
+        "kisa": KISACrawler,
+        "nipa": NIPACrawler,
+        "mss":  MSSCrawler,
+    }
+    for src, cls in candidates.items():
+        try:
+            with get_conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """SELECT id, source, external_id, title, url, agency,
+                                  posted_at, deadline_at, body
+                           FROM announcement
+                           WHERE source = %s
+                           AND (attachments_json IS NULL OR attachments_json IN ('', '[]'))
+                           ORDER BY posted_at DESC NULLS LAST
+                           LIMIT %s""",
+                        (src, max_per_source),
+                    )
+                    rows = cur.fetchall()
+            if not rows:
+                continue
+            crawler = cls()
+            recovered = 0
+            for r in rows:
+                a = Announcement(
+                    source=r["source"], external_id=r["external_id"],
+                    title=r["title"], url=r["url"],
+                    agency=r["agency"], posted_at=r["posted_at"],
+                    deadline_at=r["deadline_at"], body=r["body"] or "",
+                )
+                try:
+                    a = crawler.fetch_detail(a)
+                except Exception:
+                    continue
+                if a.attachments:
+                    import json as _json
+                    with get_conn() as conn:
+                        with conn.cursor() as cur:
+                            cur.execute(
+                                "UPDATE announcement SET attachments_json=%s WHERE id=%s",
+                                (_json.dumps(a.attachments, ensure_ascii=False), r["id"]),
+                            )
+                    recovered += 1
+            if recovered:
+                log.info("[%s] 첨부 백필 복구 %d/%d 건", src, recovered, len(rows))
+        except Exception:
+            log.exception("[%s] 첨부 백필 실패", src)
+
+
 def _enrich_budget(a: Announcement) -> None:
     """본문에서 예산 + 기간 + 원문 발췌 추출 (hallucination 방지 — 본문에 있는 값만).
 
@@ -119,6 +180,12 @@ def run_once() -> list[RunStats]:
             crawler.source, s.new, s.updated, s.filtered_in,
         )
         stats.append(s)
+
+    # 사이클 끝 — KISA 등 첨부 누락 row 자동 백필 (Live 사이트에 첨부 있는데 추출 실패한 경우)
+    try:
+        _backfill_missing_attachments()
+    except Exception:
+        log.exception("attachment backfill failed (pipeline 계속)")
 
     # 사이클 끝 — 신규 보안 공고가 1건+ 있으면 슬랙 일괄 발송
     if cycle_new_alerts:
