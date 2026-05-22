@@ -2057,16 +2057,8 @@ with tab1:
                 f"border-bottom-left-radius:4px'></div>"
             )
 
-            # ── 오늘 신규 공고: 작은 NEW 라벨 (회전·그라데이션 X) ──
+            # ── 오늘 신규 공고: NEW 플래그 (헤더에 인라인 표시 위해 변수만)
             _is_new = _is_today_new(row.get("posted_at"))
-            if _is_new:
-                st.html(
-                    "<div style='position:absolute;top:14px;right:18px;"
-                    "background:#fef2f2;color:#dc2626;padding:2px 8px;"
-                    "border-radius:4px;font-weight:600;font-size:11px;"
-                    "letter-spacing:0.04em;border:1px solid #fecaca;z-index:5'>"
-                    "NEW</div>"
-                )
 
             # ── 숨김 상태 (단정한 회색 텍스트) ──
             if row.get("is_dismissed"):
@@ -2098,16 +2090,25 @@ with tab1:
                 "#ca8a04" if total >= 60 else
                 "var(--text-muted)"
             )
+            # NEW 라벨 (헤더 좌측 인라인 — 점수와 겹치지 않게)
+            new_badge = (
+                "<span style='background:#dc2626;color:#fff;padding:1px 7px;"
+                "border-radius:2px;font-weight:700;font-size:10px;"
+                "letter-spacing:0.06em;margin-left:6px;flex-shrink:0'>NEW</span>"
+                if _is_new else ""
+            )
             st.html(
                 "<div style='display:flex;justify-content:space-between;"
                 "align-items:center;gap:14px;margin-bottom:8px;padding:10px 14px 0'>"
-                f"<div style='flex:1;min-width:0;display:flex;align-items:center;gap:10px'>"
+                f"<div style='flex:1;min-width:0;display:flex;align-items:center;gap:10px;"
+                f"flex-wrap:wrap'>"
                 f"{agency_badge}"
                 f"<span style='font-size:11px;color:var(--text-faint)'>"
                 f"{_html.escape(posted) if posted else ''}</span>"
+                f"{new_badge}"
                 f"</div>"
                 f"<div style='text-align:right;flex-shrink:0;display:flex;"
-                f"align-items:baseline;gap:6px'>"
+                f"align-items:baseline;gap:8px'>"
                 f"<span style='font-size:11px;font-weight:700;color:{grade_color};"
                 f"letter-spacing:0.04em'>{grade_label}</span>"
                 f"<span style='font-size:1.3rem;font-weight:700;color:var(--text);"
