@@ -936,9 +936,17 @@ _db_srcs = set(df["source"].unique()) if not df.empty else set()
 # 사용자 명시 7개를 항상 옵션에 포함 + 그 외 DB에 있는 source도 옵션 끝에
 _options = [s for s in _REQUIRED_SRCS if s in _db_srcs or s in ("koica",)]  # KOICA는 0건이어도 옵션 유지
 _extra = sorted(_db_srcs - set(_REQUIRED_SRCS))
+
+# BMW 카드 그리드에서 클릭한 source (query_params로 전달) — 단일 source 모드
+_qp_src = st.query_params.get("src")
+if _qp_src and _qp_src in (_options + _extra):
+    _default_srcs = [_qp_src]  # 단일 source만 활성 (카드 클릭으로 진입)
+else:
+    _default_srcs = _options    # 전체 (7개 모두)
+
 sources = st.sidebar.multiselect(
     "기관 / 소스", _options + _extra,
-    default=_options,  # 7개 모두 기본 선택
+    default=_default_srcs,
 )
 only_open = st.sidebar.checkbox(
     "공모중만", key="only_open",
@@ -1112,47 +1120,75 @@ _health = {h["source"]: h for h in _source_health()}
 _REQ7 = [("iitp","IITP"), ("kisa","KISA"), ("nipa","NIPA"), ("mss","중기부"),
          ("kosa","KOSA"), ("krit","KRIT"), ("koica","KOICA")]
 
-_chips_html = []
+# 활성 source — query_params로 단일 선택, 빈 값이면 전체
+_qp = st.query_params
+_active_src = _qp.get("src") or None
+if _active_src and _active_src not in {s for s, _ in _REQ7}:
+    _active_src = None
+
+# BMW 식 카테고리 그리드 — 7개 발주기관을 큰 클릭 카드로
+_cards_html = []
 for src, label in _REQ7:
     h = _health.get(src, {"total": 0, "with_att": 0})
     total = int(h.get("total") or 0)
     with_att = int(h.get("with_att") or 0)
     att_rate = int(100 * with_att / total) if total else 0
-    # 상태 판정
     if total == 0:
-        dot_color = "#ef4444"  # 빨강 — 데이터 0건
-        status_txt = "0건"
+        dot_color, status_txt = "#ef4444", "수집 대기"
     elif src in ("kosa", "krit") and total > 0:
-        # kosa/krit은 본문에 첨부 없는 게 정상
-        dot_color = "#10b981"
-        status_txt = f"{total}건"
+        dot_color, status_txt = "#10b981", "정상"
     elif total > 5 and att_rate < 30:
-        dot_color = "#f59e0b"  # 주황 — 첨부 부족
-        status_txt = f"{total}건 · 첨부 {att_rate}%"
+        dot_color, status_txt = "#f59e0b", f"첨부 {att_rate}%"
     else:
-        dot_color = "#10b981"  # 초록 — 정상
-        status_txt = f"{total}건"
-        if total > 5 and src not in ("kosa", "krit"):
-            status_txt += f" · 첨부 {att_rate}%"
-    _chips_html.append(
-        f"<div style='display:flex;align-items:center;gap:6px;padding:6px 12px;"
-        f"background:#fff;border:1px solid #e5e5e5;border-radius:2px;min-width:0'>"
+        dot_color, status_txt = "#10b981", "정상"
+
+    is_active = (_active_src == src)
+    bg = "#111" if is_active else "#fff"
+    text_color = "#fff" if is_active else "#111"
+    sub_color = "#bbb" if is_active else "#666"
+    border = "#111" if is_active else "#d4d4d4"
+
+    # 클릭 토글: 같은 카드면 해제, 다른 카드면 그것 활성
+    next_qp = "" if is_active else f"?src={src}"
+    _cards_html.append(
+        f"<a href='{next_qp}' target='_self' style='text-decoration:none;flex:1'>"
+        f"<div style='background:{bg};border:1px solid {border};"
+        f"border-radius:2px;padding:14px 12px;min-width:0;cursor:pointer;"
+        f"transition:all 0.15s ease;position:relative'>"
+        f"<div style='display:flex;align-items:center;justify-content:space-between;"
+        f"margin-bottom:8px'>"
+        f"<span style='font-weight:700;color:{text_color};font-size:14px;"
+        f"letter-spacing:0.02em'>{label}</span>"
         f"<span style='width:6px;height:6px;border-radius:50%;background:{dot_color};"
         f"flex-shrink:0'></span>"
-        f"<span style='font-weight:600;color:#111;font-size:12px;letter-spacing:0.02em'>"
-        f"{label}</span>"
-        f"<span style='color:#666;font-size:11px;font-feature-settings:\"tnum\"'>"
-        f"{status_txt}</span></div>"
+        f"</div>"
+        f"<div style='font-size:1.4rem;font-weight:800;color:{text_color};"
+        f"letter-spacing:-0.03em;line-height:1;font-feature-settings:\"tnum\"'>"
+        f"{total:,}<span style='font-size:0.55em;color:{sub_color};font-weight:500;"
+        f"margin-left:3px'>건</span></div>"
+        f"<div style='color:{sub_color};font-size:11px;margin-top:4px'>{status_txt}</div>"
+        f"</div></a>"
     )
 
+# 액션 라벨 (활성 source 있을 때)
+_action_txt = (
+    f"<a href='?' target='_self' style='color:#0066b1;font-size:12px;font-weight:600;"
+    f"text-decoration:none'>전체 보기 ↩</a>"
+    if _active_src else
+    "<span style='color:#999;font-size:11px'>카드 클릭 시 해당 기관만 필터링</span>"
+)
 st.html(
-    "<div style='display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px;"
-    "padding:12px 16px;background:#fff;border-radius:2px;"
-    "box-shadow:0 1px 2px rgba(0,0,0,0.05);align-items:center'>"
+    "<div style='background:#fff;border-radius:2px;padding:16px;"
+    "box-shadow:0 1px 3px rgba(0,0,0,0.06);margin-bottom:20px'>"
+    "<div style='display:flex;align-items:center;justify-content:space-between;"
+    "margin-bottom:12px'>"
     "<span style='color:#666;font-size:11px;font-weight:600;letter-spacing:0.08em;"
-    "text-transform:uppercase;margin-right:6px'>발주기관 상태</span>"
-    + "".join(_chips_html)
-    + "</div>"
+    "text-transform:uppercase'>발주기관 — 카드 클릭으로 필터</span>"
+    f"{_action_txt}"
+    "</div>"
+    "<div style='display:grid;grid-template-columns:repeat(7,1fr);gap:8px'>"
+    + "".join(_cards_html)
+    + "</div></div>"
 )
 
 # ---------- KPI Stats Strip ----------
