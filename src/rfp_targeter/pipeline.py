@@ -37,30 +37,60 @@ _REQUIRED_SOURCES = {
 
 
 def _verify_required_sources(stats: list) -> None:
-    """매 크롤 사이클 끝에 사용자 명시 7개 source 누락 감지.
+    """매 크롤 사이클 끝에 사용자 명시 7개 source + 첨부 누락 감지.
 
     사용자 요구: KISA · KOSA · IITP · KRIT · KOICA · NIPA · 중기부(MSS)
-    어느 하나라도 0건이거나 비활성화되어 있으면 WARNING 로그.
+    이번 사이클 stats + DB 실제 카운트 둘 다 검증.
+    어느 하나라도 0건/비활성화/에러면 WARNING 로그.
     """
     stat_by_src = {s.source: s for s in stats}
+
+    # DB 실제 카운트로 누락/첨부 상태 점검
+    db_counts: dict[str, tuple[int, int]] = {}  # src → (total, with_att)
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """SELECT source, COUNT(*) AS total,
+                              COUNT(*) FILTER (WHERE attachments_json IS NOT NULL
+                                               AND attachments_json NOT IN ('','[]')) AS with_att
+                       FROM announcement GROUP BY source"""
+                )
+                for r in cur.fetchall():
+                    db_counts[r["source"]] = (r["total"], r["with_att"])
+    except Exception:
+        log.exception("verify: DB 카운트 조회 실패")
+
     issues = []
+    summaries = []
     for src, name in _REQUIRED_SOURCES.items():
         s = stat_by_src.get(src)
-        if s is None:
-            issues.append(f"{name}({src}) 비활성화 또는 미실행")
-        elif s.error:
+        total, att = db_counts.get(src, (0, 0))
+        att_rate = (100 * att / total) if total else 0
+        summaries.append(f"{name}({src}): DB {total}건 · 첨부 {att_rate:.0f}%")
+
+        if s is None and total == 0:
+            issues.append(f"{name}({src}) 비활성화 + DB 0건")
+        elif s and s.error:
             issues.append(f"{name}({src}) 에러: {s.error[:80]}")
-        elif s.new == 0 and s.updated == 0:
-            issues.append(f"{name}({src}) 신규/갱신 0건")
+        elif total == 0:
+            issues.append(f"{name}({src}) DB 0건 — 어댑터 점검 필요")
+        elif total > 5 and att_rate < 30 and src not in ("kosa", "krit"):
+            # kosa/krit은 본문에 첨부 자체 없는 게 정상
+            issues.append(f"{name}({src}) 첨부 추출률 {att_rate:.0f}% — 추가 백필 필요")
+
+    log.info("=== 필수 7개 source 상태 ===")
+    for s in summaries:
+        log.info("  · %s", s)
     if issues:
-        log.warning("⚠ 필수 source 점검 — 문제 %d건:", len(issues))
+        log.warning("⚠ 점검 필요 %d건:", len(issues))
         for i in issues:
-            log.warning("  · %s", i)
+            log.warning("  ✗ %s", i)
     else:
-        log.info("✓ 필수 7개 source 정상")
+        log.info("✓ 모든 7개 source 정상")
 
 
-def _backfill_missing_attachments(max_per_source: int = 20) -> None:
+def _backfill_missing_attachments(max_per_source: int = 100) -> None:
     """크롤 사이클 끝에 호출 — KISA/NIPA/MSS 중 첨부 없는 row 재처리.
 
     이유: 매시 cron 크롤이 일시적 fetch 실패로 첨부 [] 저장하는 경우

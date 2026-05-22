@@ -1075,6 +1075,71 @@ _appbar_html = f"""
 """
 st.html(_appbar_html)
 
+# ─── 7개 기관 상태 실시간 모니터 ─────────────────────────────────────
+# 사용자 명시 (불변): KISA · KOSA · IITP · KRIT · KOICA · NIPA · MSS
+# 각 기관별 DB 건수 + 첨부 추출률 + 첨부 누락 자동 감지 표시
+@st.cache_data(ttl=60)
+def _source_health() -> list[dict]:
+    """모든 source의 건수 + 첨부 추출률 조회."""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """SELECT source, COUNT(*) AS total,
+                          COUNT(*) FILTER (WHERE attachments_json IS NOT NULL
+                                           AND attachments_json NOT IN ('','[]')) AS with_att,
+                          MAX(updated_at) AS last_upd
+                   FROM announcement GROUP BY source"""
+            )
+            return [dict(r) for r in cur.fetchall()]
+
+
+_health = {h["source"]: h for h in _source_health()}
+_REQ7 = [("iitp","IITP"), ("kisa","KISA"), ("nipa","NIPA"), ("mss","중기부"),
+         ("kosa","KOSA"), ("krit","KRIT"), ("koica","KOICA")]
+
+_chips_html = []
+for src, label in _REQ7:
+    h = _health.get(src, {"total": 0, "with_att": 0})
+    total = int(h.get("total") or 0)
+    with_att = int(h.get("with_att") or 0)
+    att_rate = int(100 * with_att / total) if total else 0
+    # 상태 판정
+    if total == 0:
+        dot_color = "#ef4444"  # 빨강 — 데이터 0건
+        status_txt = "0건"
+    elif src in ("kosa", "krit") and total > 0:
+        # kosa/krit은 본문에 첨부 없는 게 정상
+        dot_color = "#10b981"
+        status_txt = f"{total}건"
+    elif total > 5 and att_rate < 30:
+        dot_color = "#f59e0b"  # 주황 — 첨부 부족
+        status_txt = f"{total}건 · 첨부 {att_rate}%"
+    else:
+        dot_color = "#10b981"  # 초록 — 정상
+        status_txt = f"{total}건"
+        if total > 5 and src not in ("kosa", "krit"):
+            status_txt += f" · 첨부 {att_rate}%"
+    _chips_html.append(
+        f"<div style='display:flex;align-items:center;gap:6px;padding:6px 12px;"
+        f"background:#fff;border:1px solid #e5e5e5;border-radius:2px;min-width:0'>"
+        f"<span style='width:6px;height:6px;border-radius:50%;background:{dot_color};"
+        f"flex-shrink:0'></span>"
+        f"<span style='font-weight:600;color:#111;font-size:12px;letter-spacing:0.02em'>"
+        f"{label}</span>"
+        f"<span style='color:#666;font-size:11px;font-feature-settings:\"tnum\"'>"
+        f"{status_txt}</span></div>"
+    )
+
+st.html(
+    "<div style='display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px;"
+    "padding:12px 16px;background:#fff;border-radius:2px;"
+    "box-shadow:0 1px 2px rgba(0,0,0,0.05);align-items:center'>"
+    "<span style='color:#666;font-size:11px;font-weight:600;letter-spacing:0.08em;"
+    "text-transform:uppercase;margin-right:6px'>발주기관 상태</span>"
+    + "".join(_chips_html)
+    + "</div>"
+)
+
 # ---------- KPI Stats Strip ----------
 # 카운트는 base 기준 — 현재 사이드바 필터(source+only_open) 적용 후 카드 수와 일치
 def _count(threshold: int) -> int:
