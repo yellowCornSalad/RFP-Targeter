@@ -38,6 +38,13 @@ class NTISCrawler(IITPCrawler):
         self.iitp_only = False
 
     def list_announcements(self) -> Iterator[Announcement]:
+        # ⚠️ 사용자 명시 7개 source 목록에 NTIS 없음 + IITP와 100% 중복.
+        # 이중 안전장치 — settings.yaml에 enabled=false 외에도 어댑터 자체에서 차단.
+        log.info("ntis: 사용자 목록 외 source — 강제 비활성화 (IITP가 동일 데이터 흡수)")
+        return
+        # 아래는 미래 NTIS endpoint가 IITP와 다른 데이터 줄 때 부활 (현재는 unreachable)
+        # noinspection PyUnreachableCode
+        _ = super().list_announcements()
         if not self.service_key or self.service_key == "???":
             log.warning(
                 "NTIS: data.go.kr serviceKey 미설정. config/secrets.yaml 확인 필요. "

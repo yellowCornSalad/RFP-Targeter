@@ -754,7 +754,7 @@ init_db()
 def load_data(include_dismissed: bool = False) -> pd.DataFrame:
     with get_conn() as conn:
         rows = list_security_announcements(
-            conn, limit=500, include_dismissed=include_dismissed,
+            conn, limit=2000, include_dismissed=include_dismissed,
         )
     if not rows:
         return pd.DataFrame()
@@ -915,9 +915,15 @@ search_query = st.sidebar.text_input(
     placeholder="공고명·부서·키워드",
     help="제목·부서·요약·본문에서 자유 텍스트 검색 (공백·대소문자 무시)",
 )
+# 사용자 명시 7개 source 우선 표시 (불변 합의)
+_REQUIRED_SRCS = ["iitp", "kisa", "kosa", "krit", "koica", "nipa", "mss"]
+_db_srcs = set(df["source"].unique()) if not df.empty else set()
+# 사용자 명시 7개를 항상 옵션에 포함 + 그 외 DB에 있는 source도 옵션 끝에
+_options = [s for s in _REQUIRED_SRCS if s in _db_srcs or s in ("koica",)]  # KOICA는 0건이어도 옵션 유지
+_extra = sorted(_db_srcs - set(_REQUIRED_SRCS))
 sources = st.sidebar.multiselect(
-    "기관 / 소스", sorted(df["source"].unique()),
-    default=list(df["source"].unique()),
+    "기관 / 소스", _options + _extra,
+    default=_options,  # 7개 모두 기본 선택
 )
 only_open = st.sidebar.checkbox(
     "공모중만", key="only_open",
