@@ -5,6 +5,7 @@ from rfp_targeter.crawlers.base import BaseCrawler
 
 # 신규 어댑터 추가 시 여기에 등록
 from rfp_targeter.crawlers.bizinfo import BizinfoCrawler
+from rfp_targeter.crawlers.g2b import G2BCrawler
 from rfp_targeter.crawlers.iitp import IITPCrawler
 from rfp_targeter.crawlers.kisa import KISACrawler
 from rfp_targeter.crawlers.koica import KOICACrawler
@@ -17,6 +18,7 @@ from rfp_targeter.crawlers.ntis import NTISCrawler
 
 CRAWLERS: dict[str, type[BaseCrawler]] = {
     "bizinfo": BizinfoCrawler,
+    "g2b": G2BCrawler,           # 신규 — KOICA 등 G2B 통합 채널
     "iitp": IITPCrawler,
     "kisa": KISACrawler,
     "koica": KOICACrawler,

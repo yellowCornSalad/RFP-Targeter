@@ -71,13 +71,20 @@ sources:
     base_url: "https://www.nipa.kr"
     max_per_source: 50
 
-  # NTIS — 2026-05 검증 결과 IITP와 100% 데이터 중복 (NTIS 고유 0건).
-  # _is_iitp 역필터가 의도대로 작동 안 함 → 실제 운영에서는 IITP에 다 들어옴.
-  # 추후 NTIS endpoint가 IITP와 다른 부처 데이터를 제공하기 시작하면 enabled: true.
+  # NTIS — IITP와 100% 중복 (NTIS 고유 0건) → 비활성화
   ntis:
     enabled: false
     base_url: "https://apis.data.go.kr"
     max_per_source: 500
+
+  # G2B — 나라장터 입찰공고 통합 채널 (KOICA 발주분 흡수용)
+  # data.go.kr 15129394 활용신청 후 secrets.yaml 에 g2b.service_key 추가.
+  # KOICA 직접 endpoint 모두 unreachable → G2B 통해 KOICA 발주 키워드 필터.
+  # source 컬럼은 'koica'로 저장돼 사용자 목록의 KOICA 슬롯 채움.
+  g2b:
+    enabled: false    # secrets.yaml g2b.service_key 받은 후 true 로
+    base_url: "https://apis.data.go.kr"
+    max_per_source: 50
 
 # 점수 가중치 (합 1.0)
 # keyword 비중 ↑: 회사 본업 매칭도가 가장 결정적
