@@ -309,6 +309,23 @@ h4 { font-size: 0.9rem !important; font-weight: 600 !important; }
     border-bottom-color: #111 !important;
 }
 
+/* === Streamlit Button 내부 텍스트 — 발주기관 카드와 동일 톤 (Pretendard + 자간) === */
+[data-testid="stButton"] button p,
+[data-testid="stButton"] button strong,
+[data-testid="stButton"] button em,
+[data-testid="stButton"] button span,
+[data-testid="stButton"] button div {
+    font-family: 'Pretendard Variable', 'Pretendard', -apple-system, BlinkMacSystemFont,
+                 'Segoe UI', system-ui, sans-serif !important;
+    letter-spacing: -0.02em !important;
+    font-style: normal !important;  /* markdown italic(_x_) 도 평문 */
+}
+/* button 안 strong (큰 숫자) — 더 굵게 */
+[data-testid="stButton"] button strong {
+    font-weight: 700 !important;
+    font-size: 1.4em !important;
+}
+
 /* === 일반 버튼 — BMW 톤 (각진 모서리, flat, 절제된 hover) === */
 [data-testid="stButton"] > button,
 [data-testid="stDownloadButton"] > button {
@@ -1284,9 +1301,9 @@ imm_active = st.session_state.get("imminent_only", False)
 cur_min = st.session_state.get("min_score", 0)
 
 
-# KPI 카드 — 깔끔한 카드 (이모지 제거, 색상 점으로 등급 표시)
+# KPI 카드 — 발주기관 카드와 동일 톤 (italic 제거, 일반 폰트로 통일)
 def _kpi_label(name: str, value: int, sub: str) -> str:
-    return f"{name}  \n**{value:,}** 건  \n_{sub}_"
+    return f"{name}  \n**{value:,}** 건  \n{sub}"
 
 
 k1, k2, k3, k4, k5 = st.columns(5)
