@@ -1847,39 +1847,40 @@ def _render_detail_inline(row, aid):
         for line in clean.split("\n"):
             line = line.strip()
             if not line:
-                lines_html.append("<div style='height:8px'></div>")
+                lines_html.append("<div style='height:10px'></div>")
                 continue
             esc = _h.escape(line)
             if "§§HEAD§§" in line:
                 esc = _h.escape(line.replace("§§HEAD§§", ""))
                 lines_html.append(
-                    f"<div style='font-weight:700;color:#111;"
-                    f"margin:14px 0 6px;font-size:1rem;"
-                    f"padding-bottom:4px;border-bottom:1px solid #e5e5e5'>{esc}</div>"
+                    f"<div style='font-weight:700;color:#000;"
+                    f"margin:20px 0 8px;font-size:17px;"
+                    f"padding-bottom:6px;border-bottom:1px solid #d4d4d4'>{esc}</div>"
                 )
             elif "§§NOTE§§" in line:
                 esc = _h.escape(line.replace("§§NOTE§§", ""))
                 lines_html.append(
-                    f"<div style='color:#666;font-style:normal;"
-                    f"margin:6px 0 6px 8px;font-size:0.93em;"
-                    f"padding:6px 10px;background:#f9f9f9;border-left:3px solid #d4d4d4;"
+                    f"<div style='color:#555;font-style:normal;"
+                    f"margin:8px 0 8px 8px;font-size:14px;line-height:1.7;"
+                    f"padding:10px 14px;background:#f7f7f7;border-left:3px solid #999;"
                     f"border-radius:2px'>{esc}</div>"
                 )
             else:
                 lines_html.append(
-                    f"<div style='margin:5px 0;color:#333'>{esc}</div>"
+                    f"<div style='margin:8px 0;color:#111;font-size:15px;"
+                    f"line-height:1.85'>{esc}</div>"
                 )
 
         st.html(
-            f"<div style='font-size:0.98em;line-height:1.85;"
-            f"background:#ffffff;padding:24px 28px;"
-            f"border:1px solid #e5e5e5;border-radius:2px;"
-            f"max-height:700px;overflow-y:auto;font-family:Pretendard,sans-serif;"
-            f"letter-spacing:-0.005em'>"
+            f"<div style='font-size:15px;line-height:2.0;"
+            f"background:#ffffff;padding:28px 32px;"
+            f"border:1px solid #d4d4d4;border-radius:2px;"
+            f"max-height:800px;overflow-y:auto;font-family:Pretendard,sans-serif;"
+            f"letter-spacing:-0.01em;color:#111'>"
             f"{''.join(lines_html)}"
             + (
-                f"<div style='color:#999;font-size:0.85em;margin-top:14px;"
-                f"padding-top:12px;border-top:1px solid #e5e5e5'>"
+                f"<div style='color:#999;font-size:13px;margin-top:18px;"
+                f"padding-top:14px;border-top:1px solid #e5e5e5'>"
                 f"… 이하 생략 — 원문 사이트에서 전체 확인</div>"
                 if truncated else ""
             )
