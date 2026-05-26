@@ -61,10 +61,11 @@ sources:
     max_per_source: 30
 
   # KOICA — 한국국제협력단 ODA 조달정보 (data.go.kr 3039908 OpenAPI)
-  # serviceKey는 secrets.yaml의 data_go_kr.service_key 재사용
-  # 2026-05: openapi.koica.go.kr 직접 endpoint 죽음 → apis.data.go.kr 게이트웨이로 우회.
+  # 2026-05-26 비활성화: apis.data.go.kr 게이트웨이도 빈 응답, openapi.koica.go.kr 직접 endpoint
+  # 도 unreachable (network connect timeout 44초 낭비). 데이터 0건. cron 시간 절약.
+  # nebid.koica.go.kr 직접 HTML 크롤러 작성 시 다시 enable.
   koica:
-    enabled: true
+    enabled: false
     base_url: "https://apis.data.go.kr"
     max_per_source: 50
 
@@ -81,12 +82,11 @@ sources:
     max_per_source: 500
 
   # G2B — 나라장터 입찰공고 통합 채널 (KOICA 발주분 흡수용)
-  # 2026-05-22 사용자 활용신청 완료 (data.go.kr 15129394).
-  # service_key는 기존 data_go_kr.service_key 재사용 (동일 키).
-  # KOICA 직접 endpoint 모두 unreachable → G2B 통해 KOICA 발주 키워드 필터.
-  # source 컬럼은 'koica'로 저장돼 사용자 목록의 KOICA 슬롯 채움.
+  # 2026-05-26 비활성화: 4개 endpoint (용역/공사/물품/외자) 모두 401 Unauthorized.
+  # 기존 data_go_kr.service_key는 G2B(1230000) 활용신청 미승인 상태 — 별도 키 필요.
+  # 활용신청 승인 후 secrets.yaml에 g2b.service_key 추가하고 enable.
   g2b:
-    enabled: true
+    enabled: false
     base_url: "https://apis.data.go.kr"
     max_per_source: 50
 
@@ -107,7 +107,7 @@ auto_draft:
 # 슬랙 알림 (Incoming Webhook) — 평일 09~18 KST 영업시간 매시 cron 사이클 발사
 # 영업시간 외 신규는 alerted_at=NULL로 누적 → 다음 영업일 09시 묶음 발송
 alert:
-  slack_enabled: false              # ⚠️ 검증 사이클 동안 임시 OFF (IITP fix 효과 확인용, 2026-05-26 진단). 검증 끝나면 true로 복원.
+  slack_enabled: true               # secrets.yaml의 slack.webhook_url 필요
   dashboard_url: "https://yellowcornsalad.github.io/RFP-Targeter/"  # GitHub Pages 정적 사이트
   business_hours:
     start: 9                        # 09시부터

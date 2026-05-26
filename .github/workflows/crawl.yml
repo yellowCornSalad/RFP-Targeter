@@ -1,10 +1,11 @@
 name: Hourly Crawl
 
 on:
-  # 🚧 트러블슈팅 중 (2026-05-26) — 매시 자동 cron 일시 중지. 검증 끝나면 schedule 복원.
-  # schedule:
-  #   - cron: '0 * * * *'   # 매 시간 0분 (UTC 기준 — KST=UTC+9)
-  workflow_dispatch:        # 현재는 수동 트리거만 가능
+  schedule:
+    # 매 시간 0분 (UTC 기준 — KST = UTC+9, 한국 시각으로 매시 정각)
+    - cron: '0 * * * *'
+  # 수동 트리거 — Actions 탭에서 "Run workflow" 버튼 클릭 가능 (테스트용)
+  workflow_dispatch:
 
 # 동시 실행 방지 — 이전 실행 끝나기 전에 새 cron 안 돌게
 concurrency:
