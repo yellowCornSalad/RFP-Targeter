@@ -30,6 +30,74 @@ from rfp_targeter.db.models import get_conn  # noqa: E402
 
 
 # ─────────────────────────────────────────────────────────────
+# 매칭 키워드 표시 정규화 — 카드 #키워드 칩 dedupe + 별칭 통합.
+# 같은 의미의 변형 (AI/인공지능, SW/소프트웨어, PQC/양자내성암호 등) 을 1개로 합치고
+# 공백만 다른 변형 (정보보호/정보 보호) 도 dedupe. 한글 우선 표시.
+# ─────────────────────────────────────────────────────────────
+
+# 영문 약어 → 한글 대표 표기. 의미 같으면 한 칩으로 묶음.
+_KEYWORD_ALIASES = {
+    "ai": "인공지능",
+    "sw": "소프트웨어",
+    "dx": "디지털전환",
+    "ax": "디지털전환",
+    "ict": "정보통신",
+    "pqc": "양자내성암호",
+    "llm": "거대언어모델",
+    "cybersecurity": "사이버보안",
+    "cyber security": "사이버보안",
+    "infosec": "정보보호",
+    "information security": "정보보호",
+    "penetration test": "침투시험",
+    "vulnerability": "취약점",
+    "threat intelligence": "위협 인텔리전스",
+    "zero trust": "제로트러스트",
+}
+
+
+def _normalize_keywords_display(keywords: list[str]) -> list[str]:
+    """매칭 키워드 정규화 + dedupe.
+
+    1) [부서] 접두사는 별개 — 변형 안 함, 앞에 배치
+    2) _KEYWORD_ALIASES 매핑 적용 (AI → 인공지능 등)
+    3) 공백 제거 + 소문자 기준 dedupe — 같은 키는 한글 우선, 짧은 표기 우선
+    """
+    if not keywords:
+        return []
+    seen: dict[str, str] = {}  # normalized_key → 최종 표시 키워드
+    depts: list[str] = []
+
+    def has_korean(s: str) -> bool:
+        return any("가" <= c <= "힯" for c in s)
+
+    for kw in keywords:
+        if not isinstance(kw, str) or not kw.strip():
+            continue
+        if kw.startswith("[부서]"):
+            depts.append(kw)
+            continue
+        # 별칭 매핑 (소문자 기준)
+        mapped = _KEYWORD_ALIASES.get(kw.lower(), kw)
+        # dedupe 키 — 공백 제거 + 소문자
+        key = mapped.replace(" ", "").lower()
+        if key in seen:
+            existing = seen[key]
+            # 한글이 있는 표기 우선
+            kor_new = has_korean(mapped)
+            kor_old = has_korean(existing)
+            if kor_new and not kor_old:
+                seen[key] = mapped
+            elif kor_new == kor_old:
+                # 둘 다 한글이거나 둘 다 영문 — 공백 없는 표기 우선 (정규 표기로 통일)
+                if mapped.count(" ") < existing.count(" "):
+                    seen[key] = mapped
+        else:
+            seen[key] = mapped
+
+    return depts + list(seen.values())
+
+
+# ─────────────────────────────────────────────────────────────
 # 본문 가독성 처리 — Streamlit dashboard.py 의 task #71 로직 포팅.
 # 정부 공문 마커 줄바꿈, 표 분해, 한글 공백 제거, 사이트 chrome 텍스트 정리.
 # 결과는 마커 토큰(§§HEAD§§, §§NOTE§§)을 포함한 plain text — JS가 토큰별로 클래스 입힘.
@@ -167,9 +235,11 @@ def fetch_data() -> dict:
         body_preview = re.sub(r"§§(?:HEAD|NOTE)§§", "", readable_body).replace("\n", " ").strip()[:200]
         body = readable_body  # 호환성 — 기존 코드도 body 키 참조
         try:
-            mk = json.loads(r["matched_keywords_json"] or "[]")
+            mk_raw = json.loads(r["matched_keywords_json"] or "[]")
         except Exception:
-            mk = []
+            mk_raw = []
+        # 카드 칩 노출용 정규화 — 별칭 통합 + 공백/대소문자 dedupe + 한글 우선
+        mk = _normalize_keywords_display(mk_raw)
         try:
             atts = json.loads(r["attachments_json"] or "[]")
             # odt 중복 제거
