@@ -172,13 +172,24 @@ class MSSCrawler(BaseCrawler):
         if raw_summary and raw_summary != title: body_parts.append(raw_summary)
         body_text = "\n\n".join(body_parts)
 
+        # ⚠️ posted_at 보정: MSS API는 진짜 등록일(reg_dt) 필드 없음.
+        # applicationStartDate(신청 시작일)는 미래 날짜라 등록일 의미 X.
+        # → 미래 날짜면 fetch 시점(오늘)으로 대체. "공고를 우리가 발견한 시점" 이 가장 정확한 추정.
+        from datetime import datetime as _dt
+        raw_posted = _pick(item, _FIELD_MAP["posted_at"])
+        today_iso = _dt.now().date().isoformat()
+        if raw_posted and raw_posted > today_iso:
+            raw_posted = today_iso  # 미래 날짜는 fetch 시점으로 보정
+        if not raw_posted:
+            raw_posted = today_iso
+
         return Announcement(
             source=self.source,
             external_id=external_id,
             title=title,
             url=url,
             agency=_pick(item, _FIELD_MAP["agency"]) or "중소벤처기업부",
-            posted_at=_pick(item, _FIELD_MAP["posted_at"]),
+            posted_at=raw_posted,
             deadline_at=_pick(item, _FIELD_MAP["deadline_at"]),
             summary=raw_summary or contact_line or None,
             body=body_text,
