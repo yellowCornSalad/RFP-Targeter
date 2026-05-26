@@ -349,6 +349,87 @@ function escapeHtml(s) {
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
+// ────────────────────────────────────────────────────────────
+// 본문 정제 + HTML 변환 — 정부 공문 마커별 줄바꿈 + 스타일
+//   □ ▣ ■ ▶ : 큰 헤딩 (제목 + border-bottom)
+//   ○ ● ◆ ◇ : 항목 (들여쓰기)
+//   ※ : 주석 (좌측 border + 회색 배경)
+//   ①②③ : 번호 (강조)
+// ────────────────────────────────────────────────────────────
+function renderBody(body) {
+  if (!body) return "";
+
+  let text = String(body);
+  // 1) HTML 엔티티 unescape (DB에 &amp; 같은 형태 들어있을 수 있음)
+  text = text
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/g, '"');
+  // 2) 공백 정규화 + [첨부 본문] 마커 제거
+  text = text.replace(/\s+/g, " ").replace(/\[첨부 본문\]\s*/g, "").trim();
+
+  // 3) chrome 잡음 (KISA·KOSA 사이트 메뉴) 제거
+  const chromeNoise = [
+    /알림마당\s*입찰공고\s*인쇄하기\s*공유하기\s*닫기\s*트위터\s*페이스북/g,
+    /인쇄하기\s*공유하기\s*닫기\s*트위터\s*페이스북/g,
+    /바로가기\s*메뉴\s*본문\s*바로가기.*?(?=공지사항\s*상세정보|상세정보\s*보기)/gs,
+    /등록일\s*\d{4}-\d{2}-\d{2}\s*조회\s*\d+/g,
+    /이전\s*글\s*다음\s*글\s*목록/g,
+    /이용약관\s*개인정보처리방침\s*찾아오시는\s*길.*$/gs,
+    /[=\-_*]{4,}/g,
+  ];
+  chromeNoise.forEach((re) => { text = text.replace(re, " "); });
+
+  // 4) 가독성 패턴 압축 (날짜·시각·금액·괄호)
+  text = text.replace(/(\d{4})\.\s+(\d{1,2})\.\s+(\d{1,2})\./g, "$1.$2.$3.");
+  text = text.replace(/(\d{1,2})\s*:\s*(\d{2})/g, "$1:$2");
+  text = text.replace(/(\d)\s+(년|월|일|시|분|초|개월|주|건|명|회|차|호|위|등|급|점|만|억|원|%)/g, "$1$2");
+  text = text.replace(/(\d{1,3}(?:,\d{3})+)\s+원/g, "$1원");
+  text = text.replace(/\(\s+/g, "(").replace(/\s+\)/g, ")");
+  // 한글 1글자씩 띄어진 표 헤더 ("사 업 기 간" → "사업기간")
+  text = text.replace(/(?<![가-힣])([가-힣])\s([가-힣])\s([가-힣])\s([가-힣])(?![가-힣])/g, "$1$2$3$4");
+  text = text.replace(/(?<![가-힣])([가-힣])\s([가-힣])\s([가-힣])(?![가-힣])/g, "$1$2$3");
+
+  // 5) 마커별 줄바꿈
+  text = text.replace(/\s*([□▣■▶])\s*/g, "\n§HEAD§$1 ");
+  text = text.replace(/\s*([○●◆◇▷▸])\s*/g, "\n$1 ");
+  text = text.replace(/\s*(※)\s*/g, "\n§NOTE§$1 ");
+  text = text.replace(/\s*([①-⑳])\s*/g, "\n$1 ");
+  // 마침표/물음표 다음 한글 5자+ → 줄바꿈 (단락 분리)
+  text = text.replace(/([.!?])\s+(?=[가-힣A-Z][가-힣A-Z\d]{4,})/g, "$1\n");
+  // 빈 줄 정리
+  text = text.replace(/\n{3,}/g, "\n\n");
+
+  // 6) 줄별 HTML 변환
+  const lines = text.split("\n");
+  const out = [];
+  for (let line of lines) {
+    line = line.trim();
+    if (!line) {
+      out.push('<div class="body-spacer"></div>');
+      continue;
+    }
+    if (line.startsWith("§HEAD§")) {
+      out.push(`<div class="body-head">${escapeHtml(line.replace("§HEAD§", ""))}</div>`);
+    } else if (line.startsWith("§NOTE§")) {
+      out.push(`<div class="body-note">${escapeHtml(line.replace("§NOTE§", ""))}</div>`);
+    } else if (/^[○●◆◇▷▸]/.test(line)) {
+      out.push(`<div class="body-item">${escapeHtml(line)}</div>`);
+    } else if (/^[①-⑳]/.test(line)) {
+      out.push(`<div class="body-num">${escapeHtml(line)}</div>`);
+    } else if (/^\d+\.\s/.test(line)) {
+      // "1. 입찰에 부치는 사항" 같은 번호 헤더
+      out.push(`<div class="body-num-head">${escapeHtml(line)}</div>`);
+    } else {
+      out.push(`<div class="body-line">${escapeHtml(line)}</div>`);
+    }
+  }
+  return out.join("");
+}
+
 function gradeOf(total) {
   if (total >= 90) return ["TOP", "top"];
   if (total >= 75) return ["GOOD", "good"];
@@ -467,7 +548,7 @@ function renderCard(it) {
       <button class="detail-toggle" data-id="${it.id}">▼ 상세 보기</button>
       <div class="card-detail" data-id="${it.id}">
         <h4>본문</h4>
-        <div class="body-pre">${escapeHtml(it.body)}</div>
+        <div class="body-pre">${renderBody(it.body)}</div>
         ${attsHtml}
       </div>
     </div>`;
