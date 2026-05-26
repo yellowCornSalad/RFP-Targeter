@@ -198,4 +198,16 @@ class NIPACrawler(BaseCrawler):
         dm2 = extract_duration_months(body)
         if dm2 is not None:
             a.duration_months = dm2
+
+        # 첨부 본문까지 통합해서 키워드 추출 정확도 ↑ (공통 헬퍼)
+        from rfp_targeter.crawlers.base import enrich_body_with_attachments
+        a = enrich_body_with_attachments(a, referer="https://www.nipa.kr/")
+        # 합쳐진 본문에서 예산·기간 재추출 (첨부에 명시된 경우)
+        if a.body:
+            mw2 = extract_budget_mw(a.body)
+            if mw2 is not None and a.budget_mw is None:
+                a.budget_mw = mw2
+            dm3 = extract_duration_months(a.body)
+            if dm3 is not None and a.duration_months is None:
+                a.duration_months = dm3
         return a
