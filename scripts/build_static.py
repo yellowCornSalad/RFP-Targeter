@@ -16,7 +16,9 @@ site/ 출력은 GitHub Pages가 자동 서빙.
 from __future__ import annotations
 
 import argparse
+import html as _html
 import json
+import re
 import shutil
 import sys
 from datetime import datetime
@@ -25,6 +27,107 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from rfp_targeter.db.models import get_conn  # noqa: E402
+
+
+# ─────────────────────────────────────────────────────────────
+# 본문 가독성 처리 — Streamlit dashboard.py 의 task #71 로직 포팅.
+# 정부 공문 마커 줄바꿈, 표 분해, 한글 공백 제거, 사이트 chrome 텍스트 정리.
+# 결과는 마커 토큰(§§HEAD§§, §§NOTE§§)을 포함한 plain text — JS가 토큰별로 클래스 입힘.
+# ─────────────────────────────────────────────────────────────
+
+_CHROME_PATTERNS = [
+    r"알림마당\s*입찰공고\s*인쇄하기\s*공유하기\s*닫기\s*트위터\s*페이스북",
+    r"인쇄하기\s*공유하기\s*닫기\s*트위터\s*페이스북",
+    r"공유하기\s*닫기\s*트위터\s*페이스북",
+    r"등록일\s*\d{4}-\d{2}-\d{2}\s*조회\s*\d+",
+    r"바로가기\s*메뉴\s*본문\s*바로가기\s*주메뉴\s*바로가기\s*푸터\s*바로가기",
+    r"이전\s*글\s*다음\s*글\s*목록",
+    r"※\s*입찰설명회는\s*별도\s*진행하지\s*않으며.{0,200}?변경될\s*수\s*있습니다\s*\.",
+    r"바로가기\s*메뉴\s*본문\s*바로가기\s*주메뉴.*?(?=공지사항\s*상세정보\s*보기|상세정보\s*보기)",
+    r"KOSA\s*Menu\s*회원가입\s*로그인\s*KOSA\s*전체메뉴.*?(?=알림마당\s*협회에서)",
+    r"알림마당\s*협회에서\s*활동하고\s*있는\s*다양한\s*소식을\s*알려\s*드립니다\s*\.\s*글씨크게.*?(?=공지사항\s*상세정보|제목\s)",
+    r"이용약관\s*개인정보처리방침\s*찾아오시는\s*길\s*사이트맵.*$",
+    r"이전글\s*목록\s*다음글",
+]
+
+
+def make_readable(body: str | None) -> str:
+    """본문 raw text → 마커 토큰 포함 plain text. JS가 줄별로 HTML 입힘.
+
+    토큰:
+      §§HEAD§§<line>  → 큰 헤딩 (□ ▣ ■ ▶ 또는 추출된 표 헤더). border-bottom 강조.
+      §§NOTE§§<line>  → 주석 (※). 좌측 border + 회색 배경.
+      그 외 일반 줄  → 들여쓰기 또는 plain.
+    """
+    if not body or not isinstance(body, str):
+        return ""
+
+    clean = _html.unescape(body)
+    clean = clean.replace("​", "").replace("\xa0", " ")
+    clean = re.sub(r"\s+", " ", clean)
+    clean = re.sub(r"\[첨부 본문\]\s*", "", clean)
+
+    for pat in _CHROME_PATTERNS:
+        clean = re.sub(pat, " ", clean, flags=re.DOTALL)
+    clean = re.sub(r"[=\-_*]{4,}", " ", clean)
+    clean = re.sub(r"\s+", " ", clean).strip()
+
+    # 날짜·시각·표 패턴 정규화
+    clean = re.sub(r"(\d{4})\.\s+(\d{1,2})\.\s+(\d{1,2})\.", r"\1.\2.\3.", clean)
+    clean = re.sub(r"(\d{1,2})\s*:\s*(\d{2})", r"\1:\2", clean)
+    # 한 글자씩 띄어진 한글 표 헤더 (사 업 기 간 등) 복원
+    clean = re.sub(r"(?<![가-힣])([가-힣])\s([가-힣])\s([가-힣])\s([가-힣])(?![가-힣])", r"\1\2\3\4", clean)
+    clean = re.sub(r"(?<![가-힣])([가-힣])\s([가-힣])\s([가-힣])(?![가-힣])", r"\1\2\3", clean)
+    # 숫자+단위 공백 제거
+    clean = re.sub(
+        r"(\d)\s+(년|월|일|시|분|초|개월|주|건|명|회|차|호|위|등|급|점|배|만|억|원|%|％)",
+        r"\1\2", clean,
+    )
+    clean = re.sub(r"(\d{1,3}(?:,\d{3})+)\s+원", r"\1원", clean)
+    clean = re.sub(r"\(\s+", "(", clean)
+    clean = re.sub(r"\s+\)", ")", clean)
+    clean = re.sub(r'"\s+', '"', clean)
+    clean = re.sub(r'\s+"', '"', clean)
+    clean = re.sub(r"(\d)\s+\.\s+(?=[가-힣])", r"\1. ", clean)
+    clean = re.sub(r"(\d)\s+(%|％|MB|GB|TB|KB|kg|km|cm|mm)", r"\1\2", clean)
+
+    # KISA 입찰공고 표 분해
+    clean = re.sub(
+        r"1\.\s*입찰에\s*부치는\s*사항\s+관리번호\s+계약건명\s+등록마감일시\s+제안서평가일\s*\(예정\)\s+입찰방법\s+",
+        "\n\n§§HEAD§§□ 입찰에 부치는 사항\n",
+        clean,
+    )
+    clean = re.sub(
+        r"\s+(\d\.\s*(?:낙찰자\s*결정\s*방법|입찰\s*참가\s*자격|입찰\s*및\s*계약\s*방법|기타\s*사항|입찰\s*보증금|예정가격|제안서\s*평가)[^.①②③\n]{0,40})",
+        r"\n\n§§HEAD§§\1\n",
+        clean,
+    )
+    clean = re.sub(r"[ \t]+", " ", clean)
+    clean = re.sub(r" *\n *", "\n", clean)
+
+    # 정부 공문 마커별 줄바꿈
+    clean = re.sub(r"\s*([□▣■▶])\s*", r"\n\n§§HEAD§§\1 ", clean)
+    clean = re.sub(r"\s*([○●◆◇▷▸])\s*", r"\n\1 ", clean)
+    clean = re.sub(r"\s*(※)\s*", r"\n§§NOTE§§\1 ", clean)
+    clean = re.sub(r"\s*([①-⑳])\s*", r"\n\1 ", clean)
+    clean = re.sub(r"\s+(·|‧|・)\s*", r"\n  \1 ", clean)
+    # 마침표·콜론 후 한글 5자 이상 시작 → 줄바꿈
+    clean = re.sub(r"([.!?])\s+(?=[가-힣A-Z][가-힣A-Z\d]{4,})", r"\1\n", clean)
+    clean = re.sub(r"\n{3,}", "\n\n", clean)
+
+    # 짧은 단편 줄 제거 (3자 이하 단순 숫자 점 등)
+    lines = clean.split("\n")
+    filtered = []
+    for ln in lines:
+        s = ln.strip()
+        if not s:
+            filtered.append(ln)
+            continue
+        # '6.', '9.', '16.', '7' 같은 의미 없는 단편
+        if re.fullmatch(r"[\d.]{1,4}", s):
+            continue
+        filtered.append(ln)
+    return "\n".join(filtered).strip()
 
 # 빌드 출력 디렉터리 — GitHub Pages가 서빙
 DEFAULT_OUT = Path(__file__).resolve().parents[1] / "site"
@@ -62,8 +165,13 @@ def fetch_data() -> dict:
 
     items = []
     for r in rows:
-        # 본문은 너무 길어서 카드 미리보기용으로 정제 + 잘라서 저장
-        body = (r["body"] or "")[:3000]
+        # raw body — 디버그용으로만 (data.json에는 readable_body 만 저장)
+        raw_body = r["body"] or ""
+        # 가독성 처리 (정부 공문 마커 토큰 포함) — JS가 토큰 보고 HTML 입힘
+        readable_body = make_readable(raw_body)[:8000]  # 8KB 상한
+        # 카드 미리보기용 (마커 토큰 제거한 첫 200자)
+        body_preview = re.sub(r"§§(?:HEAD|NOTE)§§", "", readable_body).replace("\n", " ").strip()[:200]
+        body = readable_body  # 호환성 — 기존 코드도 body 키 참조
         try:
             mk = json.loads(r["matched_keywords_json"] or "[]")
         except Exception:
@@ -91,6 +199,7 @@ def fetch_data() -> dict:
             "budget_period": r["budget_period"] or "",
             "budget_excerpt": r["budget_excerpt"] or "",
             "body": body,
+            "body_preview": body_preview,
             "matched_keywords": mk,
             "attachments": atts,
             "eligibility_status": r["eligibility_status"] or "",

@@ -360,59 +360,59 @@ function renderBody(body) {
   if (!body) return "";
 
   let text = String(body);
-  // 1) HTML 엔티티 unescape (DB에 &amp; 같은 형태 들어있을 수 있음)
-  text = text
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&#39;/g, "'")
-    .replace(/&quot;/g, '"');
-  // 2) 공백 정규화 + [첨부 본문] 마커 제거
-  text = text.replace(/\s+/g, " ").replace(/\[첨부 본문\]\s*/g, "").trim();
 
-  // 3) chrome 잡음 (KISA·KOSA 사이트 메뉴) 제거
-  const chromeNoise = [
-    /알림마당\s*입찰공고\s*인쇄하기\s*공유하기\s*닫기\s*트위터\s*페이스북/g,
-    /인쇄하기\s*공유하기\s*닫기\s*트위터\s*페이스북/g,
-    /바로가기\s*메뉴\s*본문\s*바로가기.*?(?=공지사항\s*상세정보|상세정보\s*보기)/gs,
-    /등록일\s*\d{4}-\d{2}-\d{2}\s*조회\s*\d+/g,
-    /이전\s*글\s*다음\s*글\s*목록/g,
-    /이용약관\s*개인정보처리방침\s*찾아오시는\s*길.*$/gs,
-    /[=\-_*]{4,}/g,
-  ];
-  chromeNoise.forEach((re) => { text = text.replace(re, " "); });
+  // 🔥 Python build_static.py 에서 이미 §§HEAD§§ / §§NOTE§§ 토큰 + 줄바꿈 처리 완료된 경우.
+  //    이 경우엔 추가 정제 불필요, 토큰만 보고 클래스 입힘.
+  const hasPyTokens = text.includes("§§HEAD§§") || text.includes("§§NOTE§§");
 
-  // 4) 가독성 패턴 압축 (날짜·시각·금액·괄호)
-  text = text.replace(/(\d{4})\.\s+(\d{1,2})\.\s+(\d{1,2})\./g, "$1.$2.$3.");
-  text = text.replace(/(\d{1,2})\s*:\s*(\d{2})/g, "$1:$2");
-  text = text.replace(/(\d)\s+(년|월|일|시|분|초|개월|주|건|명|회|차|호|위|등|급|점|만|억|원|%)/g, "$1$2");
-  text = text.replace(/(\d{1,3}(?:,\d{3})+)\s+원/g, "$1원");
-  text = text.replace(/\(\s+/g, "(").replace(/\s+\)/g, ")");
-  // 한글 1글자씩 띄어진 표 헤더 ("사 업 기 간" → "사업기간")
-  text = text.replace(/(?<![가-힣])([가-힣])\s([가-힣])\s([가-힣])\s([가-힣])(?![가-힣])/g, "$1$2$3$4");
-  text = text.replace(/(?<![가-힣])([가-힣])\s([가-힣])\s([가-힣])(?![가-힣])/g, "$1$2$3");
+  if (!hasPyTokens) {
+    // 폴백: raw body → 클라이언트에서 처리 (구버전 data.json 호환)
+    text = text
+      .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+      .replace(/&nbsp;/g, " ").replace(/&#39;/g, "'").replace(/&quot;/g, '"');
+    text = text.replace(/\s+/g, " ").replace(/\[첨부 본문\]\s*/g, "").trim();
+    const chromeNoise = [
+      /알림마당\s*입찰공고\s*인쇄하기\s*공유하기\s*닫기\s*트위터\s*페이스북/g,
+      /인쇄하기\s*공유하기\s*닫기\s*트위터\s*페이스북/g,
+      /바로가기\s*메뉴\s*본문\s*바로가기.*?(?=공지사항\s*상세정보|상세정보\s*보기)/gs,
+      /등록일\s*\d{4}-\d{2}-\d{2}\s*조회\s*\d+/g,
+      /이전\s*글\s*다음\s*글\s*목록/g,
+      /이용약관\s*개인정보처리방침\s*찾아오시는\s*길.*$/gs,
+      /[=\-_*]{4,}/g,
+    ];
+    chromeNoise.forEach((re) => { text = text.replace(re, " "); });
+    text = text.replace(/(\d{4})\.\s+(\d{1,2})\.\s+(\d{1,2})\./g, "$1.$2.$3.");
+    text = text.replace(/(\d{1,2})\s*:\s*(\d{2})/g, "$1:$2");
+    text = text.replace(/(\d)\s+(년|월|일|시|분|초|개월|주|건|명|회|차|호|위|등|급|점|만|억|원|%)/g, "$1$2");
+    text = text.replace(/(\d{1,3}(?:,\d{3})+)\s+원/g, "$1원");
+    text = text.replace(/\(\s+/g, "(").replace(/\s+\)/g, ")");
+    text = text.replace(/(?<![가-힣])([가-힣])\s([가-힣])\s([가-힣])\s([가-힣])(?![가-힣])/g, "$1$2$3$4");
+    text = text.replace(/(?<![가-힣])([가-힣])\s([가-힣])\s([가-힣])(?![가-힣])/g, "$1$2$3");
+    text = text.replace(/\s*([□▣■▶])\s*/g, "\n§§HEAD§§$1 ");
+    text = text.replace(/\s*([○●◆◇▷▸])\s*/g, "\n$1 ");
+    text = text.replace(/\s*(※)\s*/g, "\n§§NOTE§§$1 ");
+    text = text.replace(/\s*([①-⑳])\s*/g, "\n$1 ");
+    text = text.replace(/([.!?])\s+(?=[가-힣A-Z][가-힣A-Z\d]{4,})/g, "$1\n");
+    text = text.replace(/\n{3,}/g, "\n\n");
+  }
 
-  // 5) 마커별 줄바꿈
-  text = text.replace(/\s*([□▣■▶])\s*/g, "\n§HEAD§$1 ");
-  text = text.replace(/\s*([○●◆◇▷▸])\s*/g, "\n$1 ");
-  text = text.replace(/\s*(※)\s*/g, "\n§NOTE§$1 ");
-  text = text.replace(/\s*([①-⑳])\s*/g, "\n$1 ");
-  // 마침표/물음표 다음 한글 5자+ → 줄바꿈 (단락 분리)
-  text = text.replace(/([.!?])\s+(?=[가-힣A-Z][가-힣A-Z\d]{4,})/g, "$1\n");
-  // 빈 줄 정리
-  text = text.replace(/\n{3,}/g, "\n\n");
-
-  // 6) 줄별 HTML 변환
+  // 줄별 HTML 변환
   const lines = text.split("\n");
   const out = [];
+  let prevEmpty = false;
   for (let line of lines) {
     line = line.trim();
     if (!line) {
-      out.push('<div class="body-spacer"></div>');
+      if (!prevEmpty) out.push('<div class="body-spacer"></div>');
+      prevEmpty = true;
       continue;
     }
-    if (line.startsWith("§HEAD§")) {
+    prevEmpty = false;
+    if (line.startsWith("§§HEAD§§")) {
+      out.push(`<div class="body-head">${escapeHtml(line.replace("§§HEAD§§", ""))}</div>`);
+    } else if (line.startsWith("§§NOTE§§")) {
+      out.push(`<div class="body-note">${escapeHtml(line.replace("§§NOTE§§", ""))}</div>`);
+    } else if (line.startsWith("§HEAD§")) {  // 폴백 (구버전 토큰)
       out.push(`<div class="body-head">${escapeHtml(line.replace("§HEAD§", ""))}</div>`);
     } else if (line.startsWith("§NOTE§")) {
       out.push(`<div class="body-note">${escapeHtml(line.replace("§NOTE§", ""))}</div>`);
@@ -421,13 +421,75 @@ function renderBody(body) {
     } else if (/^[①-⑳]/.test(line)) {
       out.push(`<div class="body-num">${escapeHtml(line)}</div>`);
     } else if (/^\d+\.\s/.test(line)) {
-      // "1. 입찰에 부치는 사항" 같은 번호 헤더
       out.push(`<div class="body-num-head">${escapeHtml(line)}</div>`);
     } else {
       out.push(`<div class="body-line">${escapeHtml(line)}</div>`);
     }
   }
   return out.join("");
+}
+
+// ────────────────────────────────────────────────────────────
+// 5축 SVG 레이더 차트 (Plotly 의존 제거 — vanilla SVG)
+// scores = { keyword, budget, consortium, competitor, trl } (각 0~100)
+// ────────────────────────────────────────────────────────────
+function renderRadar(scores) {
+  const W = 280, H = 260;
+  const cx = W / 2, cy = H / 2 + 6;
+  const R = 90;  // 외곽 반경
+  const axes = [
+    { key: "keyword",    label: "키워드" },
+    { key: "budget",     label: "예산" },
+    { key: "consortium", label: "컨소시엄" },
+    { key: "competitor", label: "경쟁" },
+    { key: "trl",        label: "TRL" },
+  ];
+  const N = axes.length;
+  // 각 축의 각도 (12시 방향부터 시계방향)
+  const angle = (i) => (-Math.PI / 2) + (i * 2 * Math.PI / N);
+
+  // 격자 (20/40/60/80/100) 5단계
+  const rings = [];
+  for (let r = 0.2; r <= 1.0001; r += 0.2) {
+    const pts = [];
+    for (let i = 0; i < N; i++) {
+      const a = angle(i);
+      pts.push(`${cx + Math.cos(a) * R * r},${cy + Math.sin(a) * R * r}`);
+    }
+    rings.push(`<polygon points="${pts.join(" ")}" fill="none" stroke="#e2e8f0" stroke-width="1"/>`);
+  }
+  // 축 라인 (cx,cy → 각 꼭짓점)
+  const axisLines = [];
+  for (let i = 0; i < N; i++) {
+    const a = angle(i);
+    axisLines.push(`<line x1="${cx}" y1="${cy}" x2="${cx + Math.cos(a) * R}" y2="${cy + Math.sin(a) * R}" stroke="#f1f5f9" stroke-width="1"/>`);
+  }
+  // 점수 폴리곤
+  const scorePts = [];
+  const labelEls = [];
+  for (let i = 0; i < N; i++) {
+    const a = angle(i);
+    const v = Math.max(0, Math.min(100, scores[axes[i].key] || 0)) / 100;
+    scorePts.push(`${cx + Math.cos(a) * R * v},${cy + Math.sin(a) * R * v}`);
+    // 축 라벨 — 외곽에서 살짝 떨어진 위치
+    const lx = cx + Math.cos(a) * (R + 18);
+    const ly = cy + Math.sin(a) * (R + 18) + 4;
+    const anchor = Math.abs(Math.cos(a)) < 0.3 ? "middle" : (Math.cos(a) > 0 ? "start" : "end");
+    labelEls.push(`<text x="${lx}" y="${ly}" text-anchor="${anchor}" class="radar-label">${axes[i].label}</text>`);
+    labelEls.push(`<text x="${lx}" y="${ly + 12}" text-anchor="${anchor}" class="radar-score">${Math.round(scores[axes[i].key] || 0)}</text>`);
+  }
+
+  return `
+    <svg class="radar-svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">
+      ${rings.join("")}
+      ${axisLines.join("")}
+      <polygon points="${scorePts.join(" ")}" fill="rgba(17,17,17,0.12)" stroke="#111" stroke-width="1.8" stroke-linejoin="round"/>
+      ${scorePts.map((p) => {
+        const [x, y] = p.split(",");
+        return `<circle cx="${x}" cy="${y}" r="3" fill="#111"/>`;
+      }).join("")}
+      ${labelEls.join("")}
+    </svg>`;
 }
 
 function gradeOf(total) {
@@ -553,6 +615,38 @@ function renderCard(it) {
       </div>
       <button class="detail-toggle" data-id="${it.id}">▼ 상세 보기</button>
       <div class="card-detail" data-id="${it.id}">
+        <div class="detail-radar-row">
+          <div class="detail-radar">
+            <h4>5축 점수</h4>
+            ${renderRadar(it.scores)}
+          </div>
+          <div class="detail-axes-detail">
+            <h4>점수 분해</h4>
+            <div class="axes-bar-list">
+              ${[
+                ["keyword", "키워드", "회사 핵심 키워드 매칭"],
+                ["budget", "예산", "회사 적정 예산 범위"],
+                ["consortium", "컨소시엄", "구성 부담 (낮을수록 ↑)"],
+                ["competitor", "경쟁", "경쟁자 수 (적을수록 ↑)"],
+                ["trl", "TRL", "회사 보유 기술 적합도"],
+              ].map(([k, label, desc]) => {
+                const v = Math.round(it.scores[k] || 0);
+                return `
+                  <div class="axes-bar-row">
+                    <div class="axes-bar-head">
+                      <span class="axes-bar-label">${label}</span>
+                      <span class="axes-bar-val">${v}<span class="max">/100</span></span>
+                    </div>
+                    <div class="axes-bar-track"><div class="axes-bar-fill" style="width:${v}%"></div></div>
+                    <div class="axes-bar-desc">${desc}</div>
+                  </div>`;
+              }).join("")}
+            </div>
+            <div class="theme-fit-row">
+              <span>테마 적합도 <b>${Math.round(it.scores.theme_fit || 0)}</b><span class="max">/100</span></span>
+            </div>
+          </div>
+        </div>
         <h4>본문</h4>
         <div class="body-pre">${renderBody(it.body)}</div>
         ${attsHtml}
