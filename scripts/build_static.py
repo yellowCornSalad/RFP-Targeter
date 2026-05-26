@@ -37,7 +37,8 @@ def fetch_data() -> dict:
         with conn.cursor() as cur:
             cur.execute(
                 """SELECT a.id, a.source, a.external_id, a.title, a.url, a.agency,
-                          a.posted_at, a.deadline_at, a.budget_mw, a.budget_period,
+                          a.posted_at, a.deadline_at, a.application_start_date,
+                          a.budget_mw, a.budget_period,
                           a.budget_excerpt, a.body, a.matched_keywords_json,
                           a.eligibility_status, a.eligibility_note,
                           a.attachments_json,
@@ -77,6 +78,7 @@ def fetch_data() -> dict:
             "agency": r["agency"] or "",
             "posted_at": str(r["posted_at"] or ""),
             "deadline_at": str(r["deadline_at"] or ""),
+            "application_start_date": str(r["application_start_date"] or ""),
             "budget_mw": r["budget_mw"],
             "budget_period": r["budget_period"] or "",
             "budget_excerpt": r["budget_excerpt"] or "",

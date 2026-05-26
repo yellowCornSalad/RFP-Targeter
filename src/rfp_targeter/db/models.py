@@ -101,6 +101,7 @@ class Announcement:
     eligibility_status: str | None = None
     eligibility_note: str | None = None
     eligibility_limit: int | None = None
+    application_start_date: str | None = None   # MSS API의 applicationStartDate (신청 시작일)
 
     @property
     def id(self) -> str:
@@ -134,16 +135,18 @@ def upsert_announcement(conn: psycopg.Connection, a: Announcement) -> bool:
                 """
                 INSERT INTO announcement(
                     id, source, external_id, title, agency, url,
-                    posted_at, deadline_at, budget_mw, duration_months,
+                    posted_at, deadline_at, application_start_date,
+                    budget_mw, duration_months,
                     budget_period, budget_excerpt, budget_confidence,
                     summary, body, attachments_json, matched_keywords_json,
                     fetched_at, updated_at, is_security,
                     eligibility_status, eligibility_note, eligibility_limit
-                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                 """,
                 (
                     a.id, a.source, a.external_id, a.title, a.agency, a.url,
-                    a.posted_at, a.deadline_at, a.budget_mw, a.duration_months,
+                    a.posted_at, a.deadline_at, a.application_start_date,
+                    a.budget_mw, a.duration_months,
                     a.budget_period, a.budget_excerpt, a.budget_confidence,
                     a.summary, a.body,
                     json.dumps(a.attachments, ensure_ascii=False),
@@ -170,6 +173,7 @@ def upsert_announcement(conn: psycopg.Connection, a: Announcement) -> bool:
             """
             UPDATE announcement SET
                 title=%s, agency=%s, url=%s, posted_at=%s, deadline_at=%s,
+                application_start_date=COALESCE(%s, application_start_date),
                 budget_mw=COALESCE(%s, budget_mw),
                 duration_months=COALESCE(%s, duration_months),
                 budget_period=COALESCE(%s, budget_period),
@@ -190,6 +194,7 @@ def upsert_announcement(conn: psycopg.Connection, a: Announcement) -> bool:
             """,
             (
                 a.title, a.agency, a.url, a.posted_at, a.deadline_at,
+                a.application_start_date,
                 a.budget_mw, a.duration_months,
                 a.budget_period, a.budget_excerpt, a.budget_confidence,
                 a.summary, a.body,
