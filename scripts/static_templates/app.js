@@ -76,25 +76,53 @@ const SOURCE_ORDER = ["iitp", "kisa", "nipa", "mss", "kosa", "krit", "koica"];
 
 function renderAgencyGrid() {
   const grid = document.getElementById("agency-grid");
-  grid.innerHTML = SOURCE_ORDER.map((src) => {
-    const total = DATA.sources_counts[src] || 0;
-    const newN = DATA.today_new_by_src[src] || 0;
-    const active = filters.source === src;
-    return `
-      <div class="agency-card ${active ? "active" : ""}" data-src="${src}">
-        ${newN > 0 ? `<span class="agency-new-badge">🆕 ${newN}</span>` : ""}
-        <div class="agency-name">
-          <span>${SOURCE_LABELS[src]}</span>
-          <span class="agency-dot ${total === 0 ? "zero" : ""}"></span>
-        </div>
-        <div class="agency-num">${total.toLocaleString()}<span class="unit">건</span></div>
-        <div class="agency-status">${total === 0 ? "수집 대기" : "정상"}</div>
-      </div>`;
-  }).join("");
+  // 첫 카드 = "전체" (filters.source === null 일 때 활성)
+  // 그 다음 7개 source 카드
+  const cards = [
+    {
+      key: "all",
+      label: "전체",
+      total: DATA.total,
+      newN: DATA.today_new,
+      status: "보안 통과",
+      isActive: filters.source === null,
+      isAll: true,
+    },
+    ...SOURCE_ORDER.map((src) => {
+      const total = DATA.sources_counts[src] || 0;
+      return {
+        key: src,
+        label: SOURCE_LABELS[src],
+        total: total,
+        newN: DATA.today_new_by_src[src] || 0,
+        status: total === 0 ? "수집 대기" : "정상",
+        isActive: filters.source === src,
+        isAll: false,
+      };
+    }),
+  ];
+
+  grid.innerHTML = cards.map((c) => `
+    <div class="agency-card ${c.isActive ? "active" : ""} ${c.isAll ? "is-all" : ""}" data-src="${c.key}">
+      ${c.newN > 0 ? `<span class="agency-new-badge">🆕 ${c.newN}</span>` : ""}
+      <div class="agency-name">
+        <span>${c.isAll ? "📋 " : ""}${c.label}</span>
+        <span class="agency-dot ${c.total === 0 ? "zero" : ""}"></span>
+      </div>
+      <div class="agency-num">${c.total.toLocaleString()}<span class="unit">건</span></div>
+      <div class="agency-status">${c.status}</div>
+    </div>
+  `).join("");
+
   grid.querySelectorAll(".agency-card").forEach((c) => {
     c.addEventListener("click", () => {
-      const src = c.dataset.src;
-      filters.source = (filters.source === src) ? null : src;
+      const key = c.dataset.src;
+      if (key === "all") {
+        filters.source = null;  // 명시적 전체
+      } else {
+        // 같은 카드 다시 누르면 해제 (전체로 복귀)
+        filters.source = (filters.source === key) ? null : key;
+      }
       currentPage = 1;
       renderAgencyGrid();
       applyFilters();
