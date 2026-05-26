@@ -193,7 +193,8 @@ function applyFilters() {
 }
 
 // ────────────────────────────────────────────────────────────
-// KPI strip
+// KPI strip — 클릭 시 최소 점수 필터 토글
+// 같은 카드 다시 누르면 해제 (전체로 돌아감)
 // ────────────────────────────────────────────────────────────
 function renderKpiStrip() {
   const strip = document.getElementById("kpi-strip");
@@ -204,13 +205,77 @@ function renderKpiStrip() {
   const today = new Date().toISOString().slice(0, 10);
   const n_today = all.filter((it) => it.posted_at.slice(0, 10) === today).length;
   const total = DATA.total;
+
+  // 현재 활성 필터 식별 (활성 카드에 'active' 클래스 부여)
+  const active =
+    filters.onlyToday ? "today" :
+    filters.minScore >= 90 ? "top" :
+    filters.minScore >= 75 ? "good" :
+    filters.minScore >= 60 ? "fair" :
+    "all";
+
   strip.innerHTML = `
-    <div class="kpi-card"><div class="kpi-label">전체</div><div class="kpi-value">${total.toLocaleString()}<span class="unit"> 건</span></div><div class="kpi-sub">보안 통과</div></div>
-    <div class="kpi-card"><div class="kpi-label">🟠 TOP · 90+</div><div class="kpi-value">${n_top}</div><div class="kpi-sub">즉시 검토</div></div>
-    <div class="kpi-card"><div class="kpi-label">🟢 GOOD · 75+</div><div class="kpi-value">${n_good}</div><div class="kpi-sub">검토 권장</div></div>
-    <div class="kpi-card"><div class="kpi-label">🟡 FAIR · 60+</div><div class="kpi-value">${n_fair}</div><div class="kpi-sub">검토 고려</div></div>
-    <div class="kpi-card"><div class="kpi-label">🆕 오늘 신규</div><div class="kpi-value">${n_today}</div><div class="kpi-sub">${today}</div></div>
+    <div class="kpi-card ${active === "all" ? "active" : ""}" data-kpi="all">
+      <div class="kpi-label">전체</div>
+      <div class="kpi-value">${total.toLocaleString()}<span class="unit"> 건</span></div>
+      <div class="kpi-sub">보안 통과</div>
+    </div>
+    <div class="kpi-card ${active === "top" ? "active" : ""}" data-kpi="top">
+      <div class="kpi-label">🟠 TOP · 90+</div>
+      <div class="kpi-value">${n_top}</div>
+      <div class="kpi-sub">즉시 검토</div>
+    </div>
+    <div class="kpi-card ${active === "good" ? "active" : ""}" data-kpi="good">
+      <div class="kpi-label">🟢 GOOD · 75+</div>
+      <div class="kpi-value">${n_good}</div>
+      <div class="kpi-sub">검토 권장</div>
+    </div>
+    <div class="kpi-card ${active === "fair" ? "active" : ""}" data-kpi="fair">
+      <div class="kpi-label">🟡 FAIR · 60+</div>
+      <div class="kpi-value">${n_fair}</div>
+      <div class="kpi-sub">검토 고려</div>
+    </div>
+    <div class="kpi-card ${active === "today" ? "active" : ""}" data-kpi="today">
+      <div class="kpi-label">🆕 오늘 신규</div>
+      <div class="kpi-value">${n_today}</div>
+      <div class="kpi-sub">${today}</div>
+    </div>
   `;
+
+  // 클릭 핸들러
+  strip.querySelectorAll(".kpi-card").forEach((card) => {
+    card.addEventListener("click", () => {
+      const kind = card.dataset.kpi;
+      // 같은 카드 다시 누르면 해제 (전체로)
+      const isActive = card.classList.contains("active");
+
+      if (kind === "all" || isActive) {
+        // 전체 / 토글 해제
+        filters.minScore = 0;
+        filters.onlyToday = false;
+      } else if (kind === "top") {
+        filters.minScore = 90;
+        filters.onlyToday = false;
+      } else if (kind === "good") {
+        filters.minScore = 75;
+        filters.onlyToday = false;
+      } else if (kind === "fair") {
+        filters.minScore = 60;
+        filters.onlyToday = false;
+      } else if (kind === "today") {
+        filters.minScore = 0;
+        filters.onlyToday = true;
+      }
+
+      // 사이드바 슬라이더/체크박스 UI도 동기화
+      document.getElementById("min-score").value = filters.minScore;
+      document.getElementById("min-score-val").textContent = filters.minScore;
+      document.getElementById("only-today").checked = filters.onlyToday;
+
+      currentPage = 1;
+      applyFilters();
+    });
+  });
 }
 
 // ────────────────────────────────────────────────────────────
