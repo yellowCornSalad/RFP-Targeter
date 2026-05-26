@@ -145,6 +145,79 @@ def _verify_required_sources(stats: list) -> None:
         log.exception("회귀 경보 호출 실패 (pipeline 계속)")
 
 
+def _backfill_missing_scores(max_items: int = 500) -> int:
+    """매 사이클 끝 자동 백필 — score 행이 없는 활성 보안 공고 점수 일괄 계산.
+
+    원인: 키워드 카테고리 추가로 기존 행이 신규 보안 통과로 재마킹되거나,
+    드물게 cron 사이클 안 transaction 문제로 score INSERT 누락된 경우.
+    이걸 방치하면 dispatch_pending_alerts의 score 조건(>= 80)을 영구히 통과 못해
+    슬랙 알림이 영원히 누락됨.
+
+    활성 공고만 처리(마감 미래 또는 60일 내 등록). 비활성은 표시상 0점이라도 무관.
+    Returns: 백필 성공 건수.
+    """
+    import json as _json
+    from rfp_targeter.scoring import compute_score
+    from rfp_targeter.db.models import upsert_score
+
+    _allowed = {
+        "source", "external_id", "title", "url", "agency",
+        "posted_at", "deadline_at", "budget_mw", "duration_months",
+        "budget_period", "budget_excerpt", "budget_confidence",
+        "summary", "body", "is_security",
+        "eligibility_status", "eligibility_note", "eligibility_limit",
+        "application_start_date",
+    }
+
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """SELECT a.*
+                       FROM announcement a
+                       LEFT JOIN score s ON s.announcement_id = a.id
+                       WHERE s.announcement_id IS NULL
+                         AND a.is_security = TRUE
+                         AND a.is_dismissed = FALSE
+                         AND (a.deadline_at >= CURRENT_DATE::text
+                              OR (a.deadline_at IS NULL
+                                  AND a.posted_at >= (CURRENT_DATE - 60)::text))
+                       ORDER BY a.posted_at DESC NULLS LAST
+                       LIMIT %s""",
+                    (max_items,),
+                )
+                rows = cur.fetchall()
+    except Exception:
+        log.exception("score 누락 조회 실패")
+        return 0
+
+    if not rows:
+        return 0
+
+    log.info("[score-backfill] 활성 보안 공고 중 score NULL %d건 — 자동 백필", len(rows))
+    ok = 0
+    for r in rows:
+        try:
+            d = {k: v for k, v in r.items() if k in _allowed}
+            try:
+                d["attachments"] = _json.loads(r.get("attachments_json") or "[]")
+            except Exception:
+                d["attachments"] = []
+            try:
+                d["matched_keywords"] = _json.loads(r.get("matched_keywords_json") or "[]")
+            except Exception:
+                d["matched_keywords"] = []
+            a = Announcement(**d)
+            sc = compute_score(a)
+            with get_conn() as conn:
+                upsert_score(conn, sc)
+            ok += 1
+        except Exception:
+            log.exception("[score-backfill] FAIL %s", r.get("id"))
+    log.info("[score-backfill] 백필 %d/%d 완료", ok, len(rows))
+    return ok
+
+
 def _backfill_missing_attachments(max_per_source: int = 100) -> None:
     """크롤 사이클 끝에 호출 — KISA/NIPA/MSS 중 첨부 없는 row 재처리.
 
@@ -304,6 +377,15 @@ def run_once() -> list[RunStats]:
         _backfill_missing_attachments()
     except Exception:
         log.exception("attachment backfill failed (pipeline 계속)")
+
+    # 사이클 끝 — score 누락 자동 백필 (키워드 추가/transaction 문제로 행 누락된 경우)
+    # 이게 없으면 카드 UI에 0/0/0/0 표시 + 슬랙 알림 영원히 누락됨.
+    # ⚠ dispatch_pending_alerts() 호출 전에 반드시 실행 — 그래야 이번 사이클에 score 채워진 신규가
+    # 같은 사이클 알림 후보로 잡힘.
+    try:
+        _backfill_missing_scores()
+    except Exception:
+        log.exception("score backfill failed (pipeline 계속)")
 
     # 사이클 끝 — 사용자 명시 7개 source 누락 자동 검증 (사용자 요청)
     try:
