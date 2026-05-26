@@ -488,13 +488,19 @@ function renderCard(it) {
     ...kws.map((k) => `<span class="chip">#${escapeHtml(k)}</span>`),
   ].join("");
 
-  // 메타 행 — 마감 D-N · 첨부 N건
+  // 메타 행 — 마감 D-N · 신청기간 · 첨부 N건
   const metaBits = [];
   if (dLeft != null) {
     let dColor = dLeft <= 7 ? "#c2410c" : (dLeft <= 30 ? "#a16207" : "var(--text-muted)");
     metaBits.push(`마감 <b style="color:${dColor}">D-${dLeft}</b>`);
   } else if (it.deadline_at) {
     metaBits.push(`마감 ${escapeHtml(it.deadline_at)}`);
+  }
+  // 신청기간 — application_start_date ~ deadline_at (둘 다 있으면)
+  if (it.application_start_date && it.deadline_at && it.application_start_date !== it.posted_at) {
+    const s = it.application_start_date.slice(5).replace("-", "/");  // "05-26" → "5/26"
+    const e = it.deadline_at.slice(5).replace("-", "/");
+    metaBits.push(`신청 <b>${s}~${e}</b>`);
   }
   if (it.attachments.length > 0) {
     metaBits.push(`📎 첨부 <b>${it.attachments.length}</b>건`);

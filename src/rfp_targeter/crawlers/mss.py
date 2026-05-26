@@ -199,6 +199,7 @@ class MSSCrawler(BaseCrawler):
             agency=_pick(item, _FIELD_MAP["agency"]) or "중소벤처기업부",
             posted_at=raw_posted,
             deadline_at=_pick(item, _FIELD_MAP["deadline_at"]),
+            application_start_date=_pick(item, ["applicationStartDate"]),  # MSS 신청 시작일
             summary=raw_summary or contact_line or None,
             body=body_text,
             attachments=attachments,
