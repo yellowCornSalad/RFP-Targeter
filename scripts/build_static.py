@@ -294,8 +294,17 @@ def fetch_data() -> dict:
         if it["posted_at"][:10] == today:
             today_new_by_src[it["source"]] = today_new_by_src.get(it["source"], 0) + 1
 
+    # 빌드 시각 — GitHub Actions runner는 UTC라 KST 변환해서 사용자에게 표시
+    try:
+        from zoneinfo import ZoneInfo
+        now_kst = datetime.now(ZoneInfo("Asia/Seoul"))
+    except Exception:
+        from datetime import timezone, timedelta
+        now_kst = datetime.now(timezone(timedelta(hours=9)))
+    build_time_kst = now_kst.strftime("%Y-%m-%d %H:%M KST")
     return {
-        "build_time": datetime.now().isoformat(timespec="seconds"),
+        "build_time": build_time_kst,                # 사용자 표시용 KST
+        "build_time_iso": datetime.now().isoformat(timespec="seconds"),  # 디버그용 UTC
         "total": len(items),
         "today_new": sum(today_new_by_src.values()),
         "sources_counts": sources_counts,
