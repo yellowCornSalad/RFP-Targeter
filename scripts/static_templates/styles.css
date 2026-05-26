@@ -246,11 +246,26 @@ input[type="range"] { flex: 1; max-width: 200px; }
 
 .chips { margin-top: 10px; line-height: 1.9; }
 .chip {
-  background: #f0f0f0; color: var(--text); padding: 2px 8px;
+  background: #f0f0f0; color: var(--text); padding: 3px 10px;
   border-radius: 4px; font-size: 12px; margin-right: 4px;
   display: inline-block; font-weight: 500;
+  /* button 형태로 변경 시 기본 스타일 리셋 */
+  border: none; font-family: inherit; cursor: pointer;
+  transition: all 0.12s ease;
 }
-.chip.dept { background: var(--surface-alt); color: var(--text-soft); border: 1px solid var(--border); }
+.chip:hover {
+  background: #111; color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+}
+.chip:active { transform: translateY(0); }
+.chip.dept {
+  background: var(--surface-alt); color: var(--text-soft);
+  border: 1px solid var(--border);
+}
+.chip.dept:hover {
+  background: #111; color: #fff; border-color: #111;
+}
 .chip.more { color: var(--text-muted); background: transparent; }
 
 .axes-line {

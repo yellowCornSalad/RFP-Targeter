@@ -331,6 +331,30 @@ function renderCards() {
     return;
   }
   cards.innerHTML = page.map(renderCard).join("");
+
+  // 칩 클릭 → 해당 키워드로 검색 필터 적용 (검색창에도 표시)
+  cards.querySelectorAll(".chip[data-kw]").forEach((chip) => {
+    chip.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const kw = chip.dataset.kw;
+      if (!kw) return;
+      // 같은 키워드 다시 클릭 시 검색 해제
+      const searchEl = document.getElementById("search");
+      const isActive = filters.search === kw.toLowerCase();
+      if (isActive) {
+        filters.search = "";
+        searchEl.value = "";
+      } else {
+        filters.search = kw.toLowerCase();
+        searchEl.value = kw;
+      }
+      currentPage = 1;
+      applyFilters();
+      // 페이지 상단으로 부드럽게 스크롤 (필터 결과 확인)
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  });
+
   // Accordion 동작 — 한 번에 하나의 상세보기만 열림.
   // 다른 카드의 상세보기를 누르면 이전에 펼쳐둔 건 자동으로 닫힘.
   cards.querySelectorAll(".detail-toggle").forEach((btn) => {
@@ -567,13 +591,13 @@ function renderCard(it) {
       </div>`;
   }
 
-  // 매칭 키워드 칩
+  // 매칭 키워드 칩 — 클릭 시 해당 키워드로 필터링
   const kws = it.matched_keywords.filter((k) => !k.startsWith("[부서]")).slice(0, 6);
   const depts = it.matched_keywords.filter((k) => k.startsWith("[부서]"))
     .map((k) => k.replace("[부서] ", "")).slice(0, 2);
   const chipsHtml = [
-    ...depts.map((d) => `<span class="chip dept">부서·${escapeHtml(d)}</span>`),
-    ...kws.map((k) => `<span class="chip">#${escapeHtml(k)}</span>`),
+    ...depts.map((d) => `<button type="button" class="chip dept" data-kw="${escapeHtml(d)}" title="이 부서로 필터링">부서·${escapeHtml(d)}</button>`),
+    ...kws.map((k) => `<button type="button" class="chip" data-kw="${escapeHtml(k)}" title="이 키워드로 필터링">#${escapeHtml(k)}</button>`),
   ].join("");
 
   // 메타 행 — 마감 D-N · 신청기간 · 첨부 N건
