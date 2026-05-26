@@ -172,14 +172,22 @@ class MSSCrawler(BaseCrawler):
         if raw_summary and raw_summary != title: body_parts.append(raw_summary)
         body_text = "\n\n".join(body_parts)
 
-        # ⚠️ posted_at 보정: MSS API는 진짜 등록일(reg_dt) 필드 없음.
-        # applicationStartDate(신청 시작일)는 미래 날짜라 등록일 의미 X.
-        # → 미래 날짜면 fetch 시점(오늘)으로 대체. "공고를 우리가 발견한 시점" 이 가장 정확한 추정.
+        # ⚠️ posted_at: MSS API는 진짜 등록일(reg_dt) 없음. applicationStartDate는 신청 시작일(미래).
+        # → mss.go.kr 본문 페이지에서 진짜 등록일 직접 파싱 (Googlebot UA + verify=False).
+        # 파싱 실패 시: applicationStartDate가 오늘 이하면 그대로 / 미래면 today.
         from datetime import datetime as _dt
-        raw_posted = _pick(item, _FIELD_MAP["posted_at"])
         today_iso = _dt.now().date().isoformat()
-        if raw_posted and raw_posted > today_iso:
-            raw_posted = today_iso  # 미래 날짜는 fetch 시점으로 보정
+        raw_posted = None
+        try:
+            scraped = MSSCrawler._scrape_posted_date(url) if url else None
+            if scraped:
+                raw_posted = scraped
+        except Exception:
+            pass
+        if not raw_posted:
+            raw_posted = _pick(item, _FIELD_MAP["posted_at"])
+            if raw_posted and raw_posted > today_iso:
+                raw_posted = today_iso  # 미래 날짜 폴백 (사이트 fetch 실패 시)
         if not raw_posted:
             raw_posted = today_iso
 
@@ -258,6 +266,42 @@ class MSSCrawler(BaseCrawler):
         if dm is not None:
             a.duration_months = dm
         return a
+
+    @staticmethod
+    def _scrape_posted_date(url: str) -> str | None:
+        """mss.go.kr 본문 페이지에서 등록일(YYYY-MM-DD) 직접 파싱.
+
+        page 구조 (cbIdx=310 게시판):
+            <th>등록일</th> <td>YYYY.MM.DD</td>
+            또는 <th>일</th> <td>YYYY.MM.DD</td>
+        Googlebot UA + verify=False (mss.go.kr SSL 인증서 이슈 우회).
+        실패 시 None — 호출자가 폴백.
+        """
+        if not url or not url.startswith(("http://", "https://")):
+            return None
+        try:
+            import requests
+            import urllib3
+            urllib3.disable_warnings()
+            headers = {
+                "User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1; "
+                              "+http://www.google.com/bot.html)"
+            }
+            r = requests.get(url, headers=headers, timeout=10, verify=False)
+            if r.status_code != 200:
+                return None
+            # <th>등록일</th><td>2026.05.21</td> 또는 <th>일</th><td>2026.05.21</td>
+            m = _re.search(
+                r"<th[^>]*>\s*(?:등록일|작성일|일|공고일|게시일)\s*</th>\s*<td[^>]*>\s*"
+                r"(20\d{2})[.\-/](\d{1,2})[.\-/](\d{1,2})",
+                r.text,
+            )
+            if m:
+                y, mo, d = m.group(1), int(m.group(2)), int(m.group(3))
+                return f"{y}-{mo:02d}-{d:02d}"
+        except Exception:
+            return None
+        return None
 
     def _scrape_attachments_from_detail(self, url: str) -> list[dict]:
         """MSS 본문 페이지(HTML)에서 첨부 직접 파싱.
