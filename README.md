@@ -1,12 +1,22 @@
 # RFP-Targeter
 
-엔키화이트햇 RFP 자동 탐색 시스템.
-IITP · NTIS · KISA · KOSA · NIPA · KRIT · 중기부(MSS) · bizinfo · KOICA 등
-**공공기관 R&D · 사업 공고를 1시간마다 폴링** →
-**보안 키워드 1차 필터** → **5축 점수 산정** → **고득점 공고 자동 RFP 초안 생성** →
-**Streamlit 대시보드 (Cobalt Blue 테마)** 시각화 → **Claude API 자동 초안 작성**.
+**엔키화이트햇** 공공 R&D 공고 자동 탐색 시스템 — IITP·KISA·KOSA·KRIT·NIPA·MSS·KOICA 7개 기관 매시간 폴링 → 보안 키워드 매칭 → 5축 점수 → 정적 사이트 + 슬랙 알림.
 
-> 보조 도구: Claude Code `/rfp` 슬래시 커맨드 — 자동 생성된 초안을 이어서 작성.
+🌐 **Live**: [https://yellowcornsalad.github.io/RFP-Targeter/](https://yellowcornsalad.github.io/RFP-Targeter/) (v1.0)
+
+![RFP-Targeter Dashboard](docs/screenshots/dashboard.png)
+
+---
+
+## 인프라 (24/7, PC OFF 무관)
+
+| 컴포넌트 | 위치 | 주기 |
+|---|---|---|
+| 크롤링 | GitHub Actions | 매시 정각 |
+| DB | Supabase PostgreSQL | 클라우드 상주 |
+| 대시보드 | GitHub Pages (정적 빌드) | 매시 자동 갱신 |
+| 슬랙 알림 | Incoming Webhook | 평일 09~18 KST |
+| 회귀 경보 | Slack | 첨부율 임계값 미만 시 |
 
 ---
 
