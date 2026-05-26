@@ -105,7 +105,7 @@ auto_draft:
 # 영업시간 외 신규는 alerted_at=NULL로 누적 → 다음 영업일 09시 묶음 발송
 alert:
   slack_enabled: true               # secrets.yaml의 slack.webhook_url 필요
-  dashboard_url: "https://enkirfp.streamlit.app"  # Streamlit Cloud 배포 URL
+  dashboard_url: "https://yellowcornsalad.github.io/RFP-Targeter/"  # GitHub Pages 정적 사이트
   business_hours:
     start: 9                        # 09시부터
     end: 18                         # 18시까지 (포함)
