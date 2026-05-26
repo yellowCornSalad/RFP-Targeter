@@ -87,7 +87,7 @@ html, body {
   background: var(--surface); border-radius: var(--radius);
   padding: 16px; margin-bottom: 20px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.04);
-  display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px;
+  display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px;
 }
 .agency-card {
   background: var(--surface); border: 1px solid var(--border);
@@ -98,6 +98,11 @@ html, body {
 .agency-card.active { background: #111; color: #fff; border-color: #111; }
 .agency-card.active .agency-status { color: #bbb; }
 .agency-card.active .agency-num { color: #fff; }
+
+/* "전체" 카드 — 7개 source와 구분 (2px 보더 + 약간 다른 배경) */
+.agency-card.is-all { border: 2px solid #555; background: #fafafa; }
+.agency-card.is-all:hover { border-color: var(--primary); background: #fff; }
+.agency-card.is-all.active { background: #111; border-color: #111; }
 .agency-name { font-weight: 700; font-size: 14px; letter-spacing: 0.02em; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
 .agency-num { font-size: 1.4rem; font-weight: 800; letter-spacing: -0.03em; font-feature-settings: "tnum"; }
 .agency-num .unit { font-size: 0.55em; color: var(--text-muted); font-weight: 500; margin-left: 3px; }
@@ -272,8 +277,10 @@ input[type="range"] { flex: 1; max-width: 200px; }
 }
 
 /* ───── 반응형 ───── */
+@media (max-width: 1400px) {
+  .agency-grid { grid-template-columns: repeat(4, 1fr); }  /* 8 → 4 (2줄) */
+}
 @media (max-width: 1100px) {
-  .agency-grid { grid-template-columns: repeat(4, 1fr); }
   .kpi-strip { grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 700px) {
