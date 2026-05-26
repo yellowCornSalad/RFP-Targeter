@@ -35,6 +35,7 @@ def fetch_data() -> dict:
     """Supabase에서 보안 통과 announcement + score 모두 가져와 dict로 반환."""
     with get_conn() as conn:
         with conn.cursor() as cur:
+            # ⚠️ 사용자 명시 7개 source만 (NTIS는 비활성화된 source — 옛 데이터 제외)
             cur.execute(
                 """SELECT a.id, a.source, a.external_id, a.title, a.url, a.agency,
                           a.posted_at, a.deadline_at, a.application_start_date,
@@ -47,6 +48,7 @@ def fetch_data() -> dict:
                    FROM announcement a
                    LEFT JOIN score s ON s.announcement_id = a.id
                    WHERE a.is_security = TRUE AND a.is_dismissed = FALSE
+                     AND a.source IN ('iitp','kisa','kosa','krit','nipa','mss','koica')
                    ORDER BY a.posted_at DESC NULLS LAST,
                             s.total_score DESC NULLS LAST"""
             )
