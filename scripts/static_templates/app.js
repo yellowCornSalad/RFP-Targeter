@@ -228,7 +228,7 @@ function renderKpiStrip() {
   const strip = document.getElementById("kpi-strip");
   const all = DATA.items;
   const n_top = all.filter((it) => (it.scores.total || 0) >= 90).length;
-  const n_good = all.filter((it) => (it.scores.total || 0) >= 75).length;
+  const n_good = all.filter((it) => (it.scores.total || 0) >= 80).length;
   const n_fair = all.filter((it) => (it.scores.total || 0) >= 60).length;
   const today = new Date().toISOString().slice(0, 10);
   const n_today = all.filter((it) => it.posted_at.slice(0, 10) === today).length;
@@ -238,7 +238,7 @@ function renderKpiStrip() {
   const active =
     filters.onlyToday ? "today" :
     filters.minScore >= 90 ? "top" :
-    filters.minScore >= 75 ? "good" :
+    filters.minScore >= 80 ? "good" :
     filters.minScore >= 60 ? "fair" :
     "all";
 
@@ -254,7 +254,7 @@ function renderKpiStrip() {
       <div class="kpi-sub">즉시 검토</div>
     </div>
     <div class="kpi-card ${active === "good" ? "active" : ""}" data-kpi="good">
-      <div class="kpi-label">🟢 GOOD · 75+</div>
+      <div class="kpi-label">🟢 GOOD · 80+</div>
       <div class="kpi-value">${n_good}</div>
       <div class="kpi-sub">검토 권장</div>
     </div>
@@ -285,7 +285,7 @@ function renderKpiStrip() {
         filters.minScore = 90;
         filters.onlyToday = false;
       } else if (kind === "good") {
-        filters.minScore = 75;
+        filters.minScore = 80;
         filters.onlyToday = false;
       } else if (kind === "fair") {
         filters.minScore = 60;
@@ -432,7 +432,7 @@ function renderBody(body) {
 
 function gradeOf(total) {
   if (total >= 90) return ["TOP", "top"];
-  if (total >= 75) return ["GOOD", "good"];
+  if (total >= 80) return ["GOOD", "good"];
   if (total >= 60) return ["FAIR", "fair"];
   return ["검토", "low"];
 }
