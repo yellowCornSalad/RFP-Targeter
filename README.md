@@ -157,8 +157,9 @@ RFP-Targeter/
 - 데이터 소스: DTiMS HTML 크롤링
 
 ### 중소벤처기업부 (MSS)
-- 공고 게시판: [mss.go.kr 사업공고](https://www.mss.go.kr/site/smba/ex/bbs/List.do?cbIdx=86)
-- 데이터 소스: [data.go.kr 15113297 OpenAPI](https://www.data.go.kr/data/15113297/openapi.do)
+- 공고 게시판: [mss.go.kr 사업공고](https://www.mss.go.kr/site/smba/ex/bbs/List.do?cbIdx=310) (cbIdx=310, **사업공고 — 검증 2026-05-26**)
+  - ⚠️ cbIdx=86은 "보도자료" 게시판이라 R&D 사업공고 아님. 과거 README에 잘못 적혀 있어 수정함.
+- 데이터 소스: [data.go.kr 15113297 OpenAPI](https://www.data.go.kr/data/15113297/openapi.do) (등록일은 mss.go.kr 사이트 직접 스크랩)
 
 ### 한국국제협력단 (KOICA)
 - 공고 게시판: [nebid 원조조달 입찰공고](https://nebid.koica.go.kr/oep/bepb/beffatPblancList.do)
