@@ -1,0 +1,39 @@
+name: Keep Streamlit Cloud Awake
+
+# Streamlit Community Cloud 무료 플랜은 7일 무접속 시 sleep.
+# 25분마다 enkirfp.streamlit.app 을 ping 해서 sleep 방지.
+# 워크로드 무시할 수준 (curl HEAD 요청 1회/25분).
+
+on:
+  schedule:
+    - cron: '*/25 * * * *'   # 매 25분마다
+  workflow_dispatch:           # 수동 트리거 (테스트용)
+
+concurrency:
+  group: keep-alive
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Ping enkirfp.streamlit.app
+        run: |
+          echo "🔔 ping at $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          # -L: redirect 따라감 (Streamlit Cloud auth 303 → 실제 페이지)
+          # -m 30: 30초 timeout
+          # -o /dev/null: body 버림
+          # -w: HTTP status 출력
+          # --retry 2: 일시 실패 시 2회 재시도
+          status=$(curl -s -L -m 30 -o /dev/null -w "%{http_code}" --retry 2 "https://enkirfp.streamlit.app/")
+          echo "HTTP status: $status"
+          # 200 (정상), 303 (auth redirect) 모두 OK
+          if [ "$status" = "200" ] || [ "$status" = "303" ] || [ "$status" = "302" ]; then
+            echo "✅ Streamlit Cloud awake"
+            exit 0
+          else
+            echo "⚠️ Unexpected status: $status (app may be down)"
+            # 실패해도 workflow 실패로 처리 안 함 (다음 25분 ping 시도)
+            exit 0
+          fi
