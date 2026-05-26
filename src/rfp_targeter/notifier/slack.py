@@ -305,6 +305,11 @@ def dispatch_pending_alerts() -> bool:
         return False
 
     # DB에서 alerted_at IS NULL 보안 통과 row + score 모두 가져오기
+    # ⚠️ 사용자 규칙 (2026-05-26):
+    #   1) 종합 점수 ≥ 80
+    #   2) budget_mw ≥ 100 (= 1억 이상). NULL은 제외 (엄격)
+    #   3) 활성 공고 (마감 미래 + 최근 60일 내 등록 마감미명시)
+    # 위 3개 모두 만족해야 슬랙 발송
     try:
         with get_conn() as conn:
             with conn.cursor() as cur:
@@ -319,6 +324,14 @@ def dispatch_pending_alerts() -> bool:
                        WHERE a.is_security = TRUE
                          AND a.alerted_at IS NULL
                          AND a.is_dismissed = FALSE
+                         AND a.source IN ('iitp','kisa','kosa','krit','nipa','mss','koica')
+                         AND s.total_score >= 80
+                         AND a.budget_mw IS NOT NULL AND a.budget_mw >= 100
+                         AND (
+                           a.deadline_at >= CURRENT_DATE::text
+                           OR (a.deadline_at IS NULL
+                               AND a.posted_at >= (CURRENT_DATE - 60)::text)
+                         )
                        ORDER BY a.posted_at DESC NULLS LAST, s.total_score DESC NULLS LAST"""
                 )
                 rows = cur.fetchall()
