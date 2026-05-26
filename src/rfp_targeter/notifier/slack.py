@@ -42,7 +42,7 @@ from rfp_targeter.db.models import Announcement, Score, get_conn
 log = logging.getLogger(__name__)
 
 # 대시보드 base URL (settings.yaml에 override 가능)
-DEFAULT_DASHBOARD_URL = "https://enkirfp.streamlit.app"
+DEFAULT_DASHBOARD_URL = "https://yellowcornsalad.github.io/RFP-Targeter/"
 
 # 영업시간 — 사용자 요청: 평일 09:00 ~ 18:00 KST 만 슬랙 알림
 # 그 외 시간 들어온 신규 보안 공고는 alerted_at NULL 인 채로 누적 →
