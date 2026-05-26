@@ -331,13 +331,39 @@ function renderCards() {
     return;
   }
   cards.innerHTML = page.map(renderCard).join("");
+  // Accordion 동작 — 한 번에 하나의 상세보기만 열림.
+  // 다른 카드의 상세보기를 누르면 이전에 펼쳐둔 건 자동으로 닫힘.
   cards.querySelectorAll(".detail-toggle").forEach((btn) => {
     btn.addEventListener("click", (e) => {
       const id = e.target.dataset.id;
       const det = document.querySelector(`.card-detail[data-id="${id}"]`);
-      if (det) {
-        det.classList.toggle("open");
-        btn.textContent = det.classList.contains("open") ? "▲ 상세 접기" : "▼ 상세 보기";
+      if (!det) return;
+      const willOpen = !det.classList.contains("open");
+
+      // 다른 모든 열린 상세보기 닫기 + 그 버튼 텍스트 복원
+      if (willOpen) {
+        document.querySelectorAll(".card-detail.open").forEach((other) => {
+          if (other === det) return;
+          other.classList.remove("open");
+          const otherId = other.dataset.id;
+          const otherBtn = document.querySelector(`.detail-toggle[data-id="${otherId}"]`);
+          if (otherBtn) otherBtn.textContent = "▼ 상세 보기";
+        });
+      }
+
+      // 현재 카드 토글
+      det.classList.toggle("open");
+      btn.textContent = det.classList.contains("open") ? "▲ 상세 접기" : "▼ 상세 보기";
+
+      // 새로 펼친 경우 — 그 카드를 화면 상단으로 부드럽게 스크롤
+      if (det.classList.contains("open")) {
+        const cardEl = det.closest(".card");
+        if (cardEl) {
+          // 약간의 지연 후 스크롤 (DOM 업데이트 반영 시간)
+          setTimeout(() => {
+            cardEl.scrollIntoView({ behavior: "smooth", block: "start" });
+          }, 50);
+        }
       }
     });
   });
