@@ -182,11 +182,13 @@ input[type="range"] { flex: 1; max-width: 200px; }
 .card.fair .card-band { background: #888; }
 .card.low .card-band { background: #e5e5e5; }
 
+/* 우측 점수 영역을 absolute로 띄우고, 좌측은 일반 흐름.
+   그러면 제목이 점수/예산 영역 높이에 영향 받지 않고 위로 밀착. */
 .card-header {
-  display: flex; justify-content: space-between; align-items: flex-start;
-  gap: 14px; margin-bottom: 10px;
+  display: block; margin-bottom: 6px;
+  padding-right: 140px;   /* 우측 점수 영역 자리 (absolute) */
 }
-.card-meta-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; flex: 1; min-width: 0; }
+.card-meta-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-width: 0; }
 .source-badge {
   padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: 700;
   background: #f0f0f0; color: var(--text);
@@ -204,7 +206,10 @@ input[type="range"] { flex: 1; max-width: 200px; }
   font-weight: 700; font-size: 10px; letter-spacing: 0.06em;
 }
 
-.card-score-block { text-align: right; flex-shrink: 0; }
+.card-score-block {
+  position: absolute; right: 20px; top: 16px;
+  text-align: right; min-width: 120px;
+}
 .grade-line { display: flex; align-items: baseline; gap: 8px; justify-content: flex-end; }
 .grade-label { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; }
 .grade-label.top { color: var(--warning); }
@@ -222,6 +227,7 @@ input[type="range"] { flex: 1; max-width: 200px; }
 .card-title {
   font-size: 1.15rem; font-weight: 700; margin: 0 0 8px; line-height: 1.45;
   letter-spacing: -0.02em;
+  padding-right: 140px;   /* 우측 점수/예산 영역과 안 겹치게 */
 }
 .card-title a { color: var(--text); text-decoration: none; }
 .card-title a:hover { color: var(--accent); }
@@ -318,7 +324,10 @@ input[type="range"] { flex: 1; max-width: 200px; }
   .agency-grid { grid-template-columns: repeat(2, 1fr); }
   .filter-row { flex-direction: column; align-items: stretch; }
   .filters input[type="search"] { min-width: 0; }
-  .card-header { flex-direction: column; }
-  .card-score-block { text-align: left; }
+  /* 모바일: 점수 블록 absolute 해제, 위에서 아래로 흐름 */
+  .card-header { padding-right: 0; }
+  .card-title { padding-right: 0; margin-top: 10px; }
+  .card-score-block { position: static; text-align: left; margin-top: 8px; }
+  .budget-box { text-align: left; }
   .footer { flex-direction: column; gap: 8px; text-align: center; }
 }
