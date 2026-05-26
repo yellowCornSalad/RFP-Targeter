@@ -1,0 +1,63 @@
+name: Build Static Site
+
+# 정적 사이트 빌드 + GitHub Pages 배포.
+# 매시 정각 (UTC = KST 매시 정각) 자동 빌드, main push 시도 트리거.
+# 결과는 gh-pages 브랜치로 push → GitHub Pages가 자동 서빙.
+
+on:
+  schedule:
+    - cron: '5 * * * *'      # 매시 5분 (crawl이 0분에 시작해서 ~5분 끝남 — 그 직후 빌드)
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/build_static.py'
+      - 'scripts/static_templates/**'
+      - '.github/workflows/build_static.yml'
+  workflow_dispatch:           # 수동 트리거
+
+concurrency:
+  group: build-static
+  cancel-in-progress: false
+
+permissions:
+  contents: write              # gh-pages 브랜치 push
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Build static site
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python scripts/build_static.py
+          echo "Build artifacts:"
+          ls -la site/
+          echo "data.json size:"
+          du -h site/data.json
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./site
+          publish_branch: gh-pages
+          force_orphan: true   # gh-pages 브랜치 항상 1 commit으로 정리
+          user_name: 'github-actions[bot]'
+          user_email: 'github-actions[bot]@users.noreply.github.com'
+          commit_message: 'deploy: static site build ${{ github.run_number }}'

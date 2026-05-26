@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>RFP-Targeter | 엔키화이트햇</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+</head>
+<body>
+  <!-- 비밀번호 게이트 (클라이언트 JS) -->
+  <div id="auth-gate" class="auth-gate">
+    <div class="auth-box">
+      <h1>🛡 RFP-Targeter</h1>
+      <p class="auth-sub">엔키화이트햇 내부 대시보드</p>
+      <input type="password" id="auth-pw" placeholder="비밀번호" autofocus>
+      <button id="auth-btn">접속</button>
+      <p id="auth-err" class="auth-err"></p>
+    </div>
+  </div>
+
+  <div id="app" class="app hidden">
+    <!-- 헤더 -->
+    <header class="header">
+      <div class="header-inner">
+        <div>
+          <div class="crumb">대시보드 · RFP-Targeter</div>
+          <h1 class="title">RFP 공고 탐색 & 점수 비교</h1>
+          <p class="subtitle">7개 정부기관(IITP·KISA·NIPA·MSS·KOSA·KRIT·KOICA) 발주 RFP를 엔키화이트햇 본업 적합도 5축으로 자동 점수화</p>
+        </div>
+        <div class="header-right">
+          <div class="total"><span id="total-count">{{TOTAL_COUNT}}</span><span class="unit">건</span></div>
+          <div class="header-meta">
+            <span class="dot-new"></span> 오늘 +<span id="today-new">{{TODAY_NEW}}</span>건
+            <span class="sep">·</span>
+            <span title="마지막 빌드 시각">{{BUILD_TIME}}</span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="main">
+      <!-- 발주기관 카드 그리드 -->
+      <section class="agency-grid" id="agency-grid">
+        <!-- JS가 동적 생성 -->
+      </section>
+
+      <!-- 필터 바 -->
+      <section class="filters">
+        <div class="filter-row">
+          <input type="search" id="search" placeholder="🔍 제목·기관·키워드 검색">
+          <select id="sort">
+            <option value="newest">📅 최신 등록순</option>
+            <option value="score">🌟 점수 높은순</option>
+            <option value="deadline">⏰ 마감 임박순</option>
+          </select>
+          <label class="check"><input type="checkbox" id="only-open"> 공모중만</label>
+          <label class="check"><input type="checkbox" id="only-today"> 오늘 신규만</label>
+          <button id="reset-btn" class="ghost">전체 해제</button>
+        </div>
+        <div class="filter-row second-row">
+          <span class="filter-label">최소 점수</span>
+          <input type="range" id="min-score" min="0" max="100" value="0" step="5">
+          <span id="min-score-val">0</span>
+        </div>
+      </section>
+
+      <!-- 통계 strip -->
+      <section class="kpi-strip" id="kpi-strip">
+        <!-- JS가 동적 생성 -->
+      </section>
+
+      <!-- 카드 그리드 -->
+      <section class="cards-info">
+        <span id="visible-count">0건 표시 중</span>
+        <span class="cards-page-nav">
+          <button id="page-prev" disabled>◀ 이전</button>
+          <span id="page-info">1 / 1</span>
+          <button id="page-next" disabled>다음 ▶</button>
+        </span>
+      </section>
+
+      <section class="cards" id="cards">
+        <!-- JS가 동적 생성 -->
+      </section>
+
+      <section class="cards-info bottom">
+        <span class="cards-page-nav">
+          <button id="page-prev2" disabled>◀ 이전</button>
+          <span id="page-info2">1 / 1</span>
+          <button id="page-next2" disabled>다음 ▶</button>
+        </span>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span>RFP-Targeter v2 · 엔키화이트햇</span>
+      <span>매시 정각 자동 갱신 · 마지막 빌드 {{BUILD_TIME}}</span>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

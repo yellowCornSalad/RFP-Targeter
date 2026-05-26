@@ -35,6 +35,7 @@ streamlit_secrets.toml
 # Build
 build/
 dist/
+site/                  # 정적 사이트 빌드 출력 — GitHub Actions가 gh-pages로 push
 *.egg-info/
 
 # OS
