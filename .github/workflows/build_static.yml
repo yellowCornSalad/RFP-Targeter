@@ -1,19 +1,28 @@
 name: Build Static Site
 
 # 정적 사이트 빌드 + GitHub Pages 배포.
-# 매시 정각 (UTC = KST 매시 정각) 자동 빌드, main push 시도 트리거.
+# 매시 정각 5분에 자동 빌드 (crawl 끝난 직후).
 # 결과는 gh-pages 브랜치로 push → GitHub Pages가 자동 서빙.
+#
+# ⚠️ 빌드는 v1.0 릴리스 브랜치 코드로 (스냅샷 동결).
+# main 브랜치 변경은 즉시 반영 안 됨 — v1.0으로 cherry-pick 또는 v1.1로 분기 후 교체.
+# Schedule cron은 default branch(main)에서만 발화하지만, 빌드 시 v1.0 checkout.
 
 on:
   schedule:
-    - cron: '5 * * * *'      # 매시 5분 (crawl이 0분에 시작해서 ~5분 끝남 — 그 직후 빌드)
+    - cron: '5 * * * *'      # 매시 5분 (default branch에서 발화)
   push:
-    branches: [main]
+    branches: [v1.0]          # v1.0 변경 시도 빌드
     paths:
       - 'scripts/build_static.py'
       - 'scripts/static_templates/**'
       - '.github/workflows/build_static.yml'
-  workflow_dispatch:           # 수동 트리거
+  workflow_dispatch:           # 수동 트리거 (main에서도 가능)
+    inputs:
+      ref:
+        description: '빌드할 브랜치 (기본 v1.0)'
+        required: false
+        default: 'v1.0'
 
 concurrency:
   group: build-static
@@ -27,8 +36,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Checkout code
+      - name: Checkout v1.0 release branch
         uses: actions/checkout@v4
+        with:
+          # workflow_dispatch로 다른 ref 지정 가능, 기본은 v1.0
+          ref: ${{ github.event.inputs.ref || 'v1.0' }}
 
       - name: Setup Python 3.11
         uses: actions/setup-python@v5
