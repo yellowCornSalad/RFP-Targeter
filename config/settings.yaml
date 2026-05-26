@@ -36,7 +36,10 @@ sources:
   iitp:
     enabled: true
     base_url: "https://apis.data.go.kr"      # 실제 endpoint는 secrets.yaml 또는 어댑터 기본값
-    max_per_source: 500                       # 페이지당 10건 × 50 = 약 6~9개월치 (2026.01 IITP 대형 공고까지 커버)
+    # 매시 cron 용량: 50건이면 페이지 5개 × 첨부 다운로드 평균 3초 = 2~5분 안에 끝
+    # (이전 500은 25분+ 잡아먹어 GitHub Actions 30분 timeout cancelled → 슬랙·다른 어댑터 도달 못 함)
+    # 대형 백필이 필요하면 별도 1회성 스크립트로 max_per_source 무시하고 돌릴 것
+    max_per_source: 50
 
   # 중소벤처기업부 사업공고 (data.go.kr 1421000, 일 한도 100)
   mss:
