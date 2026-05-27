@@ -1,0 +1,75 @@
+name: Build AI Summaries
+
+# rfp_contents 스킬 — 활성 보안 공고에 LLM 150자 요약 생성.
+# crawl.yml 끝나고 매시 5분에 한 번씩 신규 ai_summary 생성 (--limit 50).
+# 수동 트리거로는 전체 재처리 가능 (--force 옵션).
+
+on:
+  schedule:
+    - cron: '7 * * * *'        # 매시 7분 (crawl 5분 + 마진)
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'ai_summary 이미 있는 row도 재생성 (true/false)'
+        required: false
+        default: 'false'
+      limit:
+        description: '처리 최대 건수 (전체 처리 시 비워둠)'
+        required: false
+        default: ''
+
+concurrency:
+  group: build-summaries
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout v1.0
+        uses: actions/checkout@v4
+        with:
+          ref: v1.0
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install anthropic
+
+      - name: Restore profile.yaml
+        env:
+          PROFILE_YAML_B64: ${{ secrets.PROFILE_YAML_B64 }}
+        run: |
+          if [ -n "$PROFILE_YAML_B64" ]; then
+            mkdir -p config
+            echo "$PROFILE_YAML_B64" | base64 -d > config/profile.yaml
+          fi
+
+      - name: Generate AI summaries
+        env:
+          DATABASE_URL:      ${{ secrets.DATABASE_URL }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          PYTHONIOENCODING:  utf-8
+        run: |
+          ARGS=""
+          if [ "${{ github.event.inputs.force }}" = "true" ]; then
+            ARGS="--force"
+          fi
+          if [ -n "${{ github.event.inputs.limit }}" ]; then
+            ARGS="$ARGS --limit ${{ github.event.inputs.limit }}"
+          else
+            # schedule cron 은 신규만 (50건 제한, 비용 가드)
+            if [ "${{ github.event_name }}" = "schedule" ]; then
+              ARGS="--limit 50"
+            fi
+          fi
+          python scripts/audit_contents.py $ARGS
