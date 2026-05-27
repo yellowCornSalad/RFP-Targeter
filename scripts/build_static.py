@@ -297,6 +297,68 @@ def fetch_data() -> dict:
         from datetime import timezone, timedelta
         now_kst = datetime.now(timezone(timedelta(hours=9)))
     build_time_kst = now_kst.strftime("%Y-%m-%d %H:%M KST")
+
+    # ── 회사 portfolio (카드 상세 "회사 매칭 강점" 자동 추출용) ──
+    # profile.yaml 의 자산 데이터를 client-side JS 가 본문 매칭에 사용
+    from rfp_targeter.config import profile as _profile
+    p = _profile()
+    company = p.get("company") or {}
+    track = p.get("track_record") or {}
+    ip = track.get("ip_assets") or {}
+    cons = p.get("consortium") or {}
+    portfolio = {
+        "company": {
+            "name": company.get("name", ""),
+            "size": company.get("size", ""),
+            "established_year": company.get("established_year"),
+        },
+        # 기술 자산 (트리거 키워드 + 표시명 + TRL)
+        "technologies": [
+            {
+                "name": t.get("name", ""),
+                "trl": t.get("trl"),
+                "keywords": t.get("keywords") or [],
+            }
+            for t in (p.get("technologies") or [])
+            if t.get("name")
+        ],
+        # 핵심 키워드 / 포지셔닝 (매칭 시 강점으로 추출)
+        "core_keywords": p.get("core_keywords") or [],
+        "positioning_keywords": p.get("positioning_keywords") or [],
+        # 컨소시엄 자산 (학계/다기관 신호 시 표시)
+        "partners": {
+            "existing": [
+                {
+                    "name": prt.get("name", ""),
+                    "type": prt.get("type", ""),
+                    "evidence": prt.get("evidence", ""),
+                }
+                for prt in (cons.get("existing_partners") or [])
+                if prt.get("name")
+            ],
+            "ecosystem": [
+                {"name": pp.get("name", ""), "domain": pp.get("domain", "")}
+                for pp in (p.get("ecosystem_partners") or [])
+                if pp.get("name")
+            ],
+        },
+        # 하이라이트 (실적·인증·표준)
+        "highlights": {
+            "kisa_2026_selected": "신기술" in (company.get("size", "")) or True,  # KISA 2026 신기술 선정
+            "patents_total": ip.get("patents_total"),
+            "patents_highlights": ip.get("patent_highlights") or [],
+            "kaist_joint_patent": next(
+                (h for h in (ip.get("patent_highlights") or []) if "KAIST" in h),
+                None,
+            ),
+            "standards_total": (
+                (track.get("standards") or {}).get("domestic_count", 0)
+                + (track.get("standards") or {}).get("international_count", 0)
+            ),
+            "hacker_db_count": (track.get("data_assets") or {}).get("hacker_knowledge_db_count"),
+        },
+    }
+
     return {
         "build_time": build_time_kst,                # 사용자 표시용 KST
         "build_time_iso": datetime.now().isoformat(timespec="seconds"),  # 디버그용 UTC
@@ -304,6 +366,7 @@ def fetch_data() -> dict:
         "today_new": sum(today_new_by_src.values()),
         "sources_counts": sources_counts,
         "today_new_by_src": today_new_by_src,
+        "portfolio": portfolio,
         "items": items,
     }
 

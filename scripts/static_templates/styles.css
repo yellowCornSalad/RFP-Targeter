@@ -401,6 +401,107 @@ input[type="range"] { flex: 1; max-width: 200px; }
 }
 .theme-fit-row b { color: var(--text); font-weight: 800; font-feature-settings: "tnum"; margin-left: 4px; }
 .theme-fit-row .max { font-size: 0.7em; color: var(--text-faint); font-weight: 500; margin-left: 2px; }
+
+/* ───── 응찰 체크리스트 (verdict) — 2026-05-27 신규 ───── */
+.detail-verdict-col {
+  display: flex; flex-direction: column; gap: 14px;
+}
+.verdict-box {
+  border-radius: 4px; padding: 14px 16px;
+  border-left: 4px solid var(--border);
+  background: #fafafa;
+}
+.verdict-box.v-top  { border-left-color: #16a34a; background: #f0fdf4; }
+.verdict-box.v-good { border-left-color: #2563eb; background: #eff6ff; }
+.verdict-box.v-mid  { border-left-color: #ea580c; background: #fff7ed; }
+.verdict-box.v-low  { border-left-color: #525252; background: #f5f5f5; }
+.verdict-head {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 10px;
+  font-size: 14px;
+}
+.verdict-head .v-emoji { font-size: 18px; }
+.verdict-head .v-grade { font-weight: 800; color: var(--text); }
+.verdict-head .v-total {
+  margin-left: auto;
+  font-weight: 800; font-feature-settings: "tnum";
+  color: var(--text-soft);
+}
+.verdict-checks {
+  list-style: none; padding: 0; margin: 0;
+  display: flex; flex-direction: column; gap: 5px;
+  font-size: 12.5px;
+}
+.verdict-checks .chk { color: var(--text-soft); }
+.verdict-checks .chk.ok   { color: #16a34a; }
+.verdict-checks .chk.warn { color: #ea580c; }
+.verdict-checks .chk.bad  { color: #dc2626; }
+
+/* ───── 점수 분해 컴팩트 ───── */
+.axes-compact {
+  display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px;
+}
+.ax-cell {
+  text-align: center; padding: 8px 4px;
+  border-radius: 3px; background: var(--surface);
+  border: 1px solid var(--border-soft);
+}
+.ax-cell.ax-high { background: #eff6ff; border-color: #bfdbfe; }
+.ax-cell.ax-mid  { background: #fafafa; }
+.ax-cell.ax-low  { background: #fefce8; border-color: #fef3c7; }
+.ax-cell.ax-min  { background: #fef2f2; border-color: #fee2e2; }
+.ax-cell.ax-theme { background: #f5f3ff; border-color: #ddd6fe; }
+.ax-cell .ax-label {
+  font-size: 11px; color: var(--text-muted); margin-bottom: 3px; font-weight: 600;
+}
+.ax-cell .ax-val {
+  font-size: 16px; font-weight: 800; color: var(--text);
+  font-feature-settings: "tnum"; letter-spacing: -0.02em;
+}
+
+/* ───── 회사 매칭 강점 — 2026-05-27 신규 ───── */
+.strengths-box {
+  margin: 16px 0; padding: 16px 20px;
+  background: linear-gradient(135deg, #f0f9ff 0%, #fafafa 100%);
+  border: 1px solid #bfdbfe; border-left: 4px solid #2563eb;
+  border-radius: 4px;
+}
+.strengths-box h4 {
+  margin: 0 0 12px 0; font-size: 14px; color: var(--text);
+}
+.strengths-list {
+  list-style: none; padding: 0; margin: 0;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.strength {
+  display: flex; gap: 10px; align-items: flex-start;
+  font-size: 13px; line-height: 1.5;
+}
+.strength .s-icon {
+  font-size: 18px; line-height: 1.2; flex-shrink: 0;
+}
+.strength .s-body {
+  display: flex; flex-direction: column; gap: 2px; flex: 1;
+}
+.strength .s-text {
+  color: var(--text); font-weight: 700;
+}
+.strength .s-trl {
+  display: inline-block; padding: 1px 6px; margin-left: 4px;
+  font-size: 10px; font-weight: 700;
+  background: #2563eb; color: white; border-radius: 2px;
+  vertical-align: middle;
+}
+.strength .s-reason {
+  font-size: 11.5px; color: var(--text-muted); font-style: italic;
+}
+.strengths-empty {
+  margin: 16px 0; padding: 12px 16px;
+  background: #fafafa; border: 1px dashed var(--border);
+  border-radius: 3px;
+  font-size: 12.5px; color: var(--text-muted); text-align: center;
+}
+
 .atts { display: flex; flex-direction: column; gap: 4px; }
 .att { font-size: 12px; padding: 6px 10px; background: var(--surface); border-radius: 2px; }
 .att a { color: var(--accent); text-decoration: none; }
