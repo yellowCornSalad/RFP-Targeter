@@ -361,7 +361,7 @@ def dispatch_pending_alerts() -> bool:
                        WHERE a.is_security = TRUE
                          AND a.alerted_at IS NULL
                          AND a.is_dismissed = FALSE
-                         AND a.source IN ('iitp','kisa','kosa','krit','nipa','mss','koica')
+                         AND a.source IN ('iitp','kisa','krit','nipa','mss','koica')
                          AND s.total_score >= 80
                          AND a.budget_mw IS NOT NULL AND a.budget_mw >= 100
                          AND (
