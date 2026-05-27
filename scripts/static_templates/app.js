@@ -43,7 +43,8 @@ let currentPage = 1;
 const filters = {
   search: "",
   source: null,             // 단일 source 카드 클릭 (null = 전체)
-  onlyOpen: false,
+  // onlyOpen 제거됨 (2026-05-27) — 사이트 노출 = 이미 활성 공고만이라 무의미.
+  // 만료는 monitor_crawler 가 30분마다 is_dismissed=TRUE 처리.
   onlyToday: false,
   minScore: 0,
   sort: "newest",
@@ -142,10 +143,6 @@ function bindFilters() {
     filters.sort = e.target.value;
     applyFilters();
   });
-  document.getElementById("only-open").addEventListener("change", (e) => {
-    filters.onlyOpen = e.target.checked;
-    currentPage = 1; applyFilters();
-  });
   document.getElementById("only-today").addEventListener("change", (e) => {
     filters.onlyToday = e.target.checked;
     currentPage = 1; applyFilters();
@@ -156,10 +153,9 @@ function bindFilters() {
     currentPage = 1; applyFilters();
   });
   document.getElementById("reset-btn").addEventListener("click", () => {
-    filters.search = ""; filters.source = null; filters.onlyOpen = false;
+    filters.search = ""; filters.source = null;
     filters.onlyToday = false; filters.minScore = 0; filters.sort = "newest";
     document.getElementById("search").value = "";
-    document.getElementById("only-open").checked = false;
     document.getElementById("only-today").checked = false;
     document.getElementById("min-score").value = 0;
     document.getElementById("min-score-val").textContent = "0";
@@ -191,9 +187,6 @@ function applyFilters() {
     if (filters.source && it.source !== filters.source) return false;
     if (filters.minScore > 0 && (it.scores.total || 0) < filters.minScore) return false;
     if (filters.onlyToday && it.posted_at.slice(0, 10) !== today) return false;
-    if (filters.onlyOpen) {
-      if (it.deadline_at && it.deadline_at < today) return false;
-    }
     if (filters.search) {
       const hay = (it.title + " " + it.agency + " " + it.matched_keywords.join(" ")).toLowerCase();
       if (!hay.includes(filters.search)) return false;
