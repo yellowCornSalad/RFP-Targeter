@@ -112,11 +112,18 @@ class BaseCrawler(ABC):
         self.session = requests.Session()
         self.session.headers["User-Agent"] = cfg["user_agent"]
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=10))
+    @retry(stop=stop_after_attempt(2), wait=wait_exponential(min=1, max=5))
     def fetch(self, url: str, **kwargs) -> requests.Response:
+        """HTTP GET — retry 2회 (이전 3회 → 단축, hang 차단).
+
+        [2026-05-27] retry 3→2회: 최악 30+1+30=61초 → 20+1+20=41초.
+        25분 timeout 안에 무조건 끝나도록.
+        """
         log.debug("GET %s", url)
         time.sleep(self.delay)
-        r = self.session.get(url, timeout=self.timeout, **kwargs)
+        # **kwargs 에 timeout 명시 시 그대로 사용, 없으면 self.timeout
+        kwargs.setdefault("timeout", self.timeout)
+        r = self.session.get(url, **kwargs)
         r.raise_for_status()
         return r
 
