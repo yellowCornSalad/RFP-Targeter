@@ -2,10 +2,9 @@ name: Hourly Crawl
 
 on:
   schedule:
-    # [2026-05-27] 1시간 → 30분 주기로 변경
-    # GitHub Actions free plan schedule cron 발화 누락 문제 완화책.
-    # 발화 시도 빈도 ×2 → 누락 발생해도 평균 지연 시간 절반.
-    - cron: '*/30 * * * *'
+    # [2026-05-27 사용자 결정] 30분 → 1시간 주기로 복귀
+    # 매시 정각 발화. 누락 시 monitor 가 70분 임계 후 자동 dispatch.
+    - cron: '0 * * * *'
   # 수동 트리거 — Actions 탭에서 "Run workflow" 버튼 클릭 가능 (테스트용)
   workflow_dispatch:
 
