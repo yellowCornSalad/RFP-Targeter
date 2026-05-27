@@ -1,0 +1,104 @@
+---
+name: rfp_crawler
+description: RFP-Targeter 크롤러가 정상 작동 중인지 검증. 주간 시간(평일 09~18 KST) 안에 마지막 크롤이 1시간 이내였는지 확인. 비주간 시간은 점검 skip. GitHub Actions monitor_crawler.yml 이 30분마다 같은 로직으로 자동 실행 + 이상 시 슬랙 알림.
+---
+
+# rfp_crawler — 크롤러 헬스 모니터링
+
+## 목적
+
+RFP-Targeter는 GitHub Actions cron 으로 매시 정각 크롤링되어야 한다. 그러나 IITP timeout / 어댑터 hang / 정부 사이트 응답 지연 등으로 cron 이 cancelled 되면 사용자는 알 수 없게 된다.
+
+이 스킬은 다음을 검증한다:
+
+1. **주간 시간 (평일 09~18 KST)** 에 한해 검증 (외 시간은 cron 안 돌아도 정상)
+2. **마지막 크롤 시각** (`fetch_log` 의 가장 최근 `finished_at`) 이 1시간 이내인지
+3. **GitHub Actions crawl.yml** 최근 5건 conclusion 에 `cancelled` / `failure` 가 있는지
+4. **활성 보안 공고 score NULL** 발생 여부 (안전망 효과 확인)
+5. **슬랙 누락 후보** (영업시간이라면 즉시 dispatch)
+
+## 실행 방법
+
+### 수동 호출 (Claude Code 안에서)
+
+```
+사용자: "크롤러 상태 점검해줘" / "rfp_crawler"
+→ Claude 가 scripts/monitor_crawler.py 실행 + 결과 보고
+```
+
+### 자동 실행 (GitHub Actions)
+
+`.github/workflows/monitor_crawler.yml` 이 평일 09~18 KST (UTC 0~9시) 매 30분 cron 으로 발화. 이상 발견 시 슬랙 webhook 으로 알림 발사. 사용자 PC OFF 와 무관, 365일 작동.
+
+## 점검 절차 (5단계)
+
+```python
+# 1. 현재 시각 평일 09~18 KST 인지
+now = datetime.now(ZoneInfo("Asia/Seoul"))
+is_business = now.weekday() < 5 and 9 <= now.hour <= 18
+if not is_business:
+    return "skip — 비주간 시간"
+
+# 2. fetch_log 최근 finished_at (UTC) 가져와 KST 변환
+last_run = SELECT MAX(finished_at) FROM fetch_log WHERE finished_at IS NOT NULL
+gap_minutes = (now_utc - last_run).total_seconds() / 60
+
+# 3. 임계 검증
+if gap_minutes > 60:
+    alert = "🚨 크롤러 정지 — 마지막 정상 크롤 {gap}분 전"
+
+# 4. GitHub Actions 최근 5 run conclusion
+recent = gh run list --workflow=crawl.yml --limit 5
+if 2+ cancelled in last 5:
+    alert += " · cron cancelled 패턴 감지"
+
+# 5. score NULL / 슬랙 누락 후보
+null_score = COUNT WHERE is_security AND score IS NULL AND active
+pending = COUNT WHERE total_score >= 80 AND budget_mw >= 100 AND alerted_at IS NULL
+if pending > 0 and is_business:
+    dispatch_pending_alerts()
+```
+
+## 이상 신호 분류
+
+| 신호 | 임계 | 조치 |
+|------|------|------|
+| `last_finished` 가 60분 초과 | 1시간 초과 | 슬랙 알림 |
+| `crawl.yml` 최근 5건 중 2건+ cancelled | 패턴화된 timeout | 슬랙 알림 + 어댑터 진단 |
+| `score NULL` 활성 공고 발견 | 1건+ | `python scripts/backfill_scores.py` |
+| 슬랙 누락 후보 (영업시간) | 1건+ | `dispatch_pending_alerts()` 즉시 호출 |
+
+## 슬랙 알림 메시지 형식
+
+```
+🚨 [RFP-Targeter 모니터] 2026-05-27 14:30 KST
+
+크롤러 정지 감지 — 마지막 정상 완료 87분 전 (12:43)
+원인 추정: IITP 어댑터 timeout (max_per_source 50)
+
+GitHub Actions 최근 5 run:
+  · 14:00 — cancelled (30분 timeout)
+  · 13:00 — success
+  · 12:00 — cancelled
+  · 11:00 — success
+  · 10:00 — success
+
+조치 권장:
+  1. gh workflow run crawl.yml --ref main  (수동 트리거)
+  2. 또는 IITP max_per_source 추가 축소 (50 → 30)
+```
+
+## 알려진 회귀 패턴
+
+`feedback_recurring_checks.md` 의 5번 항목과 연계 — 이 스킬이 자동 점검 부분을 담당.
+
+- **IITP timeout 재발** — max_per_source 50 적용 후에도 가끔 30분 초과. 정부 사이트 응답 시간 변동.
+- **NIPA 어댑터 hang** — 본문 `<header><nav>` 안에 있어 decompose 순서 중요. 안 풀리면 5/22~5/24처럼 며칠 동안 새 데이터 0건.
+- **KOICA OpenAPI 죽음** — 2026-05 이후 unreachable. enabled=false 상태라 정상.
+- **G2B 401 Unauthorized** — service_key 활용신청 미승인.
+
+## 관련 파일
+
+- `scripts/monitor_crawler.py` — 실제 점검 로직 (스킬과 워크플로우가 공유)
+- `.github/workflows/monitor_crawler.yml` — 30분마다 자동 실행
+- `src/rfp_targeter/pipeline.py` — `_verify_required_sources`, `_backfill_missing_scores`, `dispatch_pending_alerts`
