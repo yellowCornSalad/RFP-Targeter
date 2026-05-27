@@ -143,10 +143,7 @@ function bindFilters() {
     filters.sort = e.target.value;
     applyFilters();
   });
-  document.getElementById("only-today").addEventListener("change", (e) => {
-    filters.onlyToday = e.target.checked;
-    currentPage = 1; applyFilters();
-  });
+  // '오늘 신규만' 체크박스 제거 (2026-05-27) — 아래 KPI strip '오늘 신규' 카드 클릭으로 대체
   document.getElementById("min-score").addEventListener("input", (e) => {
     filters.minScore = parseInt(e.target.value);
     document.getElementById("min-score-val").textContent = filters.minScore;
@@ -156,7 +153,6 @@ function bindFilters() {
     filters.search = ""; filters.source = null;
     filters.onlyToday = false; filters.minScore = 0; filters.sort = "newest";
     document.getElementById("search").value = "";
-    document.getElementById("only-today").checked = false;
     document.getElementById("min-score").value = 0;
     document.getElementById("min-score-val").textContent = "0";
     document.getElementById("sort").value = "newest";
@@ -288,10 +284,9 @@ function renderKpiStrip() {
         filters.onlyToday = true;
       }
 
-      // 사이드바 슬라이더/체크박스 UI도 동기화
+      // 사이드바 슬라이더 UI도 동기화 ('오늘 신규만' 체크박스 제거됨 — KPI strip 자체로 표시)
       document.getElementById("min-score").value = filters.minScore;
       document.getElementById("min-score-val").textContent = filters.minScore;
-      document.getElementById("only-today").checked = filters.onlyToday;
 
       currentPage = 1;
       applyFilters();
