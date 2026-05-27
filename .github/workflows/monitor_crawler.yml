@@ -4,6 +4,9 @@ name: Monitor Crawler Health
 # 30분마다 자동 검증. 60분 초과 정지 또는 cancelled 패턴 감지 시 슬랙 알림.
 #
 # rfp_crawler 스킬과 같은 로직 (scripts/monitor_crawler.py) — 둘이 같은 동작 보장.
+#
+# [2026-05-27] cron 재등록 시도 — 생성 후 24시간+ schedule 발화 0건.
+# 워크플로우 파일 trivial 변경으로 GitHub schedule 파서 재트리거.
 
 on:
   schedule:
