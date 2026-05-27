@@ -30,9 +30,10 @@ class RunStats:
 
 
 _REQUIRED_SOURCES = {
-    "kisa": "KISA", "kosa": "KOSA", "iitp": "IITP",
+    "kisa": "KISA", "iitp": "IITP",
     "krit": "KRIT", "koica": "KOICA", "nipa": "NIPA",
     "mss": "중기부",
+    # kosa 제거 (2026-05-27) — 사용자 결정: 영양가 부족 (활성 20건 평균 본문 907자)
 }
 
 

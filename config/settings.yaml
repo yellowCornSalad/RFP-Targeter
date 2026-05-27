@@ -47,10 +47,12 @@ sources:
     base_url: "https://apis.data.go.kr"
     max_per_source: 50                        # 일 호출 한도 100 보수적 운용
 
-  # KOSA — 한국SW산업협회 정부지원사업
-  # robots.txt 전체 차단 → Googlebot UA로 우회(어댑터 내부 처리)
+  # KOSA — 2026-05-27 비활성화 (사용자 결정).
+  # 사유: 활성 20건 평균 본문 907자(가장 짧음), 첨부 통합률 0%, 평균 매칭 7.1개.
+  # cbIdx=381(입찰안내) 본문이 너무 빈약 + cbIdx=382(유관기관)는 세미나/수요조사 잡음.
+  # 영양가 대비 비용 손실 — 다른 6개 source 가 보안 R&D 충분히 커버.
   kosa:
-    enabled: true
+    enabled: false
     base_url: "https://www.sw.or.kr"
     max_per_source: 50
 
