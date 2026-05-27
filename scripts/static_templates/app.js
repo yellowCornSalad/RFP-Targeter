@@ -666,37 +666,264 @@ function renderCard(it) {
             <h4>5축 점수</h4>
             ${renderRadar(it.scores)}
           </div>
-          <div class="detail-axes-detail">
-            <h4>점수 분해</h4>
-            <div class="axes-bar-list">
-              ${[
-                ["keyword", "키워드", "회사 핵심 키워드 매칭"],
-                ["budget", "예산", "회사 적정 예산 범위"],
-                ["consortium", "자격", "자격 요건 적합도 (응찰 가능 여부)"],
-                ["competitor", "경쟁", "경쟁자 수 (적을수록 ↑)"],
-                ["trl", "TRL", "회사 보유 기술 적합도"],
-              ].map(([k, label, desc]) => {
-                const v = Math.round(it.scores[k] || 0);
-                return `
-                  <div class="axes-bar-row">
-                    <div class="axes-bar-head">
-                      <span class="axes-bar-label">${label}</span>
-                      <span class="axes-bar-val">${v}<span class="max">/100</span></span>
-                    </div>
-                    <div class="axes-bar-track"><div class="axes-bar-fill" style="width:${v}%"></div></div>
-                    <div class="axes-bar-desc">${desc}</div>
-                  </div>`;
-              }).join("")}
-            </div>
-            <div class="theme-fit-row">
-              <span>테마 적합도 <b>${Math.round(it.scores.theme_fit || 0)}</b><span class="max">/100</span></span>
-            </div>
+          <div class="detail-verdict-col">
+            ${renderVerdict(it)}
+            ${renderAxesCompact(it.scores)}
           </div>
         </div>
+        ${renderStrengths(it)}
         <h4>본문</h4>
         <div class="body-pre">${renderBody(it.body)}</div>
         ${attsHtml}
       </div>
+    </div>`;
+}
+
+// ────────────────────────────────────────────────────────────
+// 응찰 체크리스트 (5축 점수 → 사람 판단)
+// ────────────────────────────────────────────────────────────
+function _verdictFromTotal(total) {
+  if (total >= 90) return { grade: "최우선 응찰", cls: "v-top", emoji: "🟢" };
+  if (total >= 70) return { grade: "검토 추천",   cls: "v-good", emoji: "🔵" };
+  if (total >= 50) return { grade: "조건부 검토", cls: "v-mid", emoji: "🟠" };
+  return { grade: "포기 권장", cls: "v-low", emoji: "⚫" };
+}
+
+function _checkIcon(value, goodTh = 60, midTh = 40) {
+  if (value >= goodTh) return { icon: "✅", cls: "ok" };
+  if (value >= midTh)  return { icon: "⚠",  cls: "warn" };
+  return { icon: "❌", cls: "bad" };
+}
+
+function _daysUntil(dateStr) {
+  if (!dateStr || dateStr.length < 10) return null;
+  const d = new Date(dateStr.slice(0, 10));
+  if (isNaN(d.getTime())) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.round((d - today) / (1000 * 60 * 60 * 24));
+}
+
+function renderVerdict(it) {
+  const sc = it.scores || {};
+  const total = Math.round(sc.total || 0);
+  const verdict = _verdictFromTotal(total);
+
+  const checks = [];
+  // 자격 (consortium 컬럼 = eligibility)
+  const elig = _checkIcon(sc.consortium || 0);
+  checks.push(`<li class="chk ${elig.cls}">${elig.icon} 응찰 자격 ${Math.round(sc.consortium || 0)}점</li>`);
+  // 예산
+  const bg = _checkIcon(sc.budget || 0, 70, 40);
+  const budgetLabel = it.budget_mw
+    ? `${(it.budget_mw / 100).toFixed(1)}억`
+    : "예산 미명시";
+  checks.push(`<li class="chk ${bg.cls}">${bg.icon} 예산 ${budgetLabel} (${Math.round(sc.budget || 0)}점)</li>`);
+  // 마감
+  const days = _daysUntil(it.deadline_at);
+  if (days !== null) {
+    let dcls = "ok", dico = "✅", dmsg;
+    if (days < 0) { dcls = "bad"; dico = "❌"; dmsg = `마감 ${-days}일 경과`; }
+    else if (days < 7) { dcls = "bad"; dico = "❌"; dmsg = `D-${days} 매우 빠듯`; }
+    else if (days < 14) { dcls = "warn"; dico = "⚠"; dmsg = `D-${days} 빠듯`; }
+    else if (days < 30) { dcls = "ok"; dico = "✅"; dmsg = `D-${days} 준비 가능`; }
+    else { dcls = "ok"; dico = "✅"; dmsg = `D-${days} 충분`; }
+    checks.push(`<li class="chk ${dcls}">${dico} 마감 ${dmsg}</li>`);
+  } else {
+    checks.push(`<li class="chk warn">⚠ 마감일 미명시</li>`);
+  }
+  // 키워드
+  const kw = _checkIcon(sc.keyword || 0, 70, 50);
+  checks.push(`<li class="chk ${kw.cls}">${kw.icon} 회사 키워드 매칭 ${Math.round(sc.keyword || 0)}점</li>`);
+  // 경쟁
+  const cp = _checkIcon(sc.competitor || 0, 60, 45);
+  checks.push(`<li class="chk ${cp.cls}">${cp.icon} 경쟁 영역 ${Math.round(sc.competitor || 0)}점</li>`);
+
+  return `
+    <div class="verdict-box ${verdict.cls}">
+      <div class="verdict-head">
+        <span class="v-emoji">${verdict.emoji}</span>
+        <span class="v-grade">${verdict.grade}</span>
+        <span class="v-total">${total}/100</span>
+      </div>
+      <ul class="verdict-checks">${checks.join("")}</ul>
+    </div>`;
+}
+
+// ────────────────────────────────────────────────────────────
+// 점수 분해 컴팩트 (한 줄)
+// ────────────────────────────────────────────────────────────
+function renderAxesCompact(scores) {
+  const items = [
+    ["키워드", scores.keyword],
+    ["예산", scores.budget],
+    ["자격", scores.consortium],
+    ["경쟁", scores.competitor],
+    ["TRL", scores.trl],
+  ];
+  return `
+    <div class="axes-compact">
+      ${items.map(([label, v]) => {
+        const val = Math.round(v || 0);
+        const lvl = val >= 80 ? "high" : val >= 60 ? "mid" : val >= 40 ? "low" : "min";
+        return `
+          <div class="ax-cell ax-${lvl}">
+            <div class="ax-label">${label}</div>
+            <div class="ax-val">${val}</div>
+          </div>`;
+      }).join("")}
+      <div class="ax-cell ax-theme">
+        <div class="ax-label">테마</div>
+        <div class="ax-val">${Math.round(scores.theme_fit || 0)}</div>
+      </div>
+    </div>`;
+}
+
+// ────────────────────────────────────────────────────────────
+// 회사 매칭 강점 (RFP 작성 시 어필 자산 자동 추출)
+// ────────────────────────────────────────────────────────────
+function _norm(s) {
+  return (s || "").toLowerCase().replace(/\s+/g, "");
+}
+
+function renderStrengths(it) {
+  const pf = (DATA && DATA.portfolio) || {};
+  const blob = _norm((it.title || "") + " " + (it.body || ""));
+  if (!blob) return "";
+
+  const strengths = [];
+
+  // 1. 보유 기술 매칭 (가장 강한 신호)
+  for (const t of (pf.technologies || [])) {
+    const kws = t.keywords || [];
+    const matched = kws.find(kw => kw && blob.includes(_norm(kw)));
+    if (matched) {
+      const trlBadge = t.trl ? ` <span class="s-trl">TRL ${t.trl}</span>` : "";
+      strengths.push({
+        icon: "🛡",
+        text: `${t.name}${trlBadge}`,
+        reason: `본문 "${matched}" 매칭`,
+        weight: 100,
+      });
+    }
+  }
+
+  // 2. 핵심 키워드 매칭
+  const coreHits = (pf.core_keywords || []).filter(k => k && blob.includes(_norm(k)));
+  if (coreHits.length > 0) {
+    strengths.push({
+      icon: "🎯",
+      text: `핵심 키워드 ${coreHits.length}개 직격`,
+      reason: coreHits.slice(0, 3).join(", ") + (coreHits.length > 3 ? ` 외 ${coreHits.length - 3}개` : ""),
+      weight: 80,
+    });
+  }
+
+  // 3. 포지셔닝 메시지 매칭
+  const posHits = (pf.positioning_keywords || []).filter(k => k && blob.includes(_norm(k)));
+  if (posHits.length > 0) {
+    strengths.push({
+      icon: "📌",
+      text: `포지셔닝 메시지 매칭`,
+      reason: posHits[0],
+      weight: 60,
+    });
+  }
+
+  // 4. 컨소시엄 파트너 (학계/다기관 신호 있을 때)
+  const consortSignal = /대학|산학|교수|컨소시엄|공동연구|참여기관|산학협력/.test(it.title || "" + it.body || "");
+  if (consortSignal) {
+    const universities = (pf.partners?.existing || []).filter(p => p.type === "대학");
+    if (universities.length > 0) {
+      const evidence = universities.find(u => u.evidence)?.evidence || "모의해킹 R&D 공동";
+      strengths.push({
+        icon: "🏛",
+        text: `대학 파트너 ${universities.length}곳 (${universities.map(u => u.name.replace(/\(.+\)/, "")).join(", ")})`,
+        reason: evidence,
+        weight: 70,
+      });
+    }
+  }
+
+  // 5. ecosystem 파트너 (도메인 매칭)
+  if (consortSignal) {
+    const ecoMatches = (pf.partners?.ecosystem || []).filter(p => {
+      if (!p.domain) return false;
+      const areas = p.domain.split(",").map(s => _norm(s.trim())).filter(Boolean);
+      return areas.some(a => blob.includes(a));
+    });
+    if (ecoMatches.length > 0) {
+      strengths.push({
+        icon: "🤝",
+        text: `협력 시너지 가능: ${ecoMatches.slice(0, 3).map(p => p.name).join(", ")}`,
+        reason: `같은 영역 (${ecoMatches[0].domain}) 협력 기회`,
+        weight: 50,
+      });
+    }
+  }
+
+  // 6. KISA 2026 신기술 선정 (정보보호 전문기업 우대 시)
+  if (/정보보호.*전문기업|보안.*전문기업|신기술.*기업|정보보호.*신기술/.test(it.body || "" + it.title || "")) {
+    strengths.push({
+      icon: "🏆",
+      text: `KISA 2026 정보보호 신기술 사업화 선정 (50개사 중 1)`,
+      reason: "공고 우대 조건 충족",
+      weight: 90,
+    });
+  }
+
+  // 7. 특허 매칭 (특허 highlights 키워드)
+  const patentMatches = (pf.highlights?.patents_highlights || []).filter(ph => {
+    const phLower = ph.toLowerCase();
+    // 특허 제목 키워드 추출 → 본문 매칭
+    if (phLower.includes("kaist") && /대학|산학|컨소시엄|네트워크.*공격|트래픽/.test(it.body || "")) return true;
+    if (phLower.includes("침투 테스트") && blob.includes("모의해킹")) return true;
+    if (phLower.includes("취약점") && blob.includes("취약점")) return true;
+    if (phLower.includes("llm") && /llm|인공지능|ai/i.test(it.body || "")) return true;
+    return false;
+  });
+  if (patentMatches.length > 0) {
+    strengths.push({
+      icon: "📜",
+      text: `등록 특허 ${patentMatches.length}건 매칭 (회사 총 ${pf.highlights?.patents_total || 38}건)`,
+      reason: patentMatches[0].substring(0, 60),
+      weight: 75,
+    });
+  }
+
+  // 8. 23.8만 건 해커 DB (AI 보안·공격 시뮬레이션 매칭 시)
+  if (/ai.*보안|공격.*시뮬|위협.*인텔|레드.*팀|red.*team/i.test((it.body || "") + (it.title || ""))) {
+    strengths.push({
+      icon: "📊",
+      text: `23.8만 건 해커 지식 DB (10년 누적, 55% NDA 실전)`,
+      reason: "AI 보안·위협 모델 학습 차별점",
+      weight: 65,
+    });
+  }
+
+  if (strengths.length === 0) {
+    return `
+      <div class="strengths-empty">
+        💡 자동 매칭된 회사 강점 없음 — 본문 키워드 풍부도 부족 또는 비직격 영역
+      </div>`;
+  }
+
+  // 가중치 정렬 + 최대 5개
+  strengths.sort((a, b) => b.weight - a.weight);
+  const top = strengths.slice(0, 5);
+  return `
+    <div class="strengths-box">
+      <h4>💼 이 공고에서 회사가 강조할 자산 (RFP 작성 시 어필)</h4>
+      <ul class="strengths-list">
+        ${top.map(s => `
+          <li class="strength">
+            <span class="s-icon">${s.icon}</span>
+            <span class="s-body">
+              <span class="s-text">${s.text}</span>
+              <span class="s-reason">← ${s.reason}</span>
+            </span>
+          </li>`).join("")}
+      </ul>
     </div>`;
 }
 
