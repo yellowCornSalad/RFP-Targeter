@@ -202,7 +202,7 @@ class NIPACrawler(BaseCrawler):
         # 첨부 본문까지 통합해서 키워드 추출 정확도 ↑ (공통 헬퍼)
         from rfp_targeter.crawlers.base import enrich_body_with_attachments
         a = enrich_body_with_attachments(a, referer="https://www.nipa.kr/")
-        # 합쳐진 본문에서 예산·기간 재추출 (첨부에 명시된 경우)
+        # 합쳐진 본문에서 예산·기간·날짜 재추출
         if a.body:
             mw2 = extract_budget_mw(a.body)
             if mw2 is not None and a.budget_mw is None:
@@ -210,4 +210,10 @@ class NIPACrawler(BaseCrawler):
             dm3 = extract_duration_months(a.body)
             if dm3 is not None and a.duration_months is None:
                 a.duration_months = dm3
+            from rfp_targeter.attachments.dates_extract import extract_dates
+            start_iso, deadline_iso = extract_dates(a.body)
+            if not a.deadline_at and deadline_iso:
+                a.deadline_at = deadline_iso
+            if not a.application_start_date and start_iso:
+                a.application_start_date = start_iso
         return a
