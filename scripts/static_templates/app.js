@@ -470,7 +470,8 @@ function renderBody(body) {
 
 // ────────────────────────────────────────────────────────────
 // 5축 SVG 레이더 차트 (Plotly 의존 제거 — vanilla SVG)
-// scores = { keyword, budget, consortium, competitor, trl } (각 0~100)
+// scores = { keyword, budget, consortium(=eligibility), competitor, trl } (각 0~100)
+// 주의: scores.consortium DB 컬럼은 legacy. 실제 의미는 자격 적합도(eligibility).
 // ────────────────────────────────────────────────────────────
 function renderRadar(scores) {
   const W = 280, H = 260;
@@ -479,7 +480,7 @@ function renderRadar(scores) {
   const axes = [
     { key: "keyword",    label: "키워드" },
     { key: "budget",     label: "예산" },
-    { key: "consortium", label: "컨소시엄" },
+    { key: "consortium", label: "자격" },   // 의미: eligibility_fit
     { key: "competitor", label: "경쟁" },
     { key: "trl",        label: "TRL" },
   ];
@@ -649,7 +650,7 @@ function renderCard(it) {
       <div class="axes-line">
         <span>키워드<b>${Math.round(it.scores.keyword)}</b></span>
         <span>예산<b>${Math.round(it.scores.budget)}</b></span>
-        <span>컨소시엄<b>${Math.round(it.scores.consortium)}</b></span>
+        <span>자격<b>${Math.round(it.scores.consortium)}</b></span>
         <span>경쟁<b>${Math.round(it.scores.competitor)}</b></span>
         <span>TRL<b>${Math.round(it.scores.trl)}</b></span>
       </div>
@@ -666,7 +667,7 @@ function renderCard(it) {
               ${[
                 ["keyword", "키워드", "회사 핵심 키워드 매칭"],
                 ["budget", "예산", "회사 적정 예산 범위"],
-                ["consortium", "컨소시엄", "구성 부담 (낮을수록 ↑)"],
+                ["consortium", "자격", "자격 요건 적합도 (응찰 가능 여부)"],
                 ["competitor", "경쟁", "경쟁자 수 (적을수록 ↑)"],
                 ["trl", "TRL", "회사 보유 기술 적합도"],
               ].map(([k, label, desc]) => {
