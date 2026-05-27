@@ -7,10 +7,11 @@ name: Monitor Crawler Health
 
 on:
   schedule:
-    # 평일(월~금) UTC 00:15, 00:45, 01:15 ... 09:45 — KST 09:15~18:45 매 30분
-    # GitHub Actions cron 은 every-30-min 지원 안 해서 명시 분 두 개로 나눔
-    - cron: '15 0-9 * * 1-5'
-    - cron: '45 0-9 * * 1-5'
+    # 매 30분 (하루 종일, 주말 포함) — 발화 안정성 ↑
+    # 자주 도는 cron 은 GitHub Actions schedule 더 안정적으로 발화.
+    # 점검·알림은 monitor_crawler.py 안에서 영업시간 가드.
+    # 만료 dismiss / 자동 crawl 복구는 24/7 작동.
+    - cron: '*/30 * * * *'
   workflow_dispatch:           # 수동 트리거 (즉시 점검용)
 
 concurrency:
