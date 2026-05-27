@@ -653,6 +653,7 @@ function renderCard(it) {
       <h3 class="card-title">
         ${it.url ? `<a href="${escapeHtml(it.url)}" target="_blank">${escapeHtml(it.title)}<span class="arrow">↗</span></a>` : escapeHtml(it.title)}
       </h3>
+      ${it.ai_summary ? `<p class="card-summary">${escapeHtml(it.ai_summary)}</p>` : ""}
       ${eligLine}
       ${metaBits.length > 0 ? `<div class="card-meta">${metaBits.join('<span class="sep">·</span>')}</div>` : ""}
       ${chipsHtml ? `<div class="chips">${chipsHtml}</div>` : ""}

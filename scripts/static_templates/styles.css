@@ -233,6 +233,20 @@ input[type="range"] { flex: 1; max-width: 200px; }
 .card-title a:hover { color: var(--accent); }
 .card-title .arrow { color: var(--accent); margin-left: 4px; font-size: 0.85em; }
 
+/* LLM 150자 요약 — 제목 아래, 자격/메타 위에 회색 박스 */
+.card-summary {
+  color: #444;
+  font-size: 13.5px;
+  line-height: 1.6;
+  margin: 0 0 10px;
+  padding: 10px 14px;
+  background: #fafafa;
+  border-left: 3px solid #bbb;
+  border-radius: 2px;
+  font-weight: 400;
+  letter-spacing: -0.005em;
+}
+
 .card-meta { color: var(--text-muted); font-size: 0.85em; margin-bottom: 8px; }
 .card-meta b { color: var(--text); font-weight: 600; }
 .card-meta .sep { color: var(--text-faint); margin: 0 4px; }
