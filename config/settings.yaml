@@ -70,10 +70,13 @@ sources:
     max_per_source: 50
 
   # NIPA — 정보통신산업진흥원 사업·입찰공고
+  # 2026-05-27: 50 → 30 축소. 첨부 통합 추가(2026-05-26)로 어댑터당 시간 +10분 → cron timeout 재발.
+  # KISA(7m) + IITP(3m) + MSS(9m) + KOSA(4m) + KRIT(2m) + NIPA(10m) = 35분 → 30분 timeout 초과.
+  # 30건이면 NIPA 6분 → 합 31분 → 안전 마진 확보.
   nipa:
     enabled: true
     base_url: "https://www.nipa.kr"
-    max_per_source: 50
+    max_per_source: 30
 
   # NTIS — IITP와 100% 중복 (NTIS 고유 0건) → 비활성화
   ntis:
