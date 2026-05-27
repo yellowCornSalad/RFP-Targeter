@@ -30,9 +30,15 @@ RFP-Targeter는 GitHub Actions cron 으로 매시 정각 크롤링되어야 한�
 
 `.github/workflows/monitor_crawler.yml` 이 평일 09~18 KST (UTC 0~9시) 매 30분 cron 으로 발화. 이상 발견 시 슬랙 webhook 으로 알림 발사. 사용자 PC OFF 와 무관, 365일 작동.
 
-## 점검 절차 (5단계)
+## 점검 절차 (6단계)
 
 ```python
+# 0. 만료 공고 자동 dismiss (soft delete) — 슬랙·사이트 노출 자동 차단
+UPDATE announcement SET is_dismissed = TRUE
+  WHERE is_dismissed = FALSE
+    AND deadline_at < CURRENT_DATE::text
+# is_dismissed=FALSE 만 슬랙·UI 조회 → 자동 제외. DB row 는 보존 (회고용).
+
 # 1. 현재 시각 평일 09~18 KST 인지
 now = datetime.now(ZoneInfo("Asia/Seoul"))
 is_business = now.weekday() < 5 and 9 <= now.hour <= 18
@@ -63,10 +69,23 @@ if pending > 0 and is_business:
 
 | 신호 | 임계 | 조치 |
 |------|------|------|
+| **만료 공고 (deadline < today)** | **1건+** | **`is_dismissed=TRUE` soft delete 자동 처리** |
 | `last_finished` 가 60분 초과 | 1시간 초과 | 슬랙 알림 |
 | `crawl.yml` 최근 5건 중 2건+ cancelled | 패턴화된 timeout | 슬랙 알림 + 어댑터 진단 |
 | `score NULL` 활성 공고 발견 | 1건+ | `python scripts/backfill_scores.py` |
 | 슬랙 누락 후보 (영업시간) | 1건+ | `dispatch_pending_alerts()` 즉시 호출 |
+
+### 만료 공고 자동 dismiss 동작
+
+```
+deadline_at < CURRENT_DATE 인 공고 → is_dismissed=TRUE
+  ├─ 슬랙 알림: 자동 제외 (dispatch_pending_alerts SQL이 is_dismissed=FALSE 만 조회)
+  ├─ 정적 사이트: 자동 제외 (build_static.py SQL 동일)
+  ├─ DB row: 보존 (회고·통계·과거 매칭 키워드 데이터)
+  └─ 복구: UPDATE announcement SET is_dismissed=FALSE WHERE id=...
+```
+
+비주간 시간에도 dismiss 단계는 실행됨 (즉 비영업시간에도 만료 정리는 한다). 점검·알림만 영업시간 제한.
 
 ## 슬랙 알림 메시지 형식
 
