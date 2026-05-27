@@ -235,13 +235,37 @@ function applyFilters() {
 // ────────────────────────────────────────────────────────────
 function renderKpiStrip() {
   const strip = document.getElementById("kpi-strip");
-  const all = DATA.items;
-  const n_top = all.filter((it) => (it.scores.total || 0) >= 90).length;
-  const n_good = all.filter((it) => (it.scores.total || 0) >= 80).length;
-  const n_fair = all.filter((it) => (it.scores.total || 0) >= 60).length;
   const today = new Date().toISOString().slice(0, 10);
-  const n_today = all.filter((it) => it.posted_at.slice(0, 10) === today).length;
-  const total = DATA.total;
+
+  // ── 모집단(base) — minScore 만 제외하고 다른 필터(source/search/예산) 적용 ──
+  // 이유: KPI 카드 클릭이 minScore 토글이므로 minScore 적용 전 모집단 기준
+  //       으로 분포를 보여야 사용자가 "지금 보고 있는 결과 중 TOP 몇 건" 알 수 있음.
+  const base = DATA.items.filter((it) => {
+    if (filters.source && it.source !== filters.source) return false;
+    if (filters.budgetMode === "ge100") {
+      if (it.budget_mw == null || it.budget_mw < 100) return false;
+    } else if (filters.budgetMode === "lt100") {
+      if (it.budget_mw == null || it.budget_mw >= 100) return false;
+    }
+    if (filters.search) {
+      const hay = (it.title + " " + it.agency + " " + it.matched_keywords.join(" ")).toLowerCase();
+      if (!hay.includes(filters.search)) return false;
+    }
+    return true;
+  });
+
+  const total = base.length;
+  const n_top = base.filter((it) => (it.scores.total || 0) >= 90).length;
+  const n_good = base.filter((it) => (it.scores.total || 0) >= 80).length;
+  const n_fair = base.filter((it) => (it.scores.total || 0) >= 60).length;
+  const n_today = base.filter((it) => it.posted_at.slice(0, 10) === today).length;
+
+  // 필터 적용 여부 (UI 라벨 변경용)
+  const isFiltered = filters.source || filters.search || filters.budgetMode !== "all";
+  const totalLabel = isFiltered ? "필터 결과" : "전체";
+  const totalSub = isFiltered
+    ? `전체 ${DATA.total.toLocaleString()} 중`
+    : "보안 통과";
 
   // 현재 활성 필터 식별 (활성 카드에 'active' 클래스 부여)
   const active =
@@ -253,9 +277,9 @@ function renderKpiStrip() {
 
   strip.innerHTML = `
     <div class="kpi-card ${active === "all" ? "active" : ""}" data-kpi="all">
-      <div class="kpi-label">전체</div>
+      <div class="kpi-label">${totalLabel}</div>
       <div class="kpi-value">${total.toLocaleString()}<span class="unit"> 건</span></div>
-      <div class="kpi-sub">보안 통과</div>
+      <div class="kpi-sub">${totalSub}</div>
     </div>
     <div class="kpi-card ${active === "top" ? "active" : ""}" data-kpi="top">
       <div class="kpi-label">🟠 TOP · 90+</div>
