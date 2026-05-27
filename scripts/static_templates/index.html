@@ -59,6 +59,11 @@
         </div>
         <div class="filter-row">
           <input type="search" id="search" placeholder="🔍 제목·기관·키워드 검색">
+          <select id="budget-filter" title="예산 규모 필터 — 1억 = 회사 긍정 평가 시작점">
+            <option value="all">💰 예산 전체</option>
+            <option value="ge100">💰 1억 이상만</option>
+            <option value="lt100">💰 1억 미만만</option>
+          </select>
           <select id="sort">
             <option value="newest">📅 최신 등록순</option>
             <option value="score">🌟 점수 높은순</option>

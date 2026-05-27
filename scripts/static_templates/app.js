@@ -47,6 +47,7 @@ const filters = {
   // 만료는 monitor_crawler 가 30분마다 is_dismissed=TRUE 처리.
   onlyToday: false,
   minScore: 0,
+  budgetMode: "all",        // all | ge100 (1억+) | lt100 (1억 미만, NULL 제외)
   sort: "newest",
 };
 
@@ -149,6 +150,11 @@ function bindFilters() {
     filters.sort = e.target.value;
     applyFilters();
   });
+  // 예산 필터 (전체 / 1억+ / 1억 미만) — 2026-05-27 신규
+  document.getElementById("budget-filter").addEventListener("change", (e) => {
+    filters.budgetMode = e.target.value;
+    currentPage = 1; applyFilters();
+  });
   // '오늘 신규만' 체크박스 제거 (2026-05-27) — 아래 KPI strip '오늘 신규' 카드 클릭으로 대체
   document.getElementById("min-score").addEventListener("input", (e) => {
     filters.minScore = parseInt(e.target.value);
@@ -158,10 +164,12 @@ function bindFilters() {
   document.getElementById("reset-btn").addEventListener("click", () => {
     filters.search = ""; filters.source = null;
     filters.onlyToday = false; filters.minScore = 0; filters.sort = "newest";
+    filters.budgetMode = "all";
     document.getElementById("search").value = "";
     document.getElementById("min-score").value = 0;
     document.getElementById("min-score-val").textContent = "0";
     document.getElementById("sort").value = "newest";
+    document.getElementById("budget-filter").value = "all";
     currentPage = 1;
     renderAgencyGrid();
     applyFilters();
@@ -189,6 +197,12 @@ function applyFilters() {
     if (filters.source && it.source !== filters.source) return false;
     if (filters.minScore > 0 && (it.scores.total || 0) < filters.minScore) return false;
     if (filters.onlyToday && it.posted_at.slice(0, 10) !== today) return false;
+    // 예산 필터 — NULL(예산 미명시) 은 두 필터 모두에서 제외 (판단 불가)
+    if (filters.budgetMode === "ge100") {
+      if (it.budget_mw == null || it.budget_mw < 100) return false;
+    } else if (filters.budgetMode === "lt100") {
+      if (it.budget_mw == null || it.budget_mw >= 100) return false;
+    }
     if (filters.search) {
       const hay = (it.title + " " + it.agency + " " + it.matched_keywords.join(" ")).toLowerCase();
       if (!hay.includes(filters.search)) return false;
