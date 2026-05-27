@@ -20,6 +20,8 @@ on:
       - 'config/keywords.yaml'                          # 필터 키워드 변경 시 즉시 재빌드
       - 'src/rfp_targeter/filters/security_filter.py'   # 필터 로직 변경 시 즉시 재빌드
       - 'src/rfp_targeter/scoring/**'                   # 점수 산정 모듈 변경 시
+      - 'src/rfp_targeter/attachments/**'               # 예산/날짜/첨부 추출 모듈 변경 시
+      - 'src/rfp_targeter/crawlers/**'                  # 어댑터 변경 시 (백필 영향)
   workflow_dispatch:           # 수동 트리거 (main에서도 가능)
     inputs:
       ref:
