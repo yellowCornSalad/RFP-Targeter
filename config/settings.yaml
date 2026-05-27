@@ -99,11 +99,12 @@ sources:
 
 # 점수 가중치 (합 1.0)
 # keyword 비중 ↑: 회사 본업 매칭도가 가장 결정적
+# [2026-05-27] consortium → eligibility 교체 (변별력 확보)
 scoring_weights:
-  keyword: 0.35        # 회사 핵심 키워드 매칭도 (강화)
-  budget: 0.10         # 예산 정합 (약화 — 본문에 안 나오는 경우 다수)
-  consortium: 0.20     # 컨소시엄 구성 부담
-  competitor: 0.20     # 경쟁자 적은 정도(난이도)
+  keyword: 0.35        # 회사 핵심 키워드 매칭도
+  budget: 0.10         # 예산 정합
+  eligibility: 0.20    # 자격 적합도 (이전 consortium — 변별력 확보)
+  competitor: 0.20     # 경쟁 영역 난이도
   trl: 0.15            # 회사 기술 TRL 적합
 
 # 초안 자동 생성 임계점
