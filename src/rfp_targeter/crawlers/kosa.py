@@ -173,4 +173,11 @@ class KOSACrawler(BaseCrawler):
         dm2 = extract_duration_months(body)
         if dm2 is not None:
             a.duration_months = dm2
+        # 마감 + 신청 시작일 추출 (KOSA 본문 자체엔 짧지만 시도)
+        from rfp_targeter.attachments.dates_extract import extract_dates
+        start_iso, deadline_iso = extract_dates(body)
+        if not a.deadline_at and deadline_iso:
+            a.deadline_at = deadline_iso
+        if not a.application_start_date and start_iso:
+            a.application_start_date = start_iso
         return a

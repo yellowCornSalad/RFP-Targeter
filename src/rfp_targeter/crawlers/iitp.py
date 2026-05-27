@@ -293,6 +293,14 @@ class IITPCrawler(BaseCrawler):
         if dl:
             a.deadline_at = f"{dl.group(1)}-{int(dl.group(3)):02d}-{int(dl.group(5)):02d}"
 
+        # 공통 dates 추출 — 더 폭넓은 표현 + application_start_date 까지
+        from rfp_targeter.attachments.dates_extract import extract_dates
+        start_iso, deadline_iso = extract_dates(text)
+        if not a.deadline_at and deadline_iso:
+            a.deadline_at = deadline_iso
+        if not a.application_start_date and start_iso:
+            a.application_start_date = start_iso
+
         return a
 
     def _is_iitp(self, a: Announcement, raw: dict) -> bool:

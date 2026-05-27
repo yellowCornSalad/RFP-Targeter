@@ -166,6 +166,13 @@ class KISACrawler(BaseCrawler):
             dm3 = extract_duration_months(a.body)
             if dm3 is not None and a.duration_months is None:
                 a.duration_months = dm3
+            # 마감/신청 시작일 추출 (본문 + 첨부 통합 텍스트에서)
+            from rfp_targeter.attachments.dates_extract import extract_dates
+            start_iso, deadline_iso = extract_dates(a.body)
+            if not a.deadline_at and deadline_iso:
+                a.deadline_at = deadline_iso
+            if not a.application_start_date and start_iso:
+                a.application_start_date = start_iso
         return a
 
     def _extract_attachments(self, soup, external_id: str) -> list[dict]:
