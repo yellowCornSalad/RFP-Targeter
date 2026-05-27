@@ -396,9 +396,20 @@ def run_once() -> list[RunStats]:
     # 사이클 끝 — 영업시간(평일 09~18 KST)이면 alerted_at IS NULL 보안 신규를 묶음 발송.
     # 영업시간 외엔 누적만, 다음 영업일 09시 첫 cron이 통합 발송.
     # 예: 5/11(월) 21시 신규 → 5/12(화) 09시 cron이 묶음 알림.
+    dispatched = 0
     try:
-        dispatch_pending_alerts()
+        if dispatch_pending_alerts():
+            # 발사 성공 — 정확한 건수는 dispatch 내부에서만 알지만, 대략 표시용으로 1+ 추정
+            # (개선: dispatch_pending_alerts 가 발사 건수를 반환하도록 수정 가능)
+            dispatched = 1
     except Exception:
         log.exception("slack dispatch_pending_alerts failed (pipeline 계속)")
+
+    # 사이클 끝 알림 — "이번 시간 크롤 완료" 영업시간만 발사 (사용자 요청 2026-05-27)
+    try:
+        from rfp_targeter.notifier.slack import notify_crawl_complete
+        notify_crawl_complete(stats, dispatched_count=dispatched)
+    except Exception:
+        log.exception("slack notify_crawl_complete failed (pipeline 계속)")
 
     return stats

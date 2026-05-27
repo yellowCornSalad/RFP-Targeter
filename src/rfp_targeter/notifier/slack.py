@@ -291,6 +291,43 @@ def _post_webhook(payload: dict) -> bool:
         return False
 
 
+def notify_crawl_complete(stats: list, dispatched_count: int = 0) -> bool:
+    """매 크롤 사이클 끝에 '크롤 완료' 알림 발사. 영업시간(평일 09~18 KST)만 발사.
+
+    stats: list of RunStats (source, new, updated, filtered_in)
+    dispatched_count: 이번 사이클 dispatch_pending_alerts 가 발사한 슬랙 알림 건수
+    """
+    if not _is_business_hours():
+        log.debug("crawl complete notify: 영업시간 외 — skip")
+        return False
+
+    cfg = (settings().get("alert") or {})
+    if not cfg.get("slack_enabled", False):
+        return False
+
+    now_kst = datetime.now(KST)
+    header = f"🔄 *[크롤 완료]* {now_kst.strftime('%Y-%m-%d %H:%M KST')}"
+
+    # source별 통계 한 줄로
+    parts = []
+    total_new, total_sec = 0, 0
+    for s in stats:
+        if s.error:
+            parts.append(f"~{s.source.upper()}~ ❌")
+            continue
+        parts.append(f"{s.source.upper()} {s.new}/{s.updated}")
+        total_new += s.new
+        total_sec += s.filtered_in
+    stats_line = " · ".join(parts)
+
+    body = (
+        f"{header}\n"
+        f"`{stats_line}` (new/upd)\n"
+        f"신규 보안 통과 *{total_sec}건* · 슬랙 발사 *{dispatched_count}건* (80+ AND 1억+)"
+    )
+    return _post_webhook({"text": body})
+
+
 def dispatch_pending_alerts() -> bool:
     """매 cron 끝에 호출 — 평일 09~18시 KST 면 alerted_at IS NULL 보안 공고 묶음 발송.
 
