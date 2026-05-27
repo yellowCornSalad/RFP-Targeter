@@ -1,0 +1,12 @@
+name = "rfp-monitor-trigger"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+# 매 5분마다 발화 — GitHub Actions schedule cron 불안정성 우회
+# 5분 × 288회/일 = Cloudflare Free plan (100k req/day) 충분히 여유
+[triggers]
+crons = ["*/5 * * * *"]
+
+# 환경 변수 (secret 은 wrangler secret put 으로)
+# - GH_PAT: GitHub Personal Access Token (workflow:write 권한)
+# - TRIGGER_TOKEN: 수동 trigger HTTP endpoint 인증용 (옵션)
