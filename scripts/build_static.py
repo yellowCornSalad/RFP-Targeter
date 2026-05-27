@@ -220,7 +220,7 @@ def fetch_data() -> dict:
                    FROM announcement a
                    LEFT JOIN score s ON s.announcement_id = a.id
                    WHERE a.is_security = TRUE AND a.is_dismissed = FALSE
-                     AND a.source IN ('iitp','kisa','kosa','krit','nipa','mss','koica')
+                     AND a.source IN ('iitp','kisa','krit','nipa','mss','koica')
                      AND (
                        a.deadline_at >= CURRENT_DATE::text
                        OR (a.deadline_at IS NULL

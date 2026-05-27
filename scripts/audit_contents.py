@@ -67,7 +67,7 @@ def audit_quality() -> dict:
                           COUNT(*) FILTER (WHERE body LIKE %s) AS att_in_body
                    FROM announcement
                    WHERE is_security=TRUE AND is_dismissed=FALSE
-                     AND source IN ('iitp','kisa','kosa','krit','nipa','mss','koica')
+                     AND source IN ('iitp','kisa','krit','nipa','mss','koica')
                      AND (deadline_at >= CURRENT_DATE::text
                           OR (deadline_at IS NULL
                               AND posted_at >= (CURRENT_DATE - 60)::text))""",
@@ -90,7 +90,7 @@ def audit_quality() -> dict:
                           AVG(jsonb_array_length(matched_keywords_json::jsonb)) AS avg_kw
                    FROM announcement
                    WHERE is_security=TRUE AND is_dismissed=FALSE
-                     AND source IN ('iitp','kisa','kosa','krit','nipa','mss','koica')
+                     AND source IN ('iitp','kisa','krit','nipa','mss','koica')
                      AND (deadline_at >= CURRENT_DATE::text
                           OR (deadline_at IS NULL
                               AND posted_at >= (CURRENT_DATE - 60)::text))
@@ -118,7 +118,7 @@ def generate_summaries(force: bool = False, limit: int | None = None) -> tuple[i
                 f"""SELECT id, title, agency, body, attachments_json
                     FROM announcement
                     WHERE is_security=TRUE AND is_dismissed=FALSE
-                      AND source IN ('iitp','kisa','kosa','krit','nipa','mss','koica')
+                      AND source IN ('iitp','kisa','krit','nipa','mss','koica')
                       AND (deadline_at >= CURRENT_DATE::text
                            OR (deadline_at IS NULL
                                AND posted_at >= (CURRENT_DATE - 60)::text))

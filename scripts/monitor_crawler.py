@@ -142,7 +142,7 @@ def check() -> tuple[bool, list[str]]:
                 """SELECT COUNT(*) AS n FROM announcement a
                    JOIN score s ON s.announcement_id = a.id
                    WHERE a.is_security = TRUE AND a.is_dismissed = FALSE
-                     AND a.source IN ('iitp','kisa','kosa','krit','nipa','mss','koica')
+                     AND a.source IN ('iitp','kisa','krit','nipa','mss','koica')
                      AND s.total_score >= 80
                      AND a.budget_mw IS NOT NULL AND a.budget_mw >= 100
                      AND (a.deadline_at >= CURRENT_DATE::text

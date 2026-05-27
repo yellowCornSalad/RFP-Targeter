@@ -71,9 +71,10 @@ async function loadData() {
 // ────────────────────────────────────────────────────────────
 const SOURCE_LABELS = {
   iitp: "IITP", kisa: "KISA", nipa: "NIPA", mss: "중기부",
-  kosa: "KOSA", krit: "KRIT", koica: "KOICA",
+  krit: "KRIT", koica: "KOICA",
 };
-const SOURCE_ORDER = ["iitp", "kisa", "nipa", "mss", "kosa", "krit", "koica"];
+// kosa 제거 (2026-05-27) — 사용자 결정: 영양가 부족
+const SOURCE_ORDER = ["iitp", "kisa", "nipa", "mss", "krit", "koica"];
 
 function renderAgencyGrid() {
   const grid = document.getElementById("agency-grid");
