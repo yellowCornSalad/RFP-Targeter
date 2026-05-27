@@ -86,10 +86,34 @@ def _send_slack_alert(text: str) -> bool:
         return False
 
 
+def dismiss_expired() -> int:
+    """신청기한 지난 활성 공고를 is_dismissed=TRUE 로 soft delete.
+
+    - 슬랙·정적 사이트 SQL 은 is_dismissed=FALSE 만 조회 → 자동 제외
+    - DB 에는 row 보존 (회고·통계·과거 매칭 데이터 가치)
+    - 실수로 dismiss 했어도 UPDATE 한 줄로 복구 가능
+
+    Returns: dismiss 된 건수
+    """
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """UPDATE announcement
+                   SET is_dismissed = TRUE
+                   WHERE is_dismissed = FALSE
+                     AND deadline_at IS NOT NULL
+                     AND deadline_at != ''
+                     AND deadline_at < CURRENT_DATE::text"""
+            )
+            return cur.rowcount
+
+
 def check() -> tuple[bool, list[str]]:
     """크롤러 헬스 점검. Returns (정상 여부, 이슈 목록)."""
     issues: list[str] = []
     now_kst = datetime.now(KST)
+
+    # 만료 공고 dismiss 는 main()에서 비영업시간도 포함해 미리 호출됨 — 여기서 중복 호출 안 함
 
     # 1) DB 에서 가장 최근 finished_at (UTC text) 가져옴
     with get_conn() as conn:
@@ -200,8 +224,16 @@ def main() -> int:
     now_kst = datetime.now(KST)
     print(f"=== rfp_crawler 모니터 — {now_kst.strftime('%Y-%m-%d %H:%M %a')} KST ===")
 
+    # 만료 공고 dismiss 는 비영업시간에도 실행 — 24/7 정리
+    try:
+        n = dismiss_expired()
+        if n > 0:
+            print(f"[자동조치] 만료 공고 {n}건 dismiss (soft delete)")
+    except Exception as e:
+        print(f"⚠ dismiss 실패: {e}")
+
     if not args.force and not _is_business_hours(now_kst):
-        print("비영업시간 (평일 09~18 KST 외) — 점검 skip")
+        print("비영업시간 (평일 09~18 KST 외) — 점검 skip (dismiss 만 수행됨)")
         return 0
 
     ok, issues = check()
