@@ -2,8 +2,10 @@ name: Hourly Crawl
 
 on:
   schedule:
-    # 매 시간 0분 (UTC 기준 — KST = UTC+9, 한국 시각으로 매시 정각)
-    - cron: '0 * * * *'
+    # [2026-05-27] 1시간 → 30분 주기로 변경
+    # GitHub Actions free plan schedule cron 발화 누락 문제 완화책.
+    # 발화 시도 빈도 ×2 → 누락 발생해도 평균 지연 시간 절반.
+    - cron: '*/30 * * * *'
   # 수동 트리거 — Actions 탭에서 "Run workflow" 버튼 클릭 가능 (테스트용)
   workflow_dispatch:
 

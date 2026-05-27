@@ -3,7 +3,7 @@
 주간 시간(평일 09~18 KST) 동안 매 30분 자동 실행. 비주간은 즉시 skip.
 
 검증:
-  1. last fetch_log finished_at 이 60분 초과 안 됐는지
+  1. last fetch_log finished_at 이 35분 초과 안 됐는지 (30분 주기 + 5분 여유)
   2. GitHub Actions crawl.yml 최근 5 run 에 cancelled 패턴
   3. 활성 보안 공고 score NULL 0건 (자동 백필 효과 확인)
   4. 슬랙 누락 후보 0건 (영업시간이면 즉시 dispatch)
@@ -44,7 +44,7 @@ except ImportError:
 log = logging.getLogger("monitor_crawler")
 
 # 임계값
-GAP_MINUTES_THRESHOLD = 60        # 마지막 크롤 60분 초과 시 알림
+GAP_MINUTES_THRESHOLD = 35        # 30분 주기 + 5분 여유 (이전 60 → 35, 2026-05-27)
 CANCELLED_PATTERN_THRESHOLD = 2   # 최근 5 run 중 2건+ cancelled 시 알림
 
 
