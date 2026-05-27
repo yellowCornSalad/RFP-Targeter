@@ -15,7 +15,7 @@ concurrency:
 jobs:
   crawl:
     runs-on: ubuntu-latest
-    timeout-minutes: 30                    # 보통 5분 안에 끝, 안전망
+    timeout-minutes: 25                    # 25분 → 30분 timeout 만성화 차단, 빠른 실패 → monitor 자동 재dispatch 빨리 작동
 
     steps:
       - name: Checkout code
