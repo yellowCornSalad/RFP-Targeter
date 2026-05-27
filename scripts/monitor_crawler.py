@@ -174,6 +174,20 @@ def check() -> tuple[bool, list[str]]:
                     f"🚨 크롤러 정지 — 마지막 정상 완료 {gap_minutes:.0f}분 전 "
                     f"({last_finished.astimezone(KST).strftime('%Y-%m-%d %H:%M KST')})"
                 )
+                # 🔧 자동 복구 — gap > 60분이면 즉시 gh workflow dispatch.
+                # concurrency 그룹 'crawl' 이 중복 실행 방지하므로 안전.
+                # cooldown: 이미 진행 중인 run 이 있으면 GitHub Actions 가 자동 skip.
+                try:
+                    r = subprocess.run(
+                        ["gh", "workflow", "run", "crawl.yml", "--ref", "main"],
+                        capture_output=True, text=True, timeout=20,
+                    )
+                    if r.returncode == 0:
+                        issues.append("  ↳ [자동조치] gh workflow run crawl.yml 즉시 dispatch")
+                    else:
+                        issues.append(f"  ↳ [자동조치 실패] gh dispatch: {r.stderr[:100]}")
+                except Exception as e:
+                    issues.append(f"  ↳ [자동조치 실패] {e}")
     else:
         issues.append("⚠ fetch_log 에 finished_at 없음 — 한 번도 정상 완료된 사이클 없음")
 
