@@ -71,10 +71,12 @@ async function loadData() {
 // ────────────────────────────────────────────────────────────
 const SOURCE_LABELS = {
   iitp: "IITP", kisa: "KISA", nipa: "NIPA", mss: "중기부",
-  krit: "KRIT", koica: "KOICA",
+  krit: "KRIT",
 };
-// kosa 제거 (2026-05-27) — 사용자 결정: 영양가 부족
-const SOURCE_ORDER = ["iitp", "kisa", "nipa", "mss", "krit", "koica"];
+// kosa 제거 (2026-05-27) — 영양가 부족
+// koica 제거 (2026-05-27) — apis.data.go.kr 빈 응답 + openapi.koica.go.kr unreachable
+//                          정부 API 사망. 부활 가능성 낮음 → UI 카드 숨김
+const SOURCE_ORDER = ["iitp", "kisa", "nipa", "mss", "krit"];
 
 function renderAgencyGrid() {
   const grid = document.getElementById("agency-grid");
@@ -97,7 +99,10 @@ function renderAgencyGrid() {
         label: SOURCE_LABELS[src],
         total: total,
         newN: DATA.today_new_by_src[src] || 0,
-        status: total === 0 ? "수집 대기" : "정상",
+        // KRIT 는 국방 R&D 게시판 — 어댑터 정상이지만 보안 필터 통과 0건 흔함
+        status: total === 0
+          ? (src === "krit" ? "필터 통과 0" : "수집 대기")
+          : "정상",
         isActive: filters.source === src,
         isAll: false,
       };
