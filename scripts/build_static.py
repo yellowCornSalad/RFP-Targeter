@@ -213,7 +213,7 @@ def fetch_data() -> dict:
                           a.budget_mw, a.budget_period,
                           a.budget_excerpt, a.body, a.matched_keywords_json,
                           a.eligibility_status, a.eligibility_note,
-                          a.attachments_json,
+                          a.attachments_json, a.ai_summary,
                           s.keyword_score, s.budget_score, s.consortium_score,
                           s.competitor_score, s.trl_score, s.total_score, s.theme_fit
                    FROM announcement a
@@ -264,6 +264,7 @@ def fetch_data() -> dict:
             "budget_excerpt": r["budget_excerpt"] or "",
             "body": body,
             "body_preview": body_preview,
+            "ai_summary": r["ai_summary"] or "",  # LLM 150자 요약 — 카드 본문 자리에 표시
             "matched_keywords": mk,
             "attachments": atts,
             "eligibility_status": r["eligibility_status"] or "",
