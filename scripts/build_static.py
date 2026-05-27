@@ -326,7 +326,7 @@ def fetch_data() -> dict:
                 "keywords": t.get("keywords") or [],
             }
             for t in (p.get("technologies") or [])
-            if t.get("name")
+            if isinstance(t, dict) and t.get("name")
         ],
         # 핵심 키워드 / 포지셔닝 (매칭 시 강점으로 추출)
         "core_keywords": p.get("core_keywords") or [],
@@ -340,12 +340,12 @@ def fetch_data() -> dict:
                     "evidence": prt.get("evidence", ""),
                 }
                 for prt in (cons.get("existing_partners") or [])
-                if prt.get("name")
+                if isinstance(prt, dict) and prt.get("name")
             ],
             "ecosystem": [
                 {"name": pp.get("name", ""), "domain": pp.get("domain", "")}
                 for pp in (p.get("ecosystem_partners") or [])
-                if pp.get("name")
+                if isinstance(pp, dict) and pp.get("name")
             ],
         },
         # 하이라이트 (실적·인증·표준)
