@@ -35,17 +35,24 @@ _RE_DEADLINE = re.compile(
     re.IGNORECASE,
 )
 
-# 범위 패턴 — "YYYY.MM.DD ~ YYYY.MM.DD" 또는 "YYYY.MM.DD ~ MM.DD"
+# 범위 패턴 — "YYYY.MM.DD ~ YYYY.MM.DD" 또는 "YYYY.MM.DD HH:MM ~ YYYY.MM.DD HH:MM"
+# NIPA: "신청기간 : 2026-05-18 09:51 ~ 2026-06-12 15:00"
+# 시간 부분(HH:MM 또는 HH시 MM분)은 옵션. 라벨 다음 ':' 또는 '-' 도 허용.
+_TIME_OPT = r"(?:\s+\d{1,2}\s*[:시：]\s*\d{1,2}\s*분?)?"
 _RE_RANGE = re.compile(
-    rf"{_RANGE_LABELS}[^\d]{{0,30}}{_DATE}"
+    rf"{_RANGE_LABELS}\s*[:：\-]?\s*[^\d]{{0,20}}{_DATE}"
+    rf"{_TIME_OPT}"
     rf"\s*[~∼\-––]\s*"
-    rf"(?:(\d{{4}})\s*[.\-/년]\s*)?(\d{{1,2}})\s*[.\-/월]\s*(\d{{1,2}})\s*일?",
+    rf"(?:(\d{{4}})\s*[.\-/년]\s*)?(\d{{1,2}})\s*[.\-/월]\s*(\d{{1,2}})\s*일?"
+    rf"{_TIME_OPT}",
     re.IGNORECASE,
 )
 
-# 일반 범위 (라벨 없이 두 날짜만 — 보조 신호)
+# 일반 범위 (라벨 없이 두 날짜만 — 보조 신호) + 시간 옵션
 _RE_BARE_RANGE = re.compile(
-    rf"{_DATE}\s*[~∼\-––]\s*(?:(\d{{4}})\s*[.\-/년]\s*)?(\d{{1,2}})\s*[.\-/월]\s*(\d{{1,2}})\s*일?"
+    rf"{_DATE}{_TIME_OPT}\s*[~∼\-––]\s*"
+    rf"(?:(\d{{4}})\s*[.\-/년]\s*)?(\d{{1,2}})\s*[.\-/월]\s*(\d{{1,2}})\s*일?"
+    rf"{_TIME_OPT}"
 )
 
 
