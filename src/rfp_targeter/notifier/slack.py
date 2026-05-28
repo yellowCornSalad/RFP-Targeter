@@ -44,15 +44,16 @@ log = logging.getLogger(__name__)
 # 대시보드 base URL (settings.yaml에 override 가능)
 DEFAULT_DASHBOARD_URL = "https://yellowcornsalad.github.io/RFP-Targeter/"
 
-# 영업시간 — 사용자 요청: 평일 09:00 ~ 18:00 KST 만 슬랙 알림
+# 영업시간 — 사용자 요청: 평일 09:00 ~ 21:00 KST 만 슬랙 알림
+# [2026-05-28] 18 → 21 확대 + notify_crawl_complete 도 영업시간 가드로 통일
 # 그 외 시간 들어온 신규 보안 공고는 alerted_at NULL 인 채로 누적 →
 # 다음 영업시간 첫 cron(평일 09시)에 묶음 발송
 DEFAULT_BIZ_HOUR_START = 9
-DEFAULT_BIZ_HOUR_END = 18  # 18시 정각 cron까지 포함, 19시부터 누적
+DEFAULT_BIZ_HOUR_END = 21  # 21시 정각 cron까지 포함, 22시부터 누적
 
 
 def _is_business_hours(now: datetime | None = None) -> bool:
-    """현재 시각이 평일 09:00 ~ 18:00 KST 인지.
+    """현재 시각이 평일 09:00 ~ 21:00 KST 인지.
 
     settings.yaml의 alert.business_hours.{start,end,weekdays_only} 로 오버라이드 가능.
     """
@@ -292,11 +293,12 @@ def _post_webhook(payload: dict) -> bool:
 
 
 def notify_crawl_complete(stats: list, dispatched_count: int = 0) -> bool:
-    """매 크롤 사이클 끝에 '크롤 완료' 알림 발사 — 24/7 무조건 발사.
+    """매 크롤 사이클 끝에 '크롤 완료' 알림 발사 — 평일 09~21 KST 영업시간만.
 
-    [2026-05-28] 사용자 요청: "주기적으로 크롤링 완료할 때마다 완료했다고 슬랙 올려"
-    → 영업시간 가드 제거. 새벽이든 주말이든 매 크롤마다 발사.
-    (단 dispatch_pending_alerts 의 신규 공고 알림은 영업시간 정책 유지 — 누적 묶음 발송.)
+    [2026-05-28 1차] 영업시간 가드 제거 (24/7 발사)
+    [2026-05-28 2차] 영업시간 가드 재도입 — dispatch_pending_alerts 와 동일 시간대로 통일.
+                    사용자 요청: 새벽/주말 슬랙 노이즈 차단, 평일 09~21만 발사.
+                    cron 은 24/7 계속 돌고, 비영업시간엔 슬랙만 침묵.
 
     stats: list of RunStats (source, new, updated, filtered_in)
     dispatched_count: 이번 사이클 dispatch_pending_alerts 가 발사한 슬랙 알림 건수
@@ -306,6 +308,12 @@ def notify_crawl_complete(stats: list, dispatched_count: int = 0) -> bool:
         return False
 
     now_kst = datetime.now(KST)
+    if not _is_business_hours(now_kst):
+        log.info(
+            "slack notify_crawl_complete: 영업시간 외(%s) — 발송 skip",
+            now_kst.strftime("%a %H:%M"),
+        )
+        return False
     header = f"🔄 *[크롤 완료]* {now_kst.strftime('%Y-%m-%d %H:%M KST')}"
 
     # source별 통계 한 줄로
@@ -329,7 +337,7 @@ def notify_crawl_complete(stats: list, dispatched_count: int = 0) -> bool:
 
 
 def dispatch_pending_alerts() -> bool:
-    """매 cron 끝에 호출 — 평일 09~18시 KST 면 alerted_at IS NULL 보안 공고 묶음 발송.
+    """매 cron 끝에 호출 — 평일 09~21시 KST 면 alerted_at IS NULL 보안 공고 묶음 발송.
 
     영업시간 외에는 발송 X (큐에 누적 그대로 둠).
     다음 영업일 09시 첫 cron에 어젯밤+오늘새벽 미발송 신규 모두 한 번에 전달.

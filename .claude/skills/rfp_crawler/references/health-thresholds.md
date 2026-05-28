@@ -14,9 +14,9 @@
 
 ## 영업시간 정의
 
-- 평일 (월~금) 09:00 ~ 18:00 KST
+- 평일 (월~금) 09:00 ~ 21:00 KST  [2026-05-28 18 → 21 확장]
 - 외 시간: 점검·알림 skip, 단 **만료 dismiss 는 24/7 실행**
-- 코드: `_is_business_hours(now)` — `now.weekday() < 5 and 9 <= now.hour <= 18`
+- 코드: `_is_business_hours(now)` — `now.weekday() < 5 and 9 <= now.hour <= 21`
 
 ## 임계값 조정 가이드
 
