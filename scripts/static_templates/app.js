@@ -633,13 +633,15 @@ function renderCard(it) {
     ...kws.map((k) => `<button type="button" class="chip" data-kw="${escapeHtml(k)}" title="이 키워드로 필터링">#${escapeHtml(k)}</button>`),
   ].join("");
 
-  // 메타 행 — 마감 D-N · 신청기간 · 첨부 N건
+  // 메타 행 — 마감 D-N (YYYY.MM.DD) · 신청기간 · 첨부 N건
   const metaBits = [];
+  const dDate = it.deadline_at ? it.deadline_at.slice(0, 10).replaceAll("-", ".") : "";
   if (dLeft != null) {
     let dColor = dLeft <= 7 ? "#c2410c" : (dLeft <= 30 ? "#a16207" : "var(--text-muted)");
-    metaBits.push(`마감 <b style="color:${dColor}">D-${dLeft}</b>`);
+    const dateSpan = dDate ? ` <span style="color:var(--text-muted);font-weight:normal">(${escapeHtml(dDate)})</span>` : "";
+    metaBits.push(`마감 <b style="color:${dColor}">D-${dLeft}</b>${dateSpan}`);
   } else if (it.deadline_at) {
-    metaBits.push(`마감 ${escapeHtml(it.deadline_at)}`);
+    metaBits.push(`마감 ${escapeHtml(dDate)}`);
   }
   // 신청기간 — application_start_date ~ deadline_at (둘 다 있으면)
   if (it.application_start_date && it.deadline_at && it.application_start_date !== it.posted_at) {
