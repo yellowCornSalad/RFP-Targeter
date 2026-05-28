@@ -535,7 +535,16 @@ def extract_budget_info(text: str | None) -> BudgetInfo | None:
     if candidates:
         # 본문 처음에 나오는 게 일반적으로 가장 권위 있음
         candidates.sort(key=lambda x: x[0])
-        return candidates[0][1]
+        best = candidates[0][1]
+        # ── fallback: period 추출 실패 시 body 전체에서 종료일 한 번 더 시도 ──
+        # [2026-05-28] KISA "선박 사이버 침해사고" 케이스: 사업기간 명시 있는데도
+        # _detect_period 의 wider 컨텍스트(±200자) 밖에 있어서 "기간 미명시" 박힘.
+        # body 전체에서 _find_end_date_in 으로 fallback.
+        if best.period_label == "기간 미명시":
+            fallback_end = _find_end_date_in(text)
+            if fallback_end:
+                best.period_label = f"~ {fallback_end}까지"
+        return best
 
     # ── B. 연도 동반 (prefix 없을 때) ────────────────────────────────
     for m in _PATTERN_YEAR_AMOUNT.finditer(text):
