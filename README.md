@@ -15,7 +15,7 @@
 | 크롤링 | GitHub Actions | 매시 정각 |
 | DB | Supabase PostgreSQL | 클라우드 상주 |
 | 대시보드 | GitHub Pages (정적 빌드) | 매시 자동 갱신 |
-| 슬랙 알림 | Incoming Webhook | 평일 09~18 KST |
+| 슬랙 알림 | Incoming Webhook | 평일 09~21 KST |
 | 회귀 경보 | Slack | 첨부율 임계값 미만 시 |
 
 ---
@@ -381,7 +381,7 @@ theme_fit 68 → +6 보너스
 | 🟡 **FAIR** | 60~79 | 검토 고려 | ❌ |
 | ⚪ **검토** | <60 | 우선순위 낮음 | ❌ |
 
-슬랙 알림 규칙: **총점 ≥ 80 AND budget_mw ≥ 100(1억) AND 활성 공고** (영업시간 09~18 KST 발사, 외 시간은 누적 → 다음 영업일 09시 묶음).
+슬랙 알림 규칙: **총점 ≥ 80 AND budget_mw ≥ 100(1억) AND 활성 공고** (영업시간 09~21 KST 발사, 외 시간은 누적 → 다음 영업일 09시 묶음).
 
 ---
 

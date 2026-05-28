@@ -112,14 +112,15 @@ auto_draft:
   enabled: true
   min_total_score: 70  # 100점 만점 기준
 
-# 슬랙 알림 (Incoming Webhook) — 평일 09~18 KST 영업시간 매시 cron 사이클 발사
+# 슬랙 알림 (Incoming Webhook) — 평일 09~21 KST 영업시간 매시 cron 사이클 발사
 # 영업시간 외 신규는 alerted_at=NULL로 누적 → 다음 영업일 09시 묶음 발송
+# [2026-05-28] 18 → 21 확대 + notify_crawl_complete 도 영업시간 가드로 통일
 alert:
   slack_enabled: true               # secrets.yaml의 slack.webhook_url 필요
   dashboard_url: "https://yellowcornsalad.github.io/RFP-Targeter/"  # GitHub Pages 정적 사이트
   business_hours:
     start: 9                        # 09시부터
-    end: 18                         # 18시까지 (포함)
+    end: 21                         # 21시까지 (포함) — 사용자 요청 2026-05-28
     weekdays_only: true             # 평일만
 
 # 회사 프로필 추출 대상

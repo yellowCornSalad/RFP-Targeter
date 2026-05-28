@@ -1,6 +1,6 @@
 """크롤러 헬스 모니터링 — rfp_crawler 스킬 + GitHub Actions monitor_crawler.yml 공유.
 
-주간 시간(평일 09~18 KST) 동안 매 30분 자동 실행. 비주간은 즉시 skip.
+주간 시간(평일 09~21 KST) 동안 매 30분 자동 실행. 비주간은 즉시 skip.
 
 검증:
   1. last fetch_log finished_at 이 70분 초과 안 됐는지 (1시간 주기 + 10분 여유)
@@ -49,9 +49,9 @@ CANCELLED_PATTERN_THRESHOLD = 2   # 최근 5 run 중 2건+ cancelled 시 알림
 
 
 def _is_business_hours(now: datetime | None = None) -> bool:
-    """평일 09~18 KST 영업시간인지."""
+    """평일 09~21 KST 영업시간인지. [2026-05-28] 18 → 21 확장 (슬랙 알림 시간대와 일치)."""
     now = now or datetime.now(KST)
-    return now.weekday() < 5 and 9 <= now.hour <= 18
+    return now.weekday() < 5 and 9 <= now.hour <= 21
 
 
 def _gh_recent_runs(limit: int = 5) -> list[dict]:
@@ -247,7 +247,7 @@ def main() -> int:
         print(f"⚠ dismiss 실패: {e}")
 
     if not args.force and not _is_business_hours(now_kst):
-        print("비영업시간 (평일 09~18 KST 외) — 점검 skip (dismiss 만 수행됨)")
+        print("비영업시간 (평일 09~21 KST 외) — 점검 skip (dismiss 만 수행됨)")
         return 0
 
     ok, issues = check()

@@ -1,6 +1,6 @@
 name: Monitor Crawler Health
 
-# 크롤러가 주간 시간(평일 09~18 KST = UTC 00~09) 매시 정상 작동하는지
+# 크롤러가 주간 시간(평일 09~21 KST = UTC 00~12) 매시 정상 작동하는지
 # 30분마다 자동 검증. 60분 초과 정지 또는 cancelled 패턴 감지 시 슬랙 알림.
 #
 # rfp_crawler 스킬과 같은 로직 (scripts/monitor_crawler.py) — 둘이 같은 동작 보장.

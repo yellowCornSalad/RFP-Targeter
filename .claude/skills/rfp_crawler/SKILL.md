@@ -1,6 +1,6 @@
 ---
 name: rfp_crawler
-description: RFP-Targeter 크롤러가 정상 작동 중인지 검증. 주간 시간(평일 09~18 KST) 안에 마지막 크롤이 1시간 이내였는지 확인. 비주간 시간은 점검 skip. GitHub Actions monitor_crawler.yml 이 30분마다 같은 로직으로 자동 실행 + 이상 시 슬랙 알림.
+description: RFP-Targeter 크롤러가 정상 작동 중인지 검증. 주간 시간(평일 09~21 KST) 안에 마지막 크롤이 1시간 이내였는지 확인. 비주간 시간은 점검 skip. GitHub Actions monitor_crawler.yml 이 30분마다 같은 로직으로 자동 실행 + 이상 시 슬랙 알림.
 ---
 
 # rfp_crawler — 크롤러 헬스 모니터링
@@ -11,7 +11,7 @@ RFP-Targeter는 GitHub Actions cron 으로 매시 정각 크롤링되어야 한�
 
 이 스킬은 다음을 검증한다:
 
-1. **주간 시간 (평일 09~18 KST)** 에 한해 검증 (외 시간은 cron 안 돌아도 정상)
+1. **주간 시간 (평일 09~21 KST)** 에 한해 검증 (외 시간은 cron 안 돌아도 정상)
 2. **마지막 크롤 시각** (`fetch_log` 의 가장 최근 `finished_at`) 이 1시간 이내인지
 3. **GitHub Actions crawl.yml** 최근 5건 conclusion 에 `cancelled` / `failure` 가 있는지
 4. **활성 보안 공고 score NULL** 발생 여부 (안전망 효과 확인)
@@ -28,7 +28,7 @@ RFP-Targeter는 GitHub Actions cron 으로 매시 정각 크롤링되어야 한�
 
 ### 자동 실행 (GitHub Actions)
 
-`.github/workflows/monitor_crawler.yml` 이 평일 09~18 KST (UTC 0~9시) 매 30분 cron 으로 발화. 이상 발견 시 슬랙 webhook 으로 알림 발사. 사용자 PC OFF 와 무관, 365일 작동.
+`.github/workflows/monitor_crawler.yml` 이 평일 09~21 KST (UTC 0~12시) 매 30분 cron 으로 발화. 이상 발견 시 슬랙 webhook 으로 알림 발사. 사용자 PC OFF 와 무관, 365일 작동.
 
 ## 점검 절차 (6단계)
 
@@ -39,9 +39,9 @@ UPDATE announcement SET is_dismissed = TRUE
     AND deadline_at < CURRENT_DATE::text
 # is_dismissed=FALSE 만 슬랙·UI 조회 → 자동 제외. DB row 는 보존 (회고용).
 
-# 1. 현재 시각 평일 09~18 KST 인지
+# 1. 현재 시각 평일 09~21 KST 인지
 now = datetime.now(ZoneInfo("Asia/Seoul"))
-is_business = now.weekday() < 5 and 9 <= now.hour <= 18
+is_business = now.weekday() < 5 and 9 <= now.hour <= 21
 if not is_business:
     return "skip — 비주간 시간"
 
