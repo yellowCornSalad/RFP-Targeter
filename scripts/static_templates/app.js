@@ -583,9 +583,11 @@ function gradeOf(total) {
 }
 
 function budgetText(mw) {
+  // budget_mw 는 백만원 단위 (1억 = 100). [2026-05-29 버그픽스] /1000 → /100.
+  // (10억을 1억으로 잘못 표기하던 문제 + 카드 라벨(/100)·필터(>=100)와 단위 통일)
   if (mw == null || mw <= 0) return null;
-  if (mw >= 1000) {
-    const eok = mw / 1000;
+  if (mw >= 100) {
+    const eok = mw / 100;
     const s = (eok === Math.floor(eok)) ? `${eok}` : eok.toFixed(1).replace(/\.0$/, "");
     return `${s}억`;
   }
