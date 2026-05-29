@@ -58,6 +58,22 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e .
 
+      - name: Restore profile.yaml from secret (회사 프로필)
+        # ⚠️ 이 단계 없으면 build_static.py 가 config/profile.example.yaml 로 폴백되어
+        # data.json 의 portfolio 한글이 mojibake (cp949↔utf-8 깨짐) 로 들어가
+        # 카드 상세의 "회사 매칭 강점" 이 모든 공고에서 0건 매칭됨.
+        # [2026-05-29] crawl.yml 의 동일 단계 미러링 — 동일 PROFILE_YAML_B64 secret 사용.
+        env:
+          PROFILE_YAML_B64: ${{ secrets.PROFILE_YAML_B64 }}
+        run: |
+          if [ -n "$PROFILE_YAML_B64" ]; then
+            mkdir -p config
+            echo "$PROFILE_YAML_B64" | base64 -d > config/profile.yaml
+            echo "✅ profile.yaml restored from secret ($(wc -l < config/profile.yaml) lines)"
+          else
+            echo "⚠️ PROFILE_YAML_B64 secret 미설정 — profile.example.yaml로 폴백 (강점 매칭 0건 예상)"
+          fi
+
       - name: Build static site
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
