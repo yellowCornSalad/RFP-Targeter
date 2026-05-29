@@ -220,6 +220,10 @@ def fetch_data() -> dict:
                    LEFT JOIN score s ON s.announcement_id = a.id
                    WHERE a.is_security = TRUE AND a.is_dismissed = FALSE
                      AND a.source IN ('iitp','kisa','krit','nipa','mss','koica')
+                     -- [2026-05-29 사용자 결정] KRIT 은 구조적으로 본문 접근이 안 돼서
+                     -- (Nexacro popup) 점수 천장이 50점대 → 70+ 만 대시보드 노출.
+                     -- 다른 소스는 영향 없음. 슬랙 신규 알림(80+ AND 1억+) 은 별도 변경 무.
+                     AND NOT (a.source = 'krit' AND COALESCE(s.total_score, 0) < 70)
                    ORDER BY a.posted_at DESC NULLS LAST,
                             s.total_score DESC NULLS LAST"""
             )

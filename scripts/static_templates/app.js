@@ -100,9 +100,10 @@ function renderAgencyGrid() {
         label: SOURCE_LABELS[src],
         total: total,
         newN: DATA.today_new_by_src[src] || 0,
-        // KRIT 는 국방 R&D 게시판 — 어댑터 정상이지만 보안 필터 통과 0건 흔함
+        // KRIT 는 국방 R&D — 구조적으로 본문(Nexacro popup) 못 받아 점수 천장 50대.
+        // [2026-05-29 사용자 정책] KRIT 단독 70+ 만 노출. 0이면 "70+ 0건" 라벨.
         status: total === 0
-          ? (src === "krit" ? "필터 통과 0" : "수집 대기")
+          ? (src === "krit" ? "70점+ 0건" : "수집 대기")
           : "정상",
         isActive: filters.source === src,
         isAll: false,
