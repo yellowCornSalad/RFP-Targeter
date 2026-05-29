@@ -1,169 +1,222 @@
-"""KRIT (국방기술진흥연구소) 핵심기술 과제공고 크롤러.
+"""KRIT (국방기술진흥연구소) 과제관리시스템 PMS 크롤러.
 
-소스: DTiMS 열린정보마당 게시판
-- 목록: https://dtims.krit.re.kr/vps/OINF_CtPrjNotiList.do?pageIndex={n}
-- 정적 JSP 테이블 — BeautifulSoup으로 파싱 가능 (SPA 아님)
-- robots.txt: /adm*/만 차단, 게시판 허용 (단 보수적 delay 권장)
-- data.go.kr 공식 API 없음 — HTML 크롤링이 유일 경로
+소스: pms.krit.re.kr 의 Nexacro SPA 홈 캐러셀.
 
-회사 관점: 국방 사이버보안 / 군용 AI / 민군겸용 기술 과제가 간헐적으로 올라옴.
-직접 매칭은 KISA·IITP보단 약하지만 키워드 보안필터 통과분만 자동 채택.
+배경 (2026-05-29):
+- 이전 어댑터는 dtims.krit.re.kr/vps/OINF_CtPrjNotiList.do (정적 HTML 게시판)
+- dtims 사이트는 2024년 1월 이후 갱신 정지 — 모든 공번이 24-XXX
+- 현재 활성 공고는 pms.krit.re.kr (Nexacro SPA) 에 게재
+- pms 는 Nexacro 자체 transaction 프로토콜 사용 → 일반 HTTP 크롤링 불가
+- Playwright headless 로 SPA 실행 후 DOM 추출 방식 채택
+
+DOM 구조 (probe 결과):
+  .portal_div_project              ← 카드 컨테이너
+    .portal_sta_projCore           ← 카테고리 (핵심기술/방산진흥/전력지원)
+    .portal_sta_projTitle.pointer  ← 제목 (클릭 가능)
+    .portal_sta_projDate           ← "마감일 YYYY-MM-DD"
+    .portal_sta_projDday           ← "D-N"
+  추가 Static 텍스트:              ← 공고진행/접수중/접수예정, 과제공고/과제기획
+
+캐러셀 페이지 5개 (01/05), 각 페이지 4건 → 총 20건 최대.
+
+이전 dtims 어댑터는 `krit_dtims.py` 로 백업됨 (참고용, 비활성).
 """
 from __future__ import annotations
 
 import logging
 import re
 from typing import Iterator
-from urllib.parse import urljoin
-
-from bs4 import BeautifulSoup
 
 from rfp_targeter.crawlers.base import BaseCrawler
 from rfp_targeter.db.models import Announcement
 
 log = logging.getLogger(__name__)
 
-# DTiMS 게시판 (KRIT 메인 도메인이 아닌 서브도메인)
-LIST_URL = "https://dtims.krit.re.kr/vps/OINF_CtPrjNotiList.do"
+LIST_URL = "https://pms.krit.re.kr/kritpmsi/nxui/kritpms/index.jsp"
+
+# Playwright 가 cron 환경에서 안정적으로 작동하려면 chromium 설치 필요.
+# crawl.yml 에 `python -m playwright install chromium --with-deps` 단계 추가됨.
+PAGE_INIT_WAIT_MS = 5000        # Nexacro init 대기 (XML 로드 + 데이터셋 채우기)
+PAGE_TRANSITION_WAIT_MS = 1500  # 캐러셀 next 클릭 후 데이터 갱신 대기
+MAX_CAROUSEL_PAGES = 5          # 사이트 캐러셀이 최대 5페이지
+
+
+# DOM 에서 카드 정보 일괄 추출 — JS 한 번에 실행
+_EXTRACT_CARDS_JS = """
+() => {
+    const cards = document.querySelectorAll(".portal_div_project");
+    const results = [];
+    for (const card of cards) {
+        // 캐러셀에서 현재 보이는 카드만 (visibility 확인)
+        const cs = window.getComputedStyle(card);
+        if (cs.display === "none" || cs.visibility === "hidden") continue;
+
+        const titleEl = card.querySelector(".portal_sta_projTitle");
+        const catEl = card.querySelector(".portal_sta_projCore");
+        const dateEl = card.querySelector(".portal_sta_projDate");
+        const ddayEl = card.querySelector(".portal_sta_projDday");
+
+        // 카드 안의 모든 Static 텍스트 (공고진행/접수중/과제공고 등 배지)
+        const badges = [];
+        for (const s of card.querySelectorAll(".Static")) {
+            const t = (s.innerText || "").trim();
+            if (t && t.length < 20) badges.push(t);
+        }
+
+        results.push({
+            cardId: card.id || "",
+            title: titleEl ? titleEl.innerText.trim() : "",
+            category: catEl ? catEl.innerText.trim() : "",
+            date: dateEl ? dateEl.innerText.trim() : "",
+            dday: ddayEl ? ddayEl.innerText.trim() : "",
+            badges: badges,
+        });
+    }
+    return results;
+}
+"""
 
 
 class KRITCrawler(BaseCrawler):
+    """KRIT PMS 캐러셀 크롤러 — Playwright headless 기반."""
+
     source = "krit"
     display_name = "KRIT"
 
     def list_announcements(self) -> Iterator[Announcement]:
-        rows_per_page = 10
-        max_pages = max(1, (self.max_per_source + rows_per_page - 1) // rows_per_page)
+        try:
+            from playwright.sync_api import sync_playwright
+        except ImportError:
+            log.error(
+                "krit_pms: playwright 미설치 — `pip install playwright && "
+                "python -m playwright install chromium --with-deps` 필요"
+            )
+            return
+
+        seen_titles: set[str] = set()
         seen = 0
 
-        for page in range(1, max_pages + 1):
-            url = f"{LIST_URL}?pageIndex={page}"
+        try:
+            with sync_playwright() as p:
+                browser = p.chromium.launch()
+                page = browser.new_page(
+                    viewport={"width": 1280, "height": 900},
+                    locale="ko-KR",
+                )
+                page.goto(LIST_URL, wait_until="domcontentloaded")
+                page.wait_for_timeout(PAGE_INIT_WAIT_MS)
+
+                # 5페이지 캐러셀 순회
+                for page_idx in range(MAX_CAROUSEL_PAGES):
+                    try:
+                        cards = page.evaluate(_EXTRACT_CARDS_JS)
+                    except Exception as e:
+                        log.warning("krit_pms: page %d evaluate fail: %s", page_idx, e)
+                        break
+
+                    for c in cards:
+                        title = (c.get("title") or "").strip()
+                        if not title or title in seen_titles:
+                            continue
+                        seen_titles.add(title)
+
+                        a = self._make_announcement(c)
+                        if a is None:
+                            continue
+                        yield a
+                        seen += 1
+                        if seen >= self.max_per_source:
+                            browser.close()
+                            log.info("krit_pms: %d건 수집 (max 도달)", seen)
+                            return
+
+                    # 다음 페이지로
+                    if page_idx < MAX_CAROUSEL_PAGES - 1:
+                        if not self._click_next(page):
+                            log.info("krit_pms: 다음 버튼 없음/실패 — page %d 에서 중단", page_idx)
+                            break
+                        page.wait_for_timeout(PAGE_TRANSITION_WAIT_MS)
+
+                browser.close()
+        except Exception as e:
+            log.exception("krit_pms: Playwright 실행 실패: %s", e)
+            return
+
+        log.info("krit_pms: %d건 수집 (페이지 %d/%d)", seen, page_idx + 1, MAX_CAROUSEL_PAGES)
+
+    def _click_next(self, page) -> bool:
+        """캐러셀의 next(▶) 버튼 클릭. 성공 시 True."""
+        # Nexacro 의 화살표 버튼 — Static 텍스트로 "▶" 또는 별도 button 클래스
+        # 시도 1: text=▶ 으로 찾기
+        try:
+            arrow = page.query_selector("text=▶")
+            if arrow:
+                arrow.click()
+                return True
+        except Exception:
+            pass
+        # 시도 2: portal_btn_arrowR 류 클래스 (KRIT 사이트 추정)
+        for sel in [
+            ".portal_btn_arrowR",
+            ".portal_btn_next",
+            "[id*='btnNext']",
+            "[id*='btnArrowR']",
+        ]:
             try:
-                r = self.fetch(url)
-            except Exception as e:
-                log.warning("krit page %d fetch fail: %s", page, e)
-                break
+                btn = page.query_selector(sel)
+                if btn:
+                    btn.click()
+                    return True
+            except Exception:
+                continue
+        return False
 
-            soup = BeautifulSoup(r.text, "lxml")
-            # DTiMS는 게시판 tbody tr 패턴. 헤더 분리 안 되어있을 수 있어 fallback
-            rows = soup.select("table tbody tr")
-            if not rows:
-                rows = soup.select("table tr")[1:]  # 첫 행이 헤더일 때
-            if not rows:
-                log.info("krit: 더 이상 행 없음 (page %d)", page)
-                break
-
-            page_yielded = 0
-            for tr in rows:
-                a = self._parse_row(tr)
-                if a is None:
-                    continue
-                yield a
-                seen += 1
-                page_yielded += 1
-                if seen >= self.max_per_source:
-                    break
-
-            if page_yielded == 0:
-                # 빈 페이지 = 마지막 페이지 초과
-                break
-            if seen >= self.max_per_source:
-                break
-
-        log.info("krit: %d건 수집", seen)
-
-    def _parse_row(self, tr) -> Announcement | None:
-        """DTiMS 실제 row 구조 (헤더 NO 컬럼은 빠져있음, 7 cells):
-        [0] 공고현황 (마감/접수중)
-        [1] 공고번호 (YY-NNN)
-        [2] 공고명 ← 텍스트만 (a 태그 없음)
-        [3] 접수일 ("접수일 YYYY/MM/DD")
-        [4] 마감일 ("마감일 YYYY/MM/DD")
-        [5] D-day
-        [6] 결과 — "보기" 링크 (vpsFileView.do?attcIden=...)
-        """
-        cells = tr.find_all("td")
-        if len(cells) < 7:
+    def _make_announcement(self, card: dict) -> Announcement | None:
+        title = (card.get("title") or "").strip()
+        if not title:
             return None
 
-        # 공고명 — idx=2 셀의 텍스트
-        title = cells[2].get_text(" ", strip=True)
-        if not title or title in ("등록된 정보가 없습니다.", "-"):
-            return None
+        # 마감일 추출 (예: "마감일 2026-05-29")
+        deadline_at = None
+        date_text = card.get("date") or ""
+        m = re.search(r"(\d{4})-(\d{1,2})-(\d{1,2})", date_text)
+        if m:
+            deadline_at = f"{m.group(1)}-{int(m.group(2)):02d}-{int(m.group(3)):02d}"
 
-        # 상세 URL — 마지막 셀(결과 "보기")의 링크
-        detail_url = None
-        result_link = cells[-1].find("a", href=True)
-        if result_link:
-            href = result_link.get("href", "")
-            if href and not href.startswith("javascript:"):
-                detail_url = urljoin(LIST_URL, href)
+        # 카테고리 / 배지 정보를 summary 에 보존
+        category = (card.get("category") or "").strip()
+        badges = [b for b in (card.get("badges") or []) if b]
+        summary_parts = []
+        if category:
+            summary_parts.append(f"[{category}]")
+        # 배지 중 의미 있는 것만 (제목·날짜·D-day 중복 제외)
+        for b in badges:
+            if b in (title, date_text, card.get("dday", "")):
+                continue
+            if b.startswith("마감일") or b == category:
+                continue
+            if b in summary_parts:
+                continue
+            summary_parts.append(b)
+        summary = " · ".join(summary_parts) if summary_parts else None
 
-        # 공고번호 — idx=1
-        notice_no = cells[1].get_text(strip=True)
-
-        # 접수일/마감일 — "접수일 YYYY/MM/DD" 형식 (prefix 무시하고 정규식)
-        def _parse_date(text: str) -> str | None:
-            m = re.search(r"(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})", text)
-            if m:
-                return f"{m.group(1)}-{int(m.group(2)):02d}-{int(m.group(3)):02d}"
-            return None
-
-        posted_at = _parse_date(cells[3].get_text(strip=True))
-        deadline_at = _parse_date(cells[4].get_text(strip=True))
-
-        # external_id 우선: 공고번호. fallback: href attcIden, 최후 제목 hash
-        external_id = notice_no if re.fullmatch(r"\d{2}-\d{3,4}", notice_no or "") else None
-        if not external_id and detail_url:
-            m = re.search(r"(?:attcIden|prjId|notiId)=(\w+)", detail_url)
-            if m:
-                external_id = m.group(1)
-        if not external_id:
-            external_id = f"krit-{abs(hash(title)) % 10**10}"
+        # external_id — 제목 해시 (KRIT PMS 는 공고번호 노출 안 함)
+        # 안정성: 제목 변경 시 새 external_id 가 되어 신규로 인식됨 (수정 공고는 별도 row)
+        external_id = f"krit-pms-{abs(hash(title)) % 10**10}"
 
         return Announcement(
             source=self.source,
             external_id=external_id,
             title=title,
-            url=detail_url or LIST_URL,
-            agency="국방기술진흥연구소 (DTiMS)",
-            posted_at=posted_at,
+            url=LIST_URL,  # 상세 페이지는 Nexacro SPA 라 직접 URL 추출 어려움 — 홈으로 fallback
+            agency="국방기술진흥연구소",
+            posted_at=None,  # PMS 홈 카드엔 게시일 미노출
             deadline_at=deadline_at,
-            summary=None,
+            summary=summary,
         )
 
     def fetch_detail(self, a: Announcement) -> Announcement:
-        """상세 페이지에서 본문·사업비·기간 보강. 실패 시 그대로 반환."""
-        if not a.url or "dtims.krit.re.kr" not in a.url:
-            return a
-        try:
-            r = self.fetch(a.url)
-        except Exception as e:
-            log.debug("krit detail fetch fail %s: %s", a.external_id, e)
-            return a
-
-        soup = BeautifulSoup(r.text, "lxml")
-        for tag in soup(["script", "style", "noscript", "header", "footer", "nav"]):
-            tag.decompose()
-        main = soup.select_one("div.contents") or soup.select_one("article") or soup.body
-        body = re.sub(r"\s+", " ", main.get_text(" ") if main else "").strip()[:10000]
-        a.body = body
-
-        # 마감일 — list에서 못 잡았으면 본문에서 재시도
-        if not a.deadline_at:
-            dm = re.search(
-                r"(?:접수\s*마감|신청\s*마감|마감일)[^\d]{0,20}(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})",
-                body,
-            )
-            if dm:
-                a.deadline_at = f"{dm.group(1)}-{int(dm.group(2)):02d}-{int(dm.group(3)):02d}"
-
-        # 사업비·기간 (공통 유틸)
-        from rfp_targeter.attachments.budget_extract import extract_budget_mw, extract_duration_months
-        mw = extract_budget_mw(body)
-        if mw is not None:
-            a.budget_mw = mw
-        dm2 = extract_duration_months(body)
-        if dm2 is not None:
-            a.duration_months = dm2
+        """KRIT PMS 는 상세 페이지가 Nexacro popup/form 이라 직접 fetch 불가.
+        list 단계의 정보만 사용. 본문 없음 → 보안 필터는 제목만으로 판단.
+        """
         return a

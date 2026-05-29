@@ -57,10 +57,13 @@ sources:
     base_url: "https://www.sw.or.kr"
     max_per_source: 50
 
-  # KRIT — 국방기술진흥연구소 핵심기술 과제공고 (DTiMS 게시판)
+  # KRIT — 국방기술진흥연구소 과제관리시스템 PMS (Nexacro SPA)
+  # [2026-05-29] dtims.krit.re.kr (정적 HTML, 2024년 정지) → pms.krit.re.kr (Nexacro SPA, 활성)
+  # Playwright headless chromium 으로 SPA 실행 후 DOM 추출.
+  # 캐러셀 홈 페이지 1 (4건). 후속: next 버튼 클릭으로 5페이지 확장 가능.
   krit:
     enabled: true
-    base_url: "https://dtims.krit.re.kr"
+    base_url: "https://pms.krit.re.kr"
     max_per_source: 30
 
   # KOICA — 한국국제협력단 ODA 조달정보 (data.go.kr 3039908 OpenAPI)
