@@ -28,6 +28,7 @@ DOM 구조 (probe 결과):
 """
 from __future__ import annotations
 
+import hashlib
 import logging
 import re
 from typing import Iterator
@@ -265,9 +266,13 @@ class KRITCrawler(BaseCrawler):
             summary_parts.append(b)
         summary = " · ".join(summary_parts) if summary_parts else None
 
-        # external_id — 제목 해시 (KRIT PMS 는 공고번호 노출 안 함)
-        # 안정성: 제목 변경 시 새 external_id 가 되어 신규로 인식됨 (수정 공고는 별도 row)
-        external_id = f"krit-pms-{abs(hash(title)) % 10**10}"
+        # external_id — 제목 기반 결정적 해시 (KRIT PMS 는 공고번호 노출 안 함)
+        # ⚠️ 반드시 hashlib 사용. 파이썬 builtin hash() 는 PYTHONHASHSEED 로
+        #    프로세스마다 값이 달라져, 같은 제목인데도 매 크롤 새 external_id →
+        #    Announcement.id(=source:external_id) 변경 → dedup 실패 → 중복 행 누적.
+        #    hashlib(SHA-1)은 결정적 → 같은 제목 = 항상 같은 id = 정상 dedup.
+        digest = hashlib.sha1(title.encode("utf-8")).hexdigest()[:12]
+        external_id = f"krit-pms-{digest}"
 
         return Announcement(
             source=self.source,
