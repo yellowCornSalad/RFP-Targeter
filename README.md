@@ -2,9 +2,11 @@
 
 **엔키화이트햇** 공공 R&D 공고 자동 탐색 시스템 — IITP·KISA·KOSA·KRIT·NIPA·MSS·KOICA 7개 기관 매시간 폴링 → 보안 키워드 매칭 → 5축 점수 → 정적 사이트 + 슬랙 알림.
 
-🌐 **Live**: [https://yellowcornsalad.github.io/RFP-Targeter/](https://yellowcornsalad.github.io/RFP-Targeter/) (v1.0)
+🌐 **Live**: [https://yellowcornsalad.github.io/RFP-Targeter/](https://yellowcornsalad.github.io/RFP-Targeter/) (v1.0, 비밀번호 보호)
 
 ![RFP-Targeter Dashboard](docs/screenshots/dashboard.png)
+
+> 메인 대시보드 — 보안 통과 공고를 7개 발주기관별 카드 + KPI strip (TOP/GOOD/FAIR) + 5축 점수로 시각화. 매시 정각 자동 갱신. 재캡쳐: `python scripts/capture_dashboard.py`
 
 ---
 
