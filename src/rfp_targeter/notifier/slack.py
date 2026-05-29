@@ -93,10 +93,12 @@ def _agency_label(source: str, agency: str | None) -> str:
 
 
 def _budget_text(budget_mw: int | None) -> str:
+    # budget_mw 는 백만원 단위 (1억 = 100). 1억 이상은 '억', 미만은 '백만원'.
+    # [2026-05-29 버그픽스] 기존 /1000 → /100. (10억을 1억으로 잘못 표기하던 문제)
     if budget_mw is None or budget_mw <= 0:
         return "예산 정보 없음"
-    if budget_mw >= 1000:
-        eok = budget_mw / 1000
+    if budget_mw >= 100:
+        eok = budget_mw / 100
         return f"💰 {eok:.1f}억" if eok != int(eok) else f"💰 {int(eok)}억"
     return f"💰 {budget_mw}백만원"
 
@@ -305,6 +307,13 @@ def notify_crawl_complete(stats: list, dispatched_count: int = 0) -> bool:
     """
     cfg = (settings().get("alert") or {})
     if not cfg.get("slack_enabled", False):
+        return False
+
+    # [2026-05-29 사용자 요청] 크롤 완료 메시지 비활성화 (기본 OFF).
+    # 신규 공고 알림(dispatch_pending_alerts, 80+ AND 1억+)만 유지하고
+    # 매 사이클 완료 요약 노이즈는 제거. settings.alert.crawl_complete_enabled=true 로 재활성.
+    if not cfg.get("crawl_complete_enabled", False):
+        log.info("slack notify_crawl_complete: 비활성화됨 (alert.crawl_complete_enabled=false) — skip")
         return False
 
     now_kst = datetime.now(KST)

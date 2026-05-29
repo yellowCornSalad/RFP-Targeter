@@ -121,6 +121,8 @@ auto_draft:
 alert:
   slack_enabled: true               # secrets.yaml의 slack.webhook_url 필요
   dashboard_url: "https://yellowcornsalad.github.io/RFP-Targeter/"  # GitHub Pages 정적 사이트
+  # [2026-05-29 사용자 요청] 크롤 완료 메시지 OFF. 신규 공고 알림(80+ AND 1억+)만 유지.
+  crawl_complete_enabled: false     # 매 사이클 "크롤 완료" 요약 메시지 발송 여부
   business_hours:
     start: 9                        # 09시부터
     end: 21                         # 21시까지 (포함) — 사용자 요청 2026-05-28
