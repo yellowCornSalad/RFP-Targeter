@@ -45,6 +45,18 @@ PAGE_INIT_WAIT_MS = 5000        # Nexacro init 대기 (XML 로드 + 데이터셋
 PAGE_TRANSITION_WAIT_MS = 1500  # 캐러셀 next 클릭 후 데이터 갱신 대기
 MAX_CAROUSEL_PAGES = 10         # 안전 상한. 실제 종료는 page indicator(cur>=total)로 판단 (현재 5페이지/17건)
 
+# KRIT(국방기관) 전용 군용 제외 — [사용자 결정 2026-05-29]
+# 배경: 공용 키워드 필터(must_any)가 '시스템/지원사업/공모/플랫폼' 같은 일반어로
+#       순수 무기 공고까지 통과시킴. KRIT 는 국방기관이라 이 오탐이 특히 심함.
+# 방침: "군용말고 사이버/AI/자동화는 확실히 포함" → 무기 고유어만 제목 기준 제외.
+#       AI/사이버/SW(지휘통제·전술통신·자율전투 AI 등)는 무기 고유어가 없어 보존됨.
+# 범위: KRIT 크롤러 내부에서만 적용 → 다른 6개 소스의 키워드 시스템 영향 0.
+_MILITARY_EXCLUDE = (
+    "탄약", "지뢰", "유도무기", "극초음속",
+    "무기체계", "부품국산화", "터빈",
+    "개방형표준화", "moss",
+)
+
 
 # DOM 에서 카드 정보 일괄 추출 — JS 한 번에 실행
 _EXTRACT_CARDS_JS = """
@@ -220,6 +232,14 @@ class KRITCrawler(BaseCrawler):
         title = (card.get("title") or "").strip()
         if not title:
             return None
+
+        # KRIT 전용 군용 제외 — 무기 고유어 포함 제목은 수집 단계에서 탈락
+        # (공용 키워드 필터의 일반어 오탐 보정. AI/사이버/SW 는 무기어 없어 통과.)
+        norm = title.replace(" ", "").lower()
+        for term in _MILITARY_EXCLUDE:
+            if term in norm:
+                log.debug("krit_pms: 군용 제외 — %s (term=%s)", title, term)
+                return None
 
         # 마감일 추출 (예: "마감일 2026-05-29")
         deadline_at = None
