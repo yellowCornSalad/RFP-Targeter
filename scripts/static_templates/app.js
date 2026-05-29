@@ -941,6 +941,43 @@ function renderStrengths(it) {
     });
   }
 
+  // 9. Fallback — matched_keywords (보안 필터 통과 키워드) 를 회사 라인업으로 자동 매핑
+  // [2026-05-29] profile.yaml core_keywords 가 회사-specific 영문 약어(OFFen, ASM, AI DAST)라
+  // 정부 RFP 본문(일반 한글 용어)에 거의 매칭 안 됨. matched_keywords 폴백으로 보완.
+  if (strengths.length === 0 && Array.isArray(it.matched_keywords) && it.matched_keywords.length > 0) {
+    const mkBlob = it.matched_keywords.filter(k => typeof k === "string").join(" ");
+    const lineupMap = [
+      { re: /취약점|진단|점검|결함/, name: "OFFen AI DAST", icon: "🛡", reason: "LLM 기반 자율 공격형 웹 취약점 검증 (KISA 2026 선정)" },
+      { re: /침투|모의해킹|레드.*팀|red.*team/i, name: "OFFen RED + AI Hacker", icon: "🛡", reason: "침투테스트 자동화 — 외부 검증 + 내부 확산" },
+      { re: /공격표면|asm|attack.*surface|외부.*노출|자산.*식별|shadow.*it/i, name: "OFFen ASM", icon: "🛡", reason: "외부 공격표면 관리 + Shadow IT 식별" },
+      { re: /ai.*보안|인공지능.*보안|llm|머신러닝|딥러닝|자율/i, name: "OFFen AI Hacker", icon: "🛡", reason: "AI 기반 오펜시브 보안 (KISA 2026 신기술 선정)" },
+      { re: /위협.*인텔|위협.*정보|threat.*intel|ttp|국가배후|apt/i, name: "23.8만 건 해커 지식 DB", icon: "📊", reason: "10년 누적 + 자체 생성 55% NDA 실전" },
+      { re: /자동화|automation|orchestration|soar/i, name: "OFFen 3종 자동화 플랫폼", icon: "🛡", reason: "단일 platform — 외부 식별 → 침투 검증 → 내부 확산" },
+      { re: /보안.*성숙도|정량.*평가|보안.*태세|측정/, name: "보안 성숙도 정량 평가 체계", icon: "📐", reason: "TTAK.OT-12.0001 (조직 보안 정량 측정) 표준 기반" },
+      { re: /표준|standard|ttak|iso.*iec|itu/i, name: "표준화 활동 28건", icon: "📜", reason: "국내 21 + 국제 7 (STIX, CVSS, ITU-T, QKD)" },
+      { re: /정보보호|사이버.*보안|cyber.*security/i, name: "KISA 2026 정보보호 신기술 선정", icon: "🏆", reason: "120억 / 50개 기업 / 18개 과제 中 1 — 정부 공식 검증" },
+      { re: /산학|컨소시엄|공동.*연구|대학|학계|kaist|연구소/i, name: "KAIST 공동 R&D 등 컨소시엄 5곳", icon: "🏛", reason: "공동 등록 특허 보유 (네트워크 공격 트래픽 생성, 2024)" },
+      { re: /pqc|양자|qkd|post.*quantum/i, name: "양자 보안 인접 표준 참여", icon: "🔐", reason: "TTAK.KO-10.1256 (QKD) 등 표준화 활동" },
+      { re: /edr|endpoint|엔드포인트/i, name: "엔드포인트 공격 탐지 특허", icon: "📜", reason: "등록 특허 16건 中 EDR 영역" },
+      { re: /펌웨어|firmware|임베디드|ot.*보안|iot/i, name: "펌웨어 변조 탐지 특허", icon: "📜", reason: "임베디드·OT 보안 특허" },
+      { re: /스마트.*교통|모빌리티|자율.*주행|차량/i, name: "스마트 교통 사이버보안 특허", icon: "📜", reason: "모빌리티 영역 IP" },
+      { re: /훈련|training|사이버.*방어|cyber.*range/i, name: "사이버 공방 훈련 플랫폼", icon: "🏛", reason: "KAIST 공동 R&D 결과물" },
+    ];
+    const seen = new Set();
+    for (const m of lineupMap) {
+      if (m.re.test(mkBlob) && !seen.has(m.name)) {
+        seen.add(m.name);
+        strengths.push({
+          icon: m.icon,
+          text: m.name,
+          reason: `매칭 키워드 기반 자동 추천 — ${m.reason}`,
+          weight: 55,
+        });
+        if (strengths.length >= 3) break;  // 폴백은 최대 3개
+      }
+    }
+  }
+
   if (strengths.length === 0) {
     return `
       <div class="strengths-empty">
