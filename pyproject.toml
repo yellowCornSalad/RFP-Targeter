@@ -20,6 +20,7 @@ dependencies = [
     "anthropic>=0.40",
     "pyhwp>=0.1b15",
     "psycopg[binary]>=3.2",
+    "playwright>=1.50",      # KRIT PMS Nexacro SPA 크롤링 + capture_dashboard
 ]
 
 [project.optional-dependencies]

@@ -33,6 +33,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e .
 
+      - name: Install Playwright chromium (KRIT PMS SPA 크롤링용)
+        # KRIT 가 Nexacro SPA (pms.krit.re.kr) 라 일반 HTTP 크롤링 불가.
+        # Playwright headless chromium 으로 SPA 실행 후 DOM 추출.
+        # --with-deps: Ubuntu 시스템 라이브러리도 설치 (libnss3, libxkbcommon 등)
+        run: |
+          python -m playwright install chromium --with-deps
+
       - name: Restore profile.yaml from secret (회사 프로필)
         env:
           PROFILE_YAML_B64: ${{ secrets.PROFILE_YAML_B64 }}
