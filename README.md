@@ -1,28 +1,84 @@
 # RFP-Targeter
 
-**엔키화이트햇** 공공 R&D 공고 자동 탐색 시스템 — IITP·KISA·KOSA·KRIT·NIPA·MSS·KOICA 7개 기관 매시간 폴링 → 보안 키워드 매칭 → 5축 점수 → 정적 사이트 + 슬랙 알림.
+**엔키화이트햇 · 공공 R&D 공고 자동 탐색 시스템** — 5개 정부기관 매시간 폴링 → 보안 키워드 매칭 → 5축 점수 → 대시보드 + 슬랙 알림.
 
-🌐 **Live**: [https://yellowcornsalad.github.io/RFP-Targeter/](https://yellowcornsalad.github.io/RFP-Targeter/) (v1.0, 비밀번호 보호)
+🌐 **Live**: https://yellowcornsalad.github.io/RFP-Targeter/ (v1.0, 비밀번호 보호)
 
 ![RFP-Targeter Dashboard](docs/screenshots/dashboard.png)
 
-> 메인 대시보드 — 보안 통과 공고를 7개 발주기관별 카드 + KPI strip (TOP/GOOD/FAIR) + 5축 점수로 시각화. 매시 정각 자동 갱신. 재캡쳐: `python scripts/capture_dashboard.py`
+> 보안 통과 공고를 발주기관별 카드 + 5축 점수로 시각화. 매시 정각 자동 갱신. 재캡쳐: `python scripts/capture_dashboard.py`
 
 ---
 
-## 인프라 (24/7, PC OFF 무관)
+## 🎯 한눈에 보기
+
+```
+매시 정각 ─┬─ 5개 기관 자동 폴링 ──→ 보안 키워드 250+ 1차 필터
+          │                              ↓
+          │                          5축 점수 산정 (회사 자산 매칭)
+          │                              ↓
+          ├─ Supabase DB 저장 ─────→ 대시보드 빌드 (GitHub Pages, 매시 :05)
+          └─ 슬랙 알림: 80+점 AND 예산 1억+ 신규만 (평일 09~21 KST)
+```
+
+- **무엇을**: 정부 R&D 공고 (IITP·KISA·NIPA·MSS·KRIT 5개 활성)
+- **누구를 위해**: 엔키화이트햇 (사이버보안 전문 중소기업, OFFen 라인업)
+- **어떻게 도움이 되나**: 회사 본업/자산과 가장 잘 맞는 공고를 자동으로 골라 점수순 정렬 → 영업·기획 시간 절약 + 누락 방지
+
+---
+
+## 📡 어디서 무엇을 가져오는가 + 회사 연관도
+
+각 기관이 **무엇을 발주하는지**, **어떻게 데이터를 받는지**, **회사와 어떤 면이 연관/도움 되는지** 한눈에:
+
+| 기관 | 정체성 | 데이터 수집 방식 | 회사 연관 / 활용 가능성 |
+|---|---|---|---|
+| **🛡 KISA** | 한국인터넷진흥원 — 정보보호 정책·기술·산업진흥 (과기정통부 산하) | `kisa.or.kr/403`(입찰공고) · `/408`(위탁과제) HTML 직접 크롤 (robots.txt 허용) | **★★★★★ 본업 직격** — 정보보호·사이버보안 R&D 발주의 핵심. 회사가 **KISA 2026 정보보호 신기술 사업화 50개 중 1로 선정** 이력 보유. |
+| **🔬 IITP** | 정보통신기획평가원 — 과기정통부 ICT R&D 기획/평가/관리 | `data.go.kr` OpenAPI **15074634** (공식). 본 사이트는 `robots.txt` 차단 → API가 유일 합법 경로. | **★★★★ ICT R&D 광역** — 정보보호 부서(`정보보호기획과` 등) 발주 + AI/SW R&D 다수. 회사 OFFen 라인업(AI DAST·PTaaS·ASM)과 매칭 영역 풍부. |
+| **🌐 NIPA** | 정보통신산업진흥원 — ICT 산업/SW/AI 진흥 | `nipa.kr/home/2-2`(사업공고) · `/2-3`(입찰공고) HTML 직접 크롤 (robots.txt 허용) | **★★★ AI·SW 인접** — AI 보안, 디지털 전환, SW 마이그레이션 등 본업 인접 영역. 컨소시엄 참여 기회 다수. |
+| **🏭 MSS** | 중소벤처기업부 — 중소·벤처 기업 정책/지원 | `data.go.kr` OpenAPI **15113297** + `mss.go.kr cbIdx=310` 보조 스크랩. 일 호출 한도 100회. | **★★★ 자격 매치** — 회사가 중소기업(2016 창업, 10년차)이라 신청 자격 만족. 일반 중소 R&D + 일부 사이버/디지털 사업. |
+| **🛩 KRIT** | 국방기술진흥연구소 — 방위사업청 산하 국방 R&D | `pms.krit.re.kr` Nexacro SPA — Playwright headless chromium 으로 DOM 추출 (Nexacro 자체 트랜잭션이라 일반 HTTP 크롤 불가) | **★ 대부분 무관** — 국방 R&D 영역으로 본업 부적합 + 구조상 본문 접근 불가로 점수 천장 50대. **점수 70+ 일 때만 대시보드 노출** 정책 적용 중. |
+
+> **비활성 보관** (코드는 유지, 필요 시 재활성): **KOSA**(영양가 부족 — 본문 빈약, 매칭률 ↓), **KOICA**(API 게이트웨이 사망), **NTIS**(IITP와 100% 중복), **G2B**(401 Unauthorized, 별도 키 신청 필요), **bizinfo**(SPA — Playwright 또는 NTIS 흡수 대기).
+
+---
+
+## 🔍 신호 처리: 보안 → 회사 → 점수
+
+```
+보안 키워드 250+ 1차 필터 (config/keywords.yaml)
+    ↓ (통과한 공고만 다음 단계로)
+회사 자산 매칭 (config/profile.yaml, OFFen 라인업·특허·표준 등)
+    ↓
+5축 점수 산정 (keyword 0.35 · budget 0.10 · eligibility 0.20 · competitor 0.20 · trl 0.15) + theme_fit 보너스
+    ↓
+등급: TOP(90+) / GOOD(80+) / FAIR(60+) / 조건부(60 미만)
+    ↓
+대시보드 전체 노출  +  슬랙 알림(80+ AND 예산 1억+ 만, 평일 09~21 KST)
+```
+
+자세한 키워드 목록·점수 공식·예시 검증은 아래 접기 박스에서 펼쳐서 확인.
+
+---
+
+<details>
+<summary><strong>⚙️ 인프라 (24/7 자동화) — 클릭해서 펼치기</strong></summary>
 
 | 컴포넌트 | 위치 | 주기 |
 |---|---|---|
-| 크롤링 | GitHub Actions | 매시 정각 |
+| 크롤링 | GitHub Actions `crawl.yml` + cron-job.org dispatch | 매시 정각 |
 | DB | Supabase PostgreSQL | 클라우드 상주 |
-| 대시보드 | GitHub Pages (정적 빌드) | 매시 자동 갱신 |
-| 슬랙 알림 | Incoming Webhook | 평일 09~21 KST |
-| 회귀 경보 | Slack | 첨부율 임계값 미만 시 |
+| 대시보드 빌드 | GitHub Pages (정적 빌드, v1.0 브랜치) | 매시 :05 자동 |
+| 모니터 | GitHub Actions `monitor_crawler.yml` (70분 정지 시 자동 dispatch) | 30분 (평일 09~21 KST) |
+| 슬랙 신규 알림 | Incoming Webhook | 80+점 AND 예산 1억+ 만, 평일 09~21 KST |
+| 슬랙 실패 경보 | Incoming Webhook | 소스 에러 1+ 발생 시 (평일 09~21 KST) |
 
----
+**3중 안전망**: cron-job.org(외부) + GitHub Schedule(자체) + monitor 자동 dispatch(70분 정지 시 마지막 안전망).
 
-## 빠른 시작
+</details>
+
+<details>
+<summary><strong>🚀 빠른 시작 (로컬 실행) — 클릭해서 펼치기</strong></summary>
 
 ```powershell
 # 0. 의존성
@@ -32,19 +88,24 @@ pip install -e .
 python scripts/init_profile.py
 # → config/profile.yaml 열어서 ??? 표시된 항목 채우기
 
-# 2. 크롤 1회 실행 (Mock 데이터로 파이프라인 검증)
+# 2. 크롤 1회 실행
 python scripts/run_once.py
 
-# 3. 대시보드
+# 3. 대시보드 (Streamlit, 로컬 디버그용)
 streamlit run src/rfp_targeter/dashboard.py
 
-# 4. 백그라운드 폴링 (별도 터미널)
-python -m rfp_targeter.scheduler
+# 4. 정적 사이트 빌드 (배포용)
+python scripts/build_static.py
 ```
+
+라이브 사이트는 v1.0 브랜치에서 자동 빌드되어 GitHub Pages로 서빙됩니다 (별도 PC 필요 없음).
+
+</details>
 
 ---
 
-## 디렉터리 구조
+<details>
+<summary><strong>📁 디렉터리 구조 + 핵심 모듈 — 클릭해서 펼치기</strong></summary>
 
 ```
 RFP-Targeter/
@@ -85,9 +146,14 @@ RFP-Targeter/
     └── iitp_retry.py          # IITP 단독 재시도
 ```
 
+
+
+</details>
+
 ---
 
-## 점수 산정 (5축, 각 0~100)
+<details>
+<summary><strong>💯 5축 점수 산정 상세 (각 0~100, 공식·예시·검증) — 클릭해서 펼치기</strong></summary>
 
 총점 = 5축 가중합(0.35·0.10·0.20·0.20·0.15) + **theme_fit 보너스** (최대 ±20)
 
@@ -385,9 +451,14 @@ theme_fit 68 → +6 보너스
 
 슬랙 알림 규칙: **총점 ≥ 80 AND budget_mw ≥ 100(1억) AND 활성 공고** (영업시간 09~21 KST 발사, 외 시간은 누적 → 다음 영업일 09시 묶음).
 
+
+
+</details>
+
 ---
 
-## 🔑 시스템이 사용하는 모든 키워드 + 수치 산출 흐름
+<details>
+<summary><strong>🔑 키워드 시스템 전체 (보안 250+ + 회사 자산) — 클릭해서 펼치기</strong></summary>
 
 점수가 만들어지기까지 시스템이 거치는 **3단계 키워드 매칭 파이프라인** + 각 단계에서 사용되는 키워드 전체 목록.
 
@@ -678,9 +749,16 @@ budget_mw 580 ≥ 100 ✓
 → 슬랙 알림 발사 ✅
 ```
 
----
+
+
+</details>
 
 ---
+
+> 📌 **참고**: 아래 두 섹션("크롤러 현황" + "기관별 데이터 출처")은 stale 정보(예: KRIT는 dtims→`pms.krit.re.kr` 전환됨, KOSA/KOICA 비활성, DB 카운트 변경 등)가 남아있어 상단 **"📡 어디서 무엇을 가져오는가 + 회사 연관도"** 표가 최신 출처입니다. 옛 정보는 보조 참조용으로 접어서 보존:
+
+<details>
+<summary><strong>🗄 (legacy) 크롤러 현황 + 기관별 데이터 출처 — 옛 정보 — 클릭</strong></summary>
 
 ## 크롤러 현황
 
@@ -750,16 +828,23 @@ budget_mw 580 ≥ 100 ✓
 - 공고 게시판: [bizinfo.go.kr](https://www.bizinfo.go.kr/web/index.do)
 - 데이터 소스: 미정 (SPA라 정적 크롤링 불가) — Playwright 또는 NTIS API로 흡수 검토
 
+
+</details>
+
 ---
+
+<details>
+<summary><strong>🔧 부가 정보 (새 기관 추가 가이드 / RFP 초안 / 추후 작업) — 클릭해서 펼치기</strong></summary>
 
 ### 💡 새 기관 추가하는 방법
 
-1. data.go.kr에서 해당 기관 `사업공고` OpenAPI 검색 (가장 안정적)
-2. 없으면 기관 사이트 `robots.txt` 확인 → 허용되면 HTML 크롤링
-3. `src/rfp_targeter/crawlers/{name}.py` 에 `BaseCrawler` 상속해서 `list_announcements()` 구현
-4. `crawlers/__init__.py` `CRAWLERS` 딕셔너리에 등록
-5. `config/settings.yaml`에 `sources.{name}: enabled: true` 추가
-6. `python scripts/verify_crawlers.py` 로 검증
+1. `data.go.kr`에서 해당 기관 `사업공고` OpenAPI 검색 (가장 안정적, robots.txt 무관)
+2. 없으면 기관 사이트 `robots.txt` 확인 → 허용되면 HTML 직접 크롤링
+3. SPA/JS 렌더링이라면 Playwright headless (예: KRIT `pms.krit.re.kr`)
+4. `src/rfp_targeter/crawlers/{name}.py` 에 `BaseCrawler` 상속해서 `list_announcements()` 구현
+5. `crawlers/__init__.py` `CRAWLERS` 딕셔너리에 등록
+6. `config/settings.yaml` 에 `sources.{name}: enabled: true` 추가
+7. `python scripts/verify_crawlers.py` 로 검증
 
 ---
 
@@ -776,13 +861,16 @@ Claude Code 에서 :
 
 ---
 
-## 추후 작업
+### 🗺 추후 작업
 
-- [ ] **24/7 배포** (회사 사내 서버 / NAS / VPS) — 현재 PC 의존
+- [x] ~~**24/7 배포**~~ — ✅ GitHub Actions + cron-job.org + Supabase 클라우드 상주 (2026-05-28 완료)
+- [x] ~~슬랙·이메일 알림~~ — ✅ 슬랙 Incoming Webhook 운영 중 (신규 80+/1억+ 알림, 평일 09~21 KST)
+- [x] ~~Slack/Discord 웹훅 알림~~ — ✅ 슬랙 활성. 디스코드는 동일 webhook 패턴으로 확장 가능
 - [ ] bizinfo SPA 대응 (Playwright) 또는 NTIS API로 대체
-- [ ] MSS API 키 한도 분리 / 갱신 (현재 0건)
+- [ ] MSS API 일 호출 한도 100회 분리 / 갱신 모니터
 - [ ] KOICA OpenAPI 서버 복구 대기, 또는 nebid HTML fallback
 - [ ] 첨부 PDF OCR (현재 텍스트 추출만)
 - [ ] LLM 보강 점수 (Claude API로 본문 정성평가) — 옵션
-- [ ] 슬랙·이메일 알림 (≥70점 신규 공고 발견 시)
-- [ ] Slack/Discord 웹훅 알림 (옵션)
+- [ ] KRIT PMS 본문(Nexacro popup) 추출 시도 — 현재 천장 50점대 원인
+
+</details>
