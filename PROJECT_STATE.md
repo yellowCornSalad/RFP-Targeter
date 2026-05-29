@@ -1,7 +1,7 @@
 # 📌 RFP-Targeter 현재 상태 스냅샷
 
 > 새 세션 시작 시 Claude 에게 첫 메시지로 보여주면 즉시 컨텍스트 복구.
-> 마지막 업데이트: 2026-05-28
+> 마지막 업데이트: 2026-05-29
 
 ---
 
@@ -17,12 +17,12 @@
 
 | 컴포넌트 | 상태 | 주기 |
 |---|---|---|
-| **cron-job.org** (외부 cron) | ✅ 등록됨 (RFP-Targeter Hourly Crawl) | 30분 (테스트 중) / 1시간 (안정) |
+| **cron-job.org** (외부 cron) | ✅ 등록됨 (RFP-Targeter Hourly Crawl) | **1시간 (안정 확정 5/29)** |
 | GitHub Actions `crawl.yml` | ✅ schedule `0 * * * *` + workflow_dispatch | 매시 정각 (cron-job 도 호출) |
-| GitHub Actions `build_static.yml` | ✅ 매시 7분 | 매시 1회 |
-| GitHub Actions `monitor_crawler.yml` | ✅ 70분 정지 임계 + 자동 dispatch | 30분 (안전망) |
+| GitHub Actions `build_static.yml` | ✅ 매시 5분 (v1.0 release branch) | 매시 1회 |
+| GitHub Actions `monitor_crawler.yml` | ✅ 70분 정지 임계 + 자동 dispatch | 30분 (안전망, 평일 09~21 KST) |
 | Supabase PostgreSQL | ✅ 클라우드 DB | 24/7 |
-| Slack webhook | ✅ rfp bot | 매 크롤 완료 24/7 |
+| Slack webhook | ✅ rfp bot | **평일 09~21 KST** (신규 + 크롤완료 통일) |
 
 ## 🛡 3중 안전망
 
@@ -109,18 +109,21 @@ alert:
 
 ## 🎯 최근 주요 변경 (시간 역순)
 
-1. **2026-05-28** — KISA 사업기간 추출 fallback (body 전체) — 27건 신규 추출
-2. **2026-05-28** — cron-job.org 셋업 가이드 + 사용자 셋업 완료
-3. **2026-05-28** — 크롤 완료 슬랙 알림 24/7 (영업시간 가드 풀음)
-4. **2026-05-28** — crawl cron 30분→1시간 복귀 (사용자 결정)
-5. **2026-05-27** — 예산 1억 기준 3-mode 필터 UI + KPI 동적 갱신
-6. **2026-05-27** — 카드 상세 재구성: 응찰 체크리스트 + 회사 매칭 강점 (5축 점수 분해 컴팩트)
-7. **2026-05-27** — consortium → eligibility_fit 교체 (변별력 확보)
-8. **2026-05-27** — competitor 발주기관 가산 fix (NIPA/IITP 약자 매칭)
-9. **2026-05-27** — competitor·trl v2 + README 정량 기준
-10. **2026-05-27** — keyword·budget v2 + 동의어 dedupe + 100점 인플레이션 해결
-11. **2026-05-27** — KOICA 카드 제거, KRIT 라벨 "필터 통과 0"
-12. **2026-05-27** — crawl hang fix (timeout 20s, retry 2, max 20)
+1. **2026-05-29** — cron-job.org 1시간 주기 안정성 확인 → **확정** (30분 테스트 종료)
+2. **2026-05-29** — 슬랙 영업시간 09~18 → **09~21 KST 통일** (신규 + 크롤완료 모두) — `notify_crawl_complete` 24/7 가드 재도입, 모니터 헬스체크도 09~21 확장
+3. **2026-05-29** — 카드 메타 행에 마감일 표시 — "마감 D-N **(YYYY.MM.DD)**" — 우측 패널과 톤 통일
+4. **2026-05-28** — KISA 사업기간 추출 fallback (body 전체) — 27건 신규 추출
+5. **2026-05-28** — cron-job.org 셋업 가이드 + 사용자 셋업 완료
+6. **2026-05-28** — 크롤 완료 슬랙 알림 24/7 (영업시간 가드 풀음) — *5/29 영업시간 가드 재도입으로 supersede*
+7. **2026-05-28** — crawl cron 30분→1시간 복귀 (사용자 결정)
+8. **2026-05-27** — 예산 1억 기준 3-mode 필터 UI + KPI 동적 갱신
+9. **2026-05-27** — 카드 상세 재구성: 응찰 체크리스트 + 회사 매칭 강점 (5축 점수 분해 컴팩트)
+10. **2026-05-27** — consortium → eligibility_fit 교체 (변별력 확보)
+11. **2026-05-27** — competitor 발주기관 가산 fix (NIPA/IITP 약자 매칭)
+12. **2026-05-27** — competitor·trl v2 + README 정량 기준
+13. **2026-05-27** — keyword·budget v2 + 동의어 dedupe + 100점 인플레이션 해결
+14. **2026-05-27** — KOICA 카드 제거, KRIT 라벨 "필터 통과 0"
+15. **2026-05-27** — crawl hang fix (timeout 20s, retry 2, max 20)
 
 ## 🔍 새 세션 시작 시 한 줄
 
