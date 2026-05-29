@@ -842,7 +842,7 @@ function renderStrengths(it) {
       strengths.push({
         icon: "🛡",
         text: `${t.name}${trlBadge}`,
-        reason: `본문 "${matched}" 매칭`,
+        reason: `본문에 "${matched}" 언급 — 관련 영역이면 어필 가능해 보임`,
         weight: 100,
       });
     }
@@ -853,8 +853,8 @@ function renderStrengths(it) {
   if (coreHits.length > 0) {
     strengths.push({
       icon: "🎯",
-      text: `핵심 키워드 ${coreHits.length}개 직격`,
-      reason: coreHits.slice(0, 3).join(", ") + (coreHits.length > 3 ? ` 외 ${coreHits.length - 3}개` : ""),
+      text: `핵심 키워드 ${coreHits.length}개 본문 일치 (확인 권장)`,
+      reason: `발견: ${coreHits.slice(0, 3).join(", ")}` + (coreHits.length > 3 ? ` 외 ${coreHits.length - 3}개` : ""),
       weight: 80,
     });
   }
@@ -864,8 +864,8 @@ function renderStrengths(it) {
   if (posHits.length > 0) {
     strengths.push({
       icon: "📌",
-      text: `포지셔닝 메시지 매칭`,
-      reason: posHits[0],
+      text: `포지셔닝 메시지 일치 가능성`,
+      reason: `발견: ${posHits[0]} — 맥락 확인 후 어필 여부 판단 권장`,
       weight: 60,
     });
   }
@@ -895,8 +895,8 @@ function renderStrengths(it) {
     if (ecoMatches.length > 0) {
       strengths.push({
         icon: "🤝",
-        text: `협력 시너지 가능: ${ecoMatches.slice(0, 3).map(p => p.name).join(", ")}`,
-        reason: `같은 영역 (${ecoMatches[0].domain}) 협력 기회`,
+        text: `협력 시너지 검토 가능: ${ecoMatches.slice(0, 3).map(p => p.name).join(", ")}`,
+        reason: `같은 영역 (${ecoMatches[0].domain}) — 협력 기회로 보임`,
         weight: 50,
       });
     }
@@ -907,7 +907,7 @@ function renderStrengths(it) {
     strengths.push({
       icon: "🏆",
       text: `KISA 2026 정보보호 신기술 사업화 선정 (50개사 중 1)`,
-      reason: "공고 우대 조건 충족",
+      reason: "공고에 관련 표현 발견 — 우대 조건 부합 가능성 (실제 우대 여부는 공고 확인 권장)",
       weight: 90,
     });
   }
@@ -925,8 +925,8 @@ function renderStrengths(it) {
   if (patentMatches.length > 0) {
     strengths.push({
       icon: "📜",
-      text: `등록 특허 ${patentMatches.length}건 매칭 (회사 총 ${pf.highlights?.patents_total || 38}건)`,
-      reason: patentMatches[0].substring(0, 60),
+      text: `관련 영역 특허 ${patentMatches.length}건 발견 (회사 총 ${pf.highlights?.patents_total || 38}건)`,
+      reason: `참고: ${patentMatches[0].substring(0, 60)}`,
       weight: 75,
     });
   }
@@ -936,7 +936,7 @@ function renderStrengths(it) {
     strengths.push({
       icon: "📊",
       text: `23.8만 건 해커 지식 DB (10년 누적, 55% NDA 실전)`,
-      reason: "AI 보안·위협 모델 학습 차별점",
+      reason: "AI 보안·위협 영역이라면 학습 데이터 차별점으로 활용 가능해 보임",
       weight: 65,
     });
   }
@@ -978,8 +978,8 @@ function renderStrengths(it) {
         seen.add(m.name);
         strengths.push({
           icon: m.icon,
-          text: m.name,
-          reason: `매칭 키워드 기반 자동 추천 — ${m.reason}`,
+          text: `${m.name} (방향 제안)`,
+          reason: `${m.reason} — 키워드 매칭 기반 추정이라 실제 적합 여부는 공고 본문을 직접 확인하는 것이 좋아 보임`,
           weight: 55,
         });
         if (strengths.length >= 3) break;  // 폴백은 최대 3개
@@ -990,7 +990,7 @@ function renderStrengths(it) {
   if (strengths.length === 0) {
     return `
       <div class="strengths-empty">
-        💡 자동 매칭된 회사 강점 없음 — 본문 키워드 풍부도 부족 또는 비직격 영역
+        💡 자동 추천 가능한 어필 방향이 없습니다 — 본문 키워드를 직접 검토해 회사 자산과의 연계점을 판단하는 것이 좋아 보입니다
       </div>`;
   }
 
@@ -999,7 +999,8 @@ function renderStrengths(it) {
   const top = strengths.slice(0, 5);
   return `
     <div class="strengths-box">
-      <h4>💼 이 공고에서 회사가 강조할 자산 (RFP 작성 시 어필)</h4>
+      <h4>💡 RFP 작성 시 검토해볼 만한 방향 (자동 추천 — 정확도 판단은 사용자 몫)</h4>
+      <p class="strengths-disclaimer">키워드 기반 자동 매칭 결과입니다. 공고 본문 전체를 확인한 후 실제 적합 여부를 직접 판단하시는 것이 좋아 보입니다.</p>
       <ul class="strengths-list">
         ${top.map(s => `
           <li class="strength">
