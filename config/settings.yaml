@@ -123,6 +123,8 @@ alert:
   dashboard_url: "https://yellowcornsalad.github.io/RFP-Targeter/"  # GitHub Pages 정적 사이트
   # [2026-05-29 사용자 요청] 크롤 완료 메시지 OFF. 신규 공고 알림(80+ AND 1억+)만 유지.
   crawl_complete_enabled: false     # 매 사이클 "크롤 완료" 요약 메시지 발송 여부
+  # [2026-05-29 사용자 요청] 크롤 실패(소스 에러) 시에는 경보 발사 (성공은 조용).
+  crawl_failure_enabled: true       # source 에러 1+ 시 🚨 Slack 경보 (영업시간 가드)
   business_hours:
     start: 9                        # 09시부터
     end: 21                         # 21시까지 (포함) — 사용자 요청 2026-05-28

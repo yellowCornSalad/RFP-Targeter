@@ -345,6 +345,49 @@ def notify_crawl_complete(stats: list, dispatched_count: int = 0) -> bool:
     return _post_webhook({"text": body})
 
 
+def notify_crawl_failure(stats: list) -> bool:
+    """크롤 사이클에서 source 에러가 1건이라도 있으면 Slack 경보.
+
+    [2026-05-29 사용자 요청] 크롤 완료(성공) 메시지는 OFF 하되, '실패'는 알림.
+    - 성공만 있는 사이클: 조용 (notify_crawl_complete 비활성)
+    - source 에러 1+: 🚨 경보 발사
+
+    영업시간 가드(평일 09~21 KST) — 사용자 슬랙 정책과 통일(새벽/주말 노이즈 차단).
+    비영업시간 실패는 지속되면 다음 영업일 09시 cron 에서 잡히고,
+    워크플로 자체가 죽는 경우(타임아웃/크래시)는 monitor_crawler.yml 의
+    정지 감지(70분 gap)가 별도로 커버한다.
+    settings.alert.crawl_failure_enabled=false 로 끌 수 있음(기본 ON).
+    """
+    cfg = (settings().get("alert") or {})
+    if not cfg.get("slack_enabled", False):
+        return False
+    if not cfg.get("crawl_failure_enabled", True):
+        return False
+
+    failed = [s for s in stats if getattr(s, "error", None)]
+    if not failed:
+        return False  # 실패 없음 → 조용
+
+    now_kst = datetime.now(KST)
+    if not _is_business_hours(now_kst):
+        log.info(
+            "slack notify_crawl_failure: 영업시간 외(%s) — 발송 skip (%d개 소스 실패)",
+            now_kst.strftime("%a %H:%M"), len(failed),
+        )
+        return False
+
+    lines = []
+    for s in failed:
+        err = (s.error or "").strip().splitlines()[0][:120] if s.error else "알 수 없는 오류"
+        lines.append(f"• *{s.source.upper()}* — {err}")
+    body = (
+        f"🚨 *[크롤 실패]* {now_kst.strftime('%Y-%m-%d %H:%M KST')}\n"
+        f"{len(failed)}개 소스 크롤 실패:\n" + "\n".join(lines) + "\n"
+        f"_워크플로 전체 정지는 모니터가 별도 감지_"
+    )
+    return _post_webhook({"text": body})
+
+
 def dispatch_pending_alerts() -> bool:
     """매 cron 끝에 호출 — 평일 09~21시 KST 면 alerted_at IS NULL 보안 공고 묶음 발송.
 

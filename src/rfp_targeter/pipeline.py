@@ -406,11 +406,18 @@ def run_once() -> list[RunStats]:
     except Exception:
         log.exception("slack dispatch_pending_alerts failed (pipeline 계속)")
 
-    # 사이클 끝 알림 — "이번 시간 크롤 완료" 평일 09~21 KST 영업시간만 발사 (2026-05-28)
+    # 사이클 끝 알림 — "크롤 완료" 요약 (기본 OFF, settings.alert.crawl_complete_enabled)
     try:
         from rfp_targeter.notifier.slack import notify_crawl_complete
         notify_crawl_complete(stats, dispatched_count=dispatched)
     except Exception:
         log.exception("slack notify_crawl_complete failed (pipeline 계속)")
+
+    # 크롤 실패 경보 — source 에러 1+ 일 때만 발사 (성공은 조용). [2026-05-29 사용자 요청]
+    try:
+        from rfp_targeter.notifier.slack import notify_crawl_failure
+        notify_crawl_failure(stats)
+    except Exception:
+        log.exception("slack notify_crawl_failure failed (pipeline 계속)")
 
     return stats
