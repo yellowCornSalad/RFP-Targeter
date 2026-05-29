@@ -17,7 +17,12 @@ DOM 구조 (probe 결과):
     .portal_sta_projDday           ← "D-N"
   추가 Static 텍스트:              ← 공고진행/접수중/접수예정, 과제공고/과제기획
 
-캐러셀 페이지 5개 (01/05), 각 페이지 4건 → 총 20건 최대.
+캐러셀 페이지네이션 (probe 확정, 2026-05-29):
+  .portal_mtab_next   ← 다음 버튼 (id ...btnMtabNext)
+  .portal_mtab_prev   ← 이전 버튼 (id ...btnMtabPrev)
+  .portal_mtab_page_S ← 현재 페이지 / .portal_mtab_page ← 전체 페이지 ("01" / "05")
+  ※ Nexacro 는 JS element.click() 무시 → page.mouse.click(좌표) 실제 이벤트 필요.
+  ※ 현재 5페이지 = 현행 2026 공고 17건 (1~4p 각 4건 + 5p 1건). 묵은 2023 데모 탭은 숨김.
 
 이전 dtims 어댑터는 `krit_dtims.py` 로 백업됨 (참고용, 비활성).
 """
@@ -38,7 +43,7 @@ LIST_URL = "https://pms.krit.re.kr/kritpmsi/nxui/kritpms/index.jsp"
 # crawl.yml 에 `python -m playwright install chromium --with-deps` 단계 추가됨.
 PAGE_INIT_WAIT_MS = 5000        # Nexacro init 대기 (XML 로드 + 데이터셋 채우기)
 PAGE_TRANSITION_WAIT_MS = 1500  # 캐러셀 next 클릭 후 데이터 갱신 대기
-MAX_CAROUSEL_PAGES = 5          # 사이트 캐러셀이 최대 5페이지
+MAX_CAROUSEL_PAGES = 10         # 안전 상한. 실제 종료는 page indicator(cur>=total)로 판단 (현재 5페이지/17건)
 
 
 # DOM 에서 카드 정보 일괄 추출 — JS 한 번에 실행
@@ -47,9 +52,12 @@ _EXTRACT_CARDS_JS = """
     const cards = document.querySelectorAll(".portal_div_project");
     const results = [];
     for (const card of cards) {
-        // 캐러셀에서 현재 보이는 카드만 (visibility 확인)
+        // 캐러셀에서 현재 보이는 카드만 (display/visibility + 크기 확인)
+        // 묵은 2023 데모 탭(Tabpage2~4)은 숨김 처리되어 자연 제외됨.
         const cs = window.getComputedStyle(card);
         if (cs.display === "none" || cs.visibility === "hidden") continue;
+        const rect = card.getBoundingClientRect();
+        if (rect.width === 0 && rect.height === 0) continue;
 
         const titleEl = card.querySelector(".portal_sta_projTitle");
         const catEl = card.querySelector(".portal_sta_projCore");
@@ -106,7 +114,8 @@ class KRITCrawler(BaseCrawler):
                 page.goto(LIST_URL, wait_until="domcontentloaded")
                 page.wait_for_timeout(PAGE_INIT_WAIT_MS)
 
-                # 5페이지 캐러셀 순회
+                # 캐러셀 순회 — page indicator(현재/전체)로 마지막 페이지 자동 감지
+                page_idx = 0
                 for page_idx in range(MAX_CAROUSEL_PAGES):
                     try:
                         cards = page.evaluate(_EXTRACT_CARDS_JS)
@@ -130,46 +139,82 @@ class KRITCrawler(BaseCrawler):
                             log.info("krit_pms: %d건 수집 (max 도달)", seen)
                             return
 
-                    # 다음 페이지로
-                    if page_idx < MAX_CAROUSEL_PAGES - 1:
-                        if not self._click_next(page):
-                            log.info("krit_pms: 다음 버튼 없음/실패 — page %d 에서 중단", page_idx)
-                            break
-                        page.wait_for_timeout(PAGE_TRANSITION_WAIT_MS)
+                    # 마지막 페이지 도달 시 종료 (예: 05 / 05)
+                    cur, total = self._read_page_state(page)
+                    if cur and total and cur >= total:
+                        break
+                    # 다음 페이지로 (Nexacro 실제 마우스 클릭)
+                    if not self._click_next(page):
+                        log.info("krit_pms: 다음 버튼 없음/실패 — page %d 에서 중단", page_idx)
+                        break
+                    page.wait_for_timeout(PAGE_TRANSITION_WAIT_MS)
 
                 browser.close()
         except Exception as e:
             log.exception("krit_pms: Playwright 실행 실패: %s", e)
             return
 
-        log.info("krit_pms: %d건 수집 (페이지 %d/%d)", seen, page_idx + 1, MAX_CAROUSEL_PAGES)
+        log.info("krit_pms: %d건 수집 (캐러셀 %d페이지 순회)", seen, page_idx + 1)
+
+    # 보이는 캐러셀 next 버튼(.portal_mtab_next)의 중심 좌표 반환
+    _NEXT_XY_JS = """
+    () => {
+        for (const el of document.querySelectorAll(".portal_mtab_next")) {
+            const cs = window.getComputedStyle(el);
+            if (cs.display === "none" || cs.visibility === "hidden") continue;
+            const r = el.getBoundingClientRect();
+            if (r.width === 0 && r.height === 0) continue;
+            return { x: Math.round((r.left + r.right) / 2), y: Math.round((r.top + r.bottom) / 2) };
+        }
+        return null;
+    }
+    """
+
+    # 현재/전체 페이지 숫자 읽기 (예: "01" / "05")
+    _PAGE_STATE_JS = """
+    () => {
+        for (const el of document.querySelectorAll(".portal_mtab_page_S")) {
+            const cs = window.getComputedStyle(el);
+            if (cs.display === "none" || cs.visibility === "hidden") continue;
+            const r = el.getBoundingClientRect();
+            if (r.width === 0 && r.height === 0) continue;
+            let total = null;
+            const p = el.parentElement;
+            if (p) { const t = p.querySelector(".portal_mtab_page"); if (t) total = t.innerText.trim(); }
+            return { cur: el.innerText.trim(), total: total };
+        }
+        return null;
+    }
+    """
 
     def _click_next(self, page) -> bool:
-        """캐러셀의 next(▶) 버튼 클릭. 성공 시 True."""
-        # Nexacro 의 화살표 버튼 — Static 텍스트로 "▶" 또는 별도 button 클래스
-        # 시도 1: text=▶ 으로 찾기
+        """캐러셀 next(▶) 클릭. 성공 시 True.
+
+        Nexacro 는 DOM 의 element.click() 을 무시하므로(자체 이벤트 시스템),
+        보이는 .portal_mtab_next 의 화면 좌표로 실제 마우스 이벤트를 발생시킨다.
+        (probe 로 확정: portal_btn_arrowR/btnNext 류 아님 → portal_mtab_next)
+        """
         try:
-            arrow = page.query_selector("text=▶")
-            if arrow:
-                arrow.click()
-                return True
+            xy = page.evaluate(self._NEXT_XY_JS)
+            if not xy:
+                return False
+            page.mouse.click(xy["x"], xy["y"])
+            return True
+        except Exception as e:
+            log.warning("krit_pms: next click 실패: %s", e)
+            return False
+
+    def _read_page_state(self, page) -> tuple[int, int]:
+        """캐러셀 현재/전체 페이지 번호 (cur, total). 못 읽으면 (0, 0)."""
+        try:
+            res = page.evaluate(self._PAGE_STATE_JS)
+            if not res:
+                return (0, 0)
+            cur = int(re.sub(r"\D", "", res.get("cur") or "") or 0)
+            total = int(re.sub(r"\D", "", res.get("total") or "") or 0)
+            return (cur, total)
         except Exception:
-            pass
-        # 시도 2: portal_btn_arrowR 류 클래스 (KRIT 사이트 추정)
-        for sel in [
-            ".portal_btn_arrowR",
-            ".portal_btn_next",
-            "[id*='btnNext']",
-            "[id*='btnArrowR']",
-        ]:
-            try:
-                btn = page.query_selector(sel)
-                if btn:
-                    btn.click()
-                    return True
-            except Exception:
-                continue
-        return False
+            return (0, 0)
 
     def _make_announcement(self, card: dict) -> Announcement | None:
         title = (card.get("title") or "").strip()
