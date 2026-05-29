@@ -89,9 +89,9 @@ alert:
   dashboard_url: https://yellowcornsalad.github.io/RFP-Targeter/
   business_hours:
     start: 9
-    end: 18
-    weekdays_only: true       # dispatch_pending_alerts 만 적용
-                              # notify_crawl_complete 는 24/7 (영업시간 가드 풀음)
+    end: 21                   # 2026-05-29: 18 → 21 확장
+    weekdays_only: true       # dispatch_pending_alerts + notify_crawl_complete 둘 다 적용
+                              # 2026-05-29: notify_crawl_complete 도 영업시간 가드로 통일
 ```
 
 ## 🐍 핵심 스크립트
@@ -106,24 +106,30 @@ alert:
 | `scripts/audit_contents.py` | LLM 150자 카드 요약 (Claude Haiku 4.5) |
 | `scripts/verify_sources_audit.py` | 5개 source 출처·URL·count 검증 |
 | `scripts/trace_competitor.py` | 특정 공고 competitor 점수 산정 트레이스 |
+| `scripts/capture_dashboard.py` | Playwright 자동 캡쳐 → `docs/screenshots/dashboard.png` (README 미리보기) |
 
 ## 🎯 최근 주요 변경 (시간 역순)
 
-1. **2026-05-29** — cron-job.org 1시간 주기 안정성 확인 → **확정** (30분 테스트 종료)
-2. **2026-05-29** — 슬랙 영업시간 09~18 → **09~21 KST 통일** (신규 + 크롤완료 모두) — `notify_crawl_complete` 24/7 가드 재도입, 모니터 헬스체크도 09~21 확장
-3. **2026-05-29** — 카드 메타 행에 마감일 표시 — "마감 D-N **(YYYY.MM.DD)**" — 우측 패널과 톤 통일
-4. **2026-05-28** — KISA 사업기간 추출 fallback (body 전체) — 27건 신규 추출
-5. **2026-05-28** — cron-job.org 셋업 가이드 + 사용자 셋업 완료
-6. **2026-05-28** — 크롤 완료 슬랙 알림 24/7 (영업시간 가드 풀음) — *5/29 영업시간 가드 재도입으로 supersede*
-7. **2026-05-28** — crawl cron 30분→1시간 복귀 (사용자 결정)
-8. **2026-05-27** — 예산 1억 기준 3-mode 필터 UI + KPI 동적 갱신
-9. **2026-05-27** — 카드 상세 재구성: 응찰 체크리스트 + 회사 매칭 강점 (5축 점수 분해 컴팩트)
-10. **2026-05-27** — consortium → eligibility_fit 교체 (변별력 확보)
-11. **2026-05-27** — competitor 발주기관 가산 fix (NIPA/IITP 약자 매칭)
-12. **2026-05-27** — competitor·trl v2 + README 정량 기준
-13. **2026-05-27** — keyword·budget v2 + 동의어 dedupe + 100점 인플레이션 해결
-14. **2026-05-27** — KOICA 카드 제거, KRIT 라벨 "필터 통과 0"
-15. **2026-05-27** — crawl hang fix (timeout 20s, retry 2, max 20)
+1. **2026-05-29** — README 에 대시보드 첫 페이지 스크린샷 추가 (`docs/screenshots/dashboard.png`) + `scripts/capture_dashboard.py` (Playwright 자동 캡쳐 — 비밀번호 게이트 통과 후 viewport 저장)
+2. **2026-05-29** — 회사 강점 표현 톤다운 (hallucination 완화) — 단정형 → 권유형으로 변경. 제목 "💼 강조할 자산" → "💡 검토해볼 만한 방향 (자동 추천)". disclaimer 박스 추가. 각 항목 reason 권유형 ("~ 매칭" → "~ 언급 — 관련 영역이면 어필 가능해 보임" 등)
+3. **2026-05-29** — 회사 강점 폴백 매핑 패턴 8개 확장 — 인증·전자서명·암호·인공지능·디지털전환·클라우드·빅데이터·신기술·실증 단독 키워드도 회사 라인업으로 매핑
+4. **2026-05-29** — 회사 강점 자동 추출 폴백 로직 추가 — `matched_keywords` (보안 필터 통과 키워드) → 회사 라인업 15개 패턴 매핑 (`renderStrengths()` 9번 분기). 기존 본문 substring 매칭이 회사-specific 영문 약어와 정부 RFP 본문 사이에서 매칭률 낮은 문제 보완
+5. **2026-05-29** — `build_static.yml` 에 `PROFILE_YAML_B64` 복원 단계 추가 — 정적 빌드 시 `config/profile.yaml` 부재로 `profile.example.yaml` (mojibake) 폴백되던 문제 해결. crawl.yml 의 동일 단계 미러링
+6. **2026-05-29** — cron-job.org 1시간 주기 안정성 확인 → **확정** (30분 테스트 종료, 사용자 결정)
+7. **2026-05-29** — 슬랙 영업시간 09~18 → **09~21 KST 통일** (신규 + 크롤완료 모두) — `notify_crawl_complete` 영업시간 가드 재도입, 모니터 헬스체크도 09~21 확장
+8. **2026-05-29** — 카드 메타 행에 마감일 표시 — "마감 D-N **(YYYY.MM.DD)**" — 우측 패널과 톤 통일
+9. **2026-05-28** — KISA 사업기간 추출 fallback (body 전체) — 27건 신규 추출
+10. **2026-05-28** — cron-job.org 셋업 가이드 + 사용자 셋업 완료
+11. **2026-05-28** — 크롤 완료 슬랙 알림 24/7 (영업시간 가드 풀음) — *5/29 영업시간 가드 재도입으로 supersede*
+12. **2026-05-28** — crawl cron 30분→1시간 복귀 (사용자 결정)
+13. **2026-05-27** — 예산 1억 기준 3-mode 필터 UI + KPI 동적 갱신
+14. **2026-05-27** — 카드 상세 재구성: 응찰 체크리스트 + 회사 매칭 강점 (5축 점수 분해 컴팩트)
+15. **2026-05-27** — consortium → eligibility_fit 교체 (변별력 확보)
+16. **2026-05-27** — competitor 발주기관 가산 fix (NIPA/IITP 약자 매칭)
+17. **2026-05-27** — competitor·trl v2 + README 정량 기준
+18. **2026-05-27** — keyword·budget v2 + 동의어 dedupe + 100점 인플레이션 해결
+19. **2026-05-27** — KOICA 카드 제거, KRIT 라벨 "필터 통과 0"
+20. **2026-05-27** — crawl hang fix (timeout 20s, retry 2, max 20)
 
 ## 🔍 새 세션 시작 시 한 줄
 
