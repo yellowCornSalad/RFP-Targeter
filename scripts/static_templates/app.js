@@ -957,11 +957,20 @@ function renderStrengths(it) {
       { re: /표준|standard|ttak|iso.*iec|itu/i, name: "표준화 활동 28건", icon: "📜", reason: "국내 21 + 국제 7 (STIX, CVSS, ITU-T, QKD)" },
       { re: /정보보호|사이버.*보안|cyber.*security/i, name: "KISA 2026 정보보호 신기술 선정", icon: "🏆", reason: "120억 / 50개 기업 / 18개 과제 中 1 — 정부 공식 검증" },
       { re: /산학|컨소시엄|공동.*연구|대학|학계|kaist|연구소/i, name: "KAIST 공동 R&D 등 컨소시엄 5곳", icon: "🏛", reason: "공동 등록 특허 보유 (네트워크 공격 트래픽 생성, 2024)" },
-      { re: /pqc|양자|qkd|post.*quantum/i, name: "양자 보안 인접 표준 참여", icon: "🔐", reason: "TTAK.KO-10.1256 (QKD) 등 표준화 활동" },
+      { re: /pqc|양자|qkd|post.*quantum|양자내성/i, name: "양자내성 암호 표준 참여", icon: "🔐", reason: "TTAK.KO-10.1256 (QKD) 등 양자 보안 인접 표준" },
       { re: /edr|endpoint|엔드포인트/i, name: "엔드포인트 공격 탐지 특허", icon: "📜", reason: "등록 특허 16건 中 EDR 영역" },
-      { re: /펌웨어|firmware|임베디드|ot.*보안|iot/i, name: "펌웨어 변조 탐지 특허", icon: "📜", reason: "임베디드·OT 보안 특허" },
+      { re: /펌웨어|firmware|임베디드|ot.*보안|iot|사물인터넷/i, name: "펌웨어 변조 탐지 특허", icon: "📜", reason: "임베디드·OT 보안 특허" },
       { re: /스마트.*교통|모빌리티|자율.*주행|차량/i, name: "스마트 교통 사이버보안 특허", icon: "📜", reason: "모빌리티 영역 IP" },
-      { re: /훈련|training|사이버.*방어|cyber.*range/i, name: "사이버 공방 훈련 플랫폼", icon: "🏛", reason: "KAIST 공동 R&D 결과물" },
+      { re: /훈련|training|사이버.*방어|cyber.*range|사이버.*훈련/i, name: "사이버 공방 훈련 플랫폼", icon: "🏛", reason: "KAIST 공동 R&D 결과물" },
+      // [2026-05-29 확장] 일반 IT 용어도 회사 라인업과 매핑 — KISA 전자서명/인증 공고 등
+      { re: /전자서명|digital.*signature|암호화|복호화|encryption|crypto/i, name: "암호·전자서명 표준 참여", icon: "🔐", reason: "STIX 시리즈 + 양자내성암호 표준 (TTAK.KO-10.1256)" },
+      { re: /인증|authentication|pki|x\.509/i, name: "표준화 활동 28건 (인증·평가 영역)", icon: "📜", reason: "ITU-T X.1521 (CVSS), X.1525 (CWSS) 국제 표준" },
+      { re: /인공지능|machine learning|deep learning/i, name: "OFFen AI Hacker (AI 자율 공격)", icon: "🛡", reason: "AI 보안 도메인 본업 — KISA 2026 신기술 선정" },
+      { re: /디지털.*전환|dx|디지털화|digital.*transformation/i, name: "OFFen ASM (DX 환경 자산 식별)", icon: "🛡", reason: "디지털 전환 외부 자산 공격표면 관리" },
+      { re: /클라우드|cloud|saas|paas/i, name: "OFFen AI DAST + ASM (클라우드 보안)", icon: "🛡", reason: "SaaS/On-Premise 보안 + 클라우드 자산 식별" },
+      { re: /빅데이터|big.*data|데이터.*분석/i, name: "23.8만 해커 지식 DB", icon: "📊", reason: "10년 누적 침투 데이터 — 자체 생성 55%" },
+      { re: /신기술|혁신.*기술|차세대|emerging.*tech/i, name: "KISA 2026 정보보호 신기술 선정", icon: "🏆", reason: "정부 공식 신기술 검증 — 120억 / 50개사 中 1" },
+      { re: /실증|pilot|poc|레퍼런스/i, name: "5년 누적 실증 자산", icon: "📊", reason: "NDA 기반 실전 침투 결과 — 시뮬레이션 아닌 실증" },
     ];
     const seen = new Set();
     for (const m of lineupMap) {
