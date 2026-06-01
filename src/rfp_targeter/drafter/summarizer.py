@@ -77,5 +77,10 @@ def summarize_announcement(title: str, body: str, max_chars: int = 3000) -> str 
             return None
         return text
     except Exception as e:
-        log.debug("summarize fail: %s", e)
+        # 진단용: anthropic APIError 의 status_code + body(message 포함) 명시 로깅.
+        # (str(e) 가 message 직전에 잘리는 케이스 대비)
+        log.warning(
+            "summarize fail: %r | status=%s | body=%r",
+            e, getattr(e, "status_code", "?"), getattr(e, "body", None),
+        )
         return None
