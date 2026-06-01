@@ -16,6 +16,8 @@ RFP-Targeter는 GitHub Actions cron 으로 매시 정각 크롤링되어야 한�
 3. **GitHub Actions crawl.yml** 최근 5건 conclusion 에 `cancelled` / `failure` 가 있는지
 4. **활성 보안 공고 score NULL** 발생 여부 (안전망 효과 확인)
 5. **슬랙 누락 후보** (영업시간이라면 즉시 dispatch)
+6. **활성 source 연속 0건** — 최근 3회 크롤 연속 `new+updated=0` 인 source (특정 source
+   silent 장애. 크롤 전체는 성공해 2·3번으론 안 잡힘. 예: MSS data.go.kr 일 한도 429)
 
 ## 실행 방법
 
@@ -74,6 +76,7 @@ if pending > 0 and is_business:
 | `crawl.yml` 최근 5건 중 2건+ cancelled | 패턴화된 timeout | 슬랙 알림 + 어댑터 진단 |
 | `score NULL` 활성 공고 발견 | 1건+ | `python scripts/backfill_scores.py` |
 | 슬랙 누락 후보 (영업시간) | 1건+ | `dispatch_pending_alerts()` 즉시 호출 |
+| 활성 source 연속 0건 수집 | 최근 3회 `new+updated=0` | 슬랙 알림 + 해당 source 어댑터/API 진단 (예: data.go.kr 한도) |
 
 ### 만료 공고 자동 dismiss 동작
 

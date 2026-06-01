@@ -7,6 +7,8 @@
   2. GitHub Actions crawl.yml 최근 5 run 에 cancelled 패턴
   3. 활성 보안 공고 score NULL 0건 (자동 백필 효과 확인)
   4. 슬랙 누락 후보 0건 (영업시간이면 즉시 dispatch)
+  5. 활성 source 가 최근 3회 크롤 연속 0건 수집 (특정 source silent 장애 —
+     크롤 전체는 성공하므로 1·2번으론 안 잡힘. 예: MSS data.go.kr 일 한도 429)
 
 이상 발견 시:
   - exit code 1 (CI 빨간불)
@@ -46,6 +48,8 @@ log = logging.getLogger("monitor_crawler")
 # 임계값
 GAP_MINUTES_THRESHOLD = 70        # 1시간 주기 + 10분 여유 (사용자 결정: 30→1h 복귀)
 CANCELLED_PATTERN_THRESHOLD = 2   # 최근 5 run 중 2건+ cancelled 시 알림
+ZERO_YIELD_THRESHOLD = 3          # 활성 source 가 최근 N회 크롤 연속 0건(new+updated=0)이면 경고
+                                  # (크롤 전체는 성공하는데 특정 source 만 silent 장애 — 예: MSS data.go.kr 429)
 
 
 def _is_business_hours(now: datetime | None = None) -> bool:
@@ -152,6 +156,32 @@ def check() -> tuple[bool, list[str]]:
             )
             pending_alerts = cur.fetchone()["n"]
 
+            # source 별 연속 0건 — 크롤은 성공했는데 특정 source 만 silent 장애
+            # (정상 source 는 기존 공고 재수집으로 updated>0 → 절대 0 안 됨)
+            active_sources = [
+                k for k, v in (settings().get("sources") or {}).items()
+                if isinstance(v, dict) and v.get("enabled")
+            ]
+            zero_yield: list[tuple[str, int]] = []
+            if active_sources:
+                cur.execute(
+                    """WITH recent AS (
+                         SELECT source, new_count, updated_count,
+                                ROW_NUMBER() OVER (PARTITION BY source
+                                                   ORDER BY started_at DESC) AS rn
+                         FROM fetch_log
+                         WHERE finished_at IS NOT NULL AND source = ANY(%s)
+                       )
+                       SELECT source, COUNT(*) AS n
+                       FROM recent WHERE rn <= %s
+                       GROUP BY source
+                       HAVING COUNT(*) >= %s
+                          AND COALESCE(SUM(new_count + updated_count), 0) = 0
+                       ORDER BY source""",
+                    (active_sources, ZERO_YIELD_THRESHOLD, ZERO_YIELD_THRESHOLD),
+                )
+                zero_yield = [(r["source"], r["n"]) for r in cur.fetchall()]
+
     # 2) 임계 검증
     if last_finished_str:
         # text → datetime (UTC). 다양한 형식 폴백 처리.
@@ -224,6 +254,13 @@ def check() -> tuple[bool, list[str]]:
                 issues.append(f"⚠ 슬랙 누락 {pending_alerts}건 dispatch 실패: {e}")
         else:
             print(f"[참고] 슬랙 누락 {pending_alerts}건 누적 — 비영업시간이라 보류")
+
+    # 6) source 별 연속 0건 — silent 장애 (크롤 전체 성공이라 여태 안 보이던 케이스)
+    for src, n in zero_yield:
+        issues.append(
+            f"⚠ {src.upper()} 최근 {n}회 크롤 연속 0건 수집 — API 한도/사이트 구조 변경 의심 "
+            f"(크롤 자체는 성공해 그동안 안 보였음. mss=data.go.kr 일 한도 등)"
+        )
 
     return len(issues) == 0, issues
 
