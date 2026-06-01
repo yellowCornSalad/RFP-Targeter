@@ -28,10 +28,12 @@ jobs:
     timeout-minutes: 20
 
     steps:
-      - name: Checkout v1.0
+      - name: Checkout main (데이터 생성은 최신 main 코드로 — 크롤과 일관)
+        # [2026-06-01] v1.0 → main. 요약·LLM평가는 DB 컬럼 채우는 '데이터 생성'이라
+        # 크롤(main)과 동일 계통. 표시(build_static)만 v1.0 스냅샷 유지.
         uses: actions/checkout@v4
         with:
-          ref: v1.0
+          ref: main
 
       - name: Setup Python 3.11
         uses: actions/setup-python@v5
@@ -73,3 +75,23 @@ jobs:
             fi
           fi
           python scripts/audit_contents.py $ARGS
+
+      - name: Generate LLM assessments (도메인 적합성 + TRL 맥락)
+        # [2026-06-01] 본문 LLM 판단 — 키워드 단순 매칭 한계 보완. llm_assess_json 캐시.
+        env:
+          DATABASE_URL:      ${{ secrets.DATABASE_URL }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          PYTHONIOENCODING:  utf-8
+        run: |
+          ARGS=""
+          if [ "${{ github.event.inputs.force }}" = "true" ]; then
+            ARGS="--force"
+          fi
+          if [ -n "${{ github.event.inputs.limit }}" ]; then
+            ARGS="$ARGS --limit ${{ github.event.inputs.limit }}"
+          else
+            if [ "${{ github.event_name }}" = "schedule" ]; then
+              ARGS="--limit 50"
+            fi
+          fi
+          python scripts/assess_contents.py $ARGS
