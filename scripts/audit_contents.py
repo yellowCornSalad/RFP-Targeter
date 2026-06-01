@@ -159,7 +159,10 @@ def generate_summaries(force: bool = False, limit: int | None = None) -> tuple[i
                 log.info("  진행 %d/%d", i, len(rows))
         except Exception as e:
             fail += 1
-            log.warning("[%s] 요약 실패: %s", r["id"], str(e)[:80])
+            log.warning(
+                "[%s] 요약 실패: status=%s | body=%r",
+                r["id"], getattr(e, "status_code", "?"), getattr(e, "body", None) or str(e),
+            )
         # rate limit 보호 — Haiku 분당 ~50건
         time.sleep(0.2)
 
