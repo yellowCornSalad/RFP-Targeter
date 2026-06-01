@@ -22,15 +22,32 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from rfp_targeter.db.models import get_conn, init_db  # noqa: E402
+from rfp_targeter.db.models import get_conn  # noqa: E402
 from rfp_targeter.llm_assess import assess_announcement  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 log = logging.getLogger("assess_contents")
 
 
+def _ensure_column() -> bool:
+    """llm_assess_json 컬럼 보장 — 명시적·가시적 (init_db 의 swallow-on-error 회피).
+    단일 ALTER 를 자체 트랜잭션으로 실행. 실패하면 로그 + False."""
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "ALTER TABLE announcement ADD COLUMN IF NOT EXISTS llm_assess_json TEXT"
+                )
+        log.info("llm_assess_json 컬럼 확인/생성 완료")
+        return True
+    except Exception:
+        log.exception("llm_assess_json 컬럼 생성 실패")
+        return False
+
+
 def run(limit: int, force: bool, dry: bool) -> int:
-    init_db()  # llm_assess_json 컬럼 보장
+    if not _ensure_column():
+        return 1
     where_extra = "" if force else "AND llm_assess_json IS NULL"
     with get_conn() as conn:
         with conn.cursor() as cur:
