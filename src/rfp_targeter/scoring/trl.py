@@ -89,18 +89,41 @@ def _agency_default_trl(agency: str) -> tuple[int | None, str]:
     return None, ""
 
 
-def score_trl(a: Announcement, profile: dict) -> tuple[float, list[str]]:
-    text = " ".join(filter(None, [a.title, a.summary, a.body]))
+def _gap_score(gap: int) -> float:
+    return {0: 95.0, 1: 85.0, 2: 70.0, 3: 55.0}.get(gap, 40.0)
 
+
+def score_trl(a: Announcement, profile: dict, llm: dict | None = None) -> tuple[float, list[str]]:
+    techs = profile.get("technologies") or []
+    own_trls = sorted({t["trl"] for t in techs if isinstance(t.get("trl"), int)})
+
+    # 🤖 LLM 본문 맥락 판단이 있으면 키워드 단순매칭보다 우선 [사용자 결정 2026-06-01]
+    if llm is not None:
+        lt = llm.get("trl")
+        if isinstance(lt, int) and 1 <= lt <= 9:
+            if not own_trls:
+                return 55.0, [f"🤖 LLM 판단 TRL {lt} — 회사 TRL 미설정 → 55점"]
+            gap = min(abs(t - lt) for t in own_trls)
+            score = _gap_score(gap)
+            return score, [
+                f"공고 요구 TRL ≈ {lt} (🤖 LLM 본문 맥락 판단)",
+                f"회사 보유 TRL: {own_trls} — 최소 gap = {gap}",
+                f"📐 산정: gap {gap} → **{score:.0f}점**",
+            ]
+        # LLM 이 본문 읽고 TRL 단계 근거 없다 판단 → 키워드 억지 매칭 대신 중립
+        return 55.0, [
+            "🤖 LLM 판단: 본문에 기술 성숙도(TRL) 단계 근거 없음",
+            "📐 산정: 중립 **55점** (키워드 오탐 방지)",
+        ]
+
+    # ── LLM 평가 없음 (크롤 시점 등) → 기존 키워드/발주기관 추정 ──
+    text = " ".join(filter(None, [a.title, a.summary, a.body]))
     required, source = _extract_required_trl(text)
     from_default = False
     if required is None:
         # 발주기관 default 시도 (본문 근거 아님 → 아래에서 신뢰도 할인)
         required, source = _agency_default_trl(a.agency or "")
         from_default = True
-
-    techs = profile.get("technologies") or []
-    own_trls = sorted({t["trl"] for t in techs if isinstance(t.get("trl"), int)})
 
     if required is None:
         return 55.0, [

@@ -97,3 +97,12 @@ jobs:
             fi
           fi
           python scripts/assess_contents.py $ARGS
+
+      - name: Recompute scores with LLM (적합성·TRL 반영)
+        # [2026-06-01] 평가 직후 점수 재계산 — compute_score 가 llm_assess_json 읽어
+        # 도메인 적합성 배율(none×0.5 등) + TRL(LLM값) 반영. 순수 계산(API 무관).
+        env:
+          DATABASE_URL:     ${{ secrets.DATABASE_URL }}
+          PYTHONIOENCODING: utf-8
+        run: |
+          python scripts/recompute_all_scores.py

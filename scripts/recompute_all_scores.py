@@ -90,7 +90,13 @@ def recompute(active_only: bool, dry_run: bool) -> tuple[int, int]:
     for r in rows:
         try:
             a = _row_to_announcement(r)
-            sc = compute_score(a)
+            # 🤖 LLM 도메인 적합성·TRL 판단 반영 (있으면)
+            try:
+                _llm = json.loads(r.get("llm_assess_json") or "{}")
+                _llm = _llm if isinstance(_llm, dict) and _llm else None
+            except Exception:
+                _llm = None
+            sc = compute_score(a, llm=_llm)
 
             old_kw = float(r.get("old_kw") or 0)
             old_total = float(r.get("old_total") or 0)

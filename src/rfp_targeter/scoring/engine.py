@@ -15,7 +15,12 @@ from rfp_targeter.scoring.keyword import score_keyword, score_theme_fit
 from rfp_targeter.scoring.trl import score_trl
 
 
-def compute_score(a: Announcement) -> Score:
+def compute_score(a: Announcement, llm: dict | None = None) -> Score:
+    """5축 점수 + 총점. llm(도메인 적합성·TRL 본문 판단)이 있으면 반영.
+
+    llm = {"relevance": "high|medium|low|none", "trl": int|None, ...} (assess_contents).
+    크롤 시점엔 llm=None (기존 키워드 기반). build_summaries 가 평가 후 재계산.
+    """
     p = profile()
     weights = settings()["scoring_weights"]
 
@@ -23,7 +28,7 @@ def compute_score(a: Announcement) -> Score:
     bg, bg_why = score_budget(a, p)
     el, el_why = score_eligibility(a, p)   # 이전 consortium 자리 → 자격 적합도
     cp, cp_why = score_competitor(a, p)
-    tr, tr_why = score_trl(a, p)
+    tr, tr_why = score_trl(a, p, llm=llm)   # 🤖 LLM TRL 판단 우선
 
     # weights 키: "eligibility" (신규) 우선, 폴백으로 "consortium" (legacy 호환)
     el_weight = weights.get("eligibility", weights.get("consortium", 0.20))
@@ -50,6 +55,22 @@ def compute_score(a: Announcement) -> Score:
     elif theme < 30:
         total = max(0.0, total - 10)
 
+    # 🤖 LLM 도메인 적합성 배율 [사용자 결정 2026-06-01 — 강한 배율]
+    # 키워드만 맞고 실제 무관한 공고(조사/교육/제조 용역 등)를 총점에서 하위로.
+    # none ×0.5 / low ×0.75 / medium ×0.92 / high ×1.0. 미평가(llm None)면 미적용.
+    rel = (llm or {}).get("relevance")
+    rel_mult = {"high": 1.0, "medium": 0.92, "low": 0.75, "none": 0.5}.get(rel)
+    llm_why = []
+    if rel_mult is not None:
+        _before = total
+        total = round(total * rel_mult, 1)
+        if rel_mult != 1.0:
+            llm_why.append(
+                f"🤖 LLM 도메인 적합성 '{rel}' → 총점 ×{rel_mult} ({_before:.0f}→{total:.0f})"
+            )
+        else:
+            llm_why.append(f"🤖 LLM 도메인 적합성 '{rel}' → 감점 없음")
+
     rationale = {
         "keyword": kw_why,
         "budget": bg_why,
@@ -58,6 +79,8 @@ def compute_score(a: Announcement) -> Score:
         "trl": tr_why,
         "theme_fit": theme_why,
     }
+    if llm_why:
+        rationale["llm_relevance"] = llm_why
 
     return Score(
         announcement_id=a.id,
