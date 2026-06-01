@@ -32,6 +32,10 @@ sources:
   kisa:
     enabled: true
     base_url: "https://www.kisa.or.kr"
+    # 2026-06-01: 50(전역) → 30. 매시간 신규 0건이어도 상세 ~50건을 순차 fetch
+    # (pipeline.py:329 — list 전체에 fetch_detail) 하는데 kisa.or.kr 느린 시간대엔
+    # 50×~20초 ≈ 21분 → 25분 timeout cancelled 만성화. 최신 30건만 (옛건 이미 DB).
+    max_per_source: 30
 
   # IITP는 robots.txt 전면 금지. data.go.kr 공식 API 경유 (config/secrets.yaml 에 키 필요)
   iitp:

@@ -16,7 +16,7 @@ concurrency:
 jobs:
   crawl:
     runs-on: ubuntu-latest
-    timeout-minutes: 25                    # 25분 → 30분 timeout 만성화 차단, 빠른 실패 → monitor 자동 재dispatch 빨리 작동
+    timeout-minutes: 40                    # [2026-06-01] 25→40. KISA 상세 fetch가 kisa.or.kr 느린 시간대 21분+ → 25분에 NIPA 직전 cancelled 만성화. 요청당 20초+retry라 무한hang 불가 → 느려도 완주시키는 게 재dispatch 루프보다 나음. (B: KISA 30건으로 평소 13분)
 
     steps:
       - name: Checkout code
