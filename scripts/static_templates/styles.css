@@ -195,12 +195,10 @@ input[type="range"] { flex: 1; max-width: 200px; }
 .card.fair .card-band { background: #888; }
 .card.low .card-band { background: #e5e5e5; }
 
-/* 우측 점수 영역을 absolute로 띄우고, 좌측은 일반 흐름.
-   그러면 제목이 점수/예산 영역 높이에 영향 받지 않고 위로 밀착. */
-.card-header {
-  display: block; margin-bottom: 6px;
-  padding-right: 140px;   /* 우측 점수 영역 자리 (absolute) */
-}
+/* 카드 상단 2단: 좌측(배지·제목·요약) flex:1 / 우측(등급·예산) 고정폭.
+   flex 라 요약 박스가 우측 칼럼을 절대 침범 안 함 (이전 absolute 겹침 해소). */
+.card-top { display: flex; gap: 16px; align-items: flex-start; margin-bottom: 6px; }
+.card-top-main { flex: 1; min-width: 0; }
 .card-meta-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-width: 0; }
 .source-badge {
   padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: 700;
@@ -272,8 +270,7 @@ input[type="range"] { flex: 1; max-width: 200px; }
 .llm-reason { font-size: 12px; color: var(--text-muted); margin: 2px 0 4px; line-height: 1.5; }
 
 .card-score-block {
-  position: absolute; right: 20px; top: 16px;
-  text-align: right; min-width: 120px;
+  flex-shrink: 0; width: 132px; text-align: right;
 }
 .grade-line { display: flex; align-items: baseline; gap: 8px; justify-content: flex-end; }
 .grade-label { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; }
@@ -292,7 +289,6 @@ input[type="range"] { flex: 1; max-width: 200px; }
 .card-title {
   font-size: 1.15rem; font-weight: 700; margin: 0 0 8px; line-height: 1.45;
   letter-spacing: -0.02em;
-  padding-right: 140px;   /* 우측 점수/예산 영역과 안 겹치게 */
 }
 .card-title a { color: var(--text); text-decoration: none; }
 .card-title a:hover { color: var(--accent); }
@@ -601,11 +597,9 @@ input[type="range"] { flex: 1; max-width: 200px; }
   .agency-grid { grid-template-columns: repeat(2, 1fr); }
   .filter-row { flex-direction: column; align-items: stretch; }
   .filters input[type="search"] { min-width: 0; }
-  /* 모바일: 점수 블록 absolute 해제, 위에서 아래로 흐름 */
-  .card-header { padding-right: 0; }
-  .card-title { padding-right: 0; margin-top: 10px; }
-  .card-score-block { position: static; text-align: left; margin-top: 8px; }
-  .budget-box { text-align: left; }
+  /* 모바일: 상단 2단(좌 본문 / 우 등급·예산) 유지, 우측 칼럼만 축소 */
+  .card-top { gap: 10px; }
+  .card-score-block { width: 104px; }
   .body-pre { padding: 16px 18px; font-size: 14px; }
   .footer { flex-direction: column; gap: 8px; text-align: center; }
 }
