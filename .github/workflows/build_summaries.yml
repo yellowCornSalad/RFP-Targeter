@@ -6,7 +6,13 @@ name: Build AI Summaries
 
 on:
   schedule:
-    - cron: '7 * * * *'        # 매시 7분 (crawl 5분 + 마진)
+    - cron: '7 * * * *'        # 매시 7분 (crawl 5분 + 마진) — 단, GitHub schedule 은 자주 지연·스킵됨
+  # [2026-06-01] 크롤 완료 직후 자동 실행 — schedule(:07)만 의존하면 GitHub 가 몇 시간씩
+  # 스킵해 신규 공고가 요약·LLM 적합성 없이 방치(+TRL 키워드 폴백 95 등) → build_static 과
+  # 동일하게 'Hourly Crawl' 완료를 백업 트리거로. concurrency 가 중복 실행 방지.
+  workflow_run:
+    workflows: ["Hourly Crawl"]
+    types: [completed]
   workflow_dispatch:
     inputs:
       force:
