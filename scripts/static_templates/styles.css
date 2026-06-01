@@ -250,6 +250,8 @@ input[type="range"] { flex: 1; max-width: 200px; }
 .rel-chip.rel-low.active  { background: #b45309; border-color: #b45309; }
 .rel-chip.rel-none.active { background: #b91c1c; border-color: #b91c1c; }
 .rel-chip.rel-un.active   { background: #555;    border-color: #555; }
+.rel-chip.rel-today { margin-left: auto; }   /* 행 우측 끝으로 */
+.rel-chip.rel-today.active { background: var(--danger); border-color: var(--danger); color: #fff; }
 
 /* 상세 패널 — LLM 본문 판단 블록 */
 .llm-assess {

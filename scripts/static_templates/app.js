@@ -306,7 +306,6 @@ function applyFilters() {
     if (pa !== pb) return pb.localeCompare(pa);
     return (b.scores.total || 0) - (a.scores.total || 0);
   });
-  renderKpiStrip();
   renderCards();
 }
 
@@ -316,6 +315,7 @@ function applyFilters() {
 // ────────────────────────────────────────────────────────────
 function renderKpiStrip() {
   const strip = document.getElementById("kpi-strip");
+  if (!strip) return;  // [2026-06-01] KPI strip 제거됨 — 오늘신규는 적합성 행으로 이동. (defunct)
   const today = todayKST();
 
   // ── 모집단(base) — minScore 만 제외하고 다른 필터(source/search/예산) 적용 ──
@@ -696,11 +696,20 @@ function renderRelevanceFilter() {
       `<button class="rel-chip ${cls} ${filters.relevance === key ? "active" : ""}" data-rel="${key}">${label} <b>${n}</b></button>`
     );
   }
-  el.innerHTML = '<span class="rel-filter-label">🤖 도메인 적합성</span>' + chips.join("");
+  // 오늘 신규 칩 — 행 우측 끝(margin-left:auto). 클릭 시 오늘 등록만. (KPI strip 대체)
+  const nToday = countNewToday(null);
+  const todayChip =
+    `<button class="rel-chip rel-today ${filters.onlyToday ? "active" : ""}" data-rel="today">🆕 오늘 신규 <b>${nToday}</b></button>`;
+  el.innerHTML =
+    '<span class="rel-filter-label">🤖 도메인 적합성</span>' + chips.join("") + todayChip;
   el.querySelectorAll(".rel-chip").forEach((c) => {
     c.addEventListener("click", () => {
       const k = c.dataset.rel;
-      filters.relevance = (k === "all") ? null : (filters.relevance === k ? null : k);
+      if (k === "today") {
+        filters.onlyToday = !filters.onlyToday;
+      } else {
+        filters.relevance = (k === "all") ? null : (filters.relevance === k ? null : k);
+      }
       currentPage = 1;
       renderRelevanceFilter();
       applyFilters();
