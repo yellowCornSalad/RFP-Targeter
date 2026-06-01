@@ -290,6 +290,13 @@ def fetch_data() -> dict:
                      -- (Nexacro popup) 점수 천장이 50점대 → 70+ 만 대시보드 노출.
                      -- 다른 소스는 영향 없음. 슬랙 신규 알림(80+ AND 1억+) 은 별도 변경 무.
                      AND NOT (a.source = 'krit' AND COALESCE(s.total_score, 0) < 70)
+                     -- [2026-06-01] 활성 공고만 — 슬랙·monitor 와 동일 정의.
+                     -- IITP 등은 data.go.kr API라 마감일이 NULL → dismiss_expired(마감<오늘)이
+                     -- 못 치워 오래된 게 계속 쌓임(414건까지 누적). 마감 미래 OR (마감 NULL & 등록 60일내)
+                     -- 만 노출 → 만료 추정분 제외, 평소 ~170건으로 정상화.
+                     AND (a.deadline_at >= CURRENT_DATE::text
+                          OR (a.deadline_at IS NULL
+                              AND a.posted_at >= (CURRENT_DATE - 60)::text))
                    ORDER BY a.posted_at DESC NULLS LAST,
                             s.total_score DESC NULLS LAST"""
             )
