@@ -202,6 +202,60 @@ DEFAULT_OUT = Path(__file__).resolve().parents[1] / "site"
 SRC_TEMPLATES = Path(__file__).resolve().parent / "static_templates"
 
 
+def _fetch_crawl_status(now_kst) -> dict:
+    """fetch_log 에서 마지막 크롤(동기화) 시각 + 지난 24h 사이클/에러 수 집계.
+
+    - started_at/finished_at 는 UTC ISO (_now()).
+    - 24h '크롤 N회' = 시간 단위(LEFT 13) distinct 로 근사 (매시 1사이클).
+    - 마지막 동기화 = MAX(finished_at).
+    - crawl_status(빌드시점): ok(<90분) / warn(<180분) / bad(그 이상).
+      ※ 실제 신선도는 client(app.js)가 조회 시각 기준으로 재계산 (빌드 동결 대비).
+    """
+    from datetime import timedelta
+    from zoneinfo import ZoneInfo
+
+    last_iso, cycles_24h, errors_24h = None, 0, 0
+    try:
+        now_utc = now_kst.astimezone(ZoneInfo("UTC"))
+        since_iso = (now_utc - timedelta(hours=24)).isoformat(timespec="seconds")
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT MAX(finished_at) AS last FROM fetch_log WHERE finished_at IS NOT NULL"
+                )
+                row = cur.fetchone()
+                last_iso = (row["last"] if row else None) or None
+                cur.execute(
+                    "SELECT COUNT(DISTINCT LEFT(started_at, 13)) AS cycles, "
+                    "COUNT(*) FILTER (WHERE error IS NOT NULL) AS errs "
+                    "FROM fetch_log WHERE started_at >= %s",
+                    (since_iso,),
+                )
+                r2 = cur.fetchone() or {}
+                cycles_24h = int(r2.get("cycles") or 0)
+                errors_24h = int(r2.get("errs") or 0)
+    except Exception:
+        pass
+
+    last_kst, status = "", "unknown"
+    if last_iso:
+        try:
+            dt_kst = datetime.fromisoformat(last_iso).astimezone(ZoneInfo("Asia/Seoul"))
+            last_kst = dt_kst.strftime("%Y-%m-%d %H:%M KST")
+            mins = (now_kst - dt_kst).total_seconds() / 60
+            status = "ok" if mins < 90 else ("warn" if mins < 180 else "bad")
+        except Exception:
+            pass
+
+    return {
+        "last_crawl_iso": last_iso or "",       # UTC ISO — client 가 조회시점 기준 재계산
+        "last_crawl_kst": last_kst,             # 표시용 KST
+        "crawl_24h_count": cycles_24h,          # 지난 24시간 크롤 사이클 수
+        "crawl_errors_24h": errors_24h,         # 지난 24시간 source 에러 수
+        "crawl_status": status,                 # 빌드시점 상태 (client 가 override)
+    }
+
+
 def fetch_data() -> dict:
     """Supabase에서 보안 통과 announcement + score 모두 가져와 dict로 반환."""
     with get_conn() as conn:
@@ -286,7 +340,10 @@ def fetch_data() -> dict:
 
     # 사이드바 필터 옵션 미리 계산
     sources_counts: dict[str, int] = {}
-    today = datetime.now().date().isoformat()
+    # ⚠️ '오늘'은 KST 기준 — GitHub Actions 러너는 UTC라 datetime.now()를 쓰면
+    # KST 00~09시(=UTC 전날) 빌드에서 당일 신규를 0으로 세던 버그. (UI도 KST 재계산)
+    from zoneinfo import ZoneInfo
+    today = datetime.now(ZoneInfo("Asia/Seoul")).date().isoformat()
     today_new_by_src: dict[str, int] = {}
     for it in items:
         sources_counts[it["source"]] = sources_counts.get(it["source"], 0) + 1
@@ -301,6 +358,9 @@ def fetch_data() -> dict:
         from datetime import timezone, timedelta
         now_kst = datetime.now(timezone(timedelta(hours=9)))
     build_time_kst = now_kst.strftime("%Y-%m-%d %H:%M KST")
+
+    # 크롤 상태 (홈페이지 상태 배지 + 마지막 동기화 시각용)
+    crawl_meta = _fetch_crawl_status(now_kst)
 
     # ── 회사 portfolio (카드 상세 "회사 매칭 강점" 자동 추출용) ──
     # profile.yaml 의 자산 데이터를 client-side JS 가 본문 매칭에 사용
@@ -371,6 +431,7 @@ def fetch_data() -> dict:
         "sources_counts": sources_counts,
         "today_new_by_src": today_new_by_src,
         "portfolio": portfolio,
+        **crawl_meta,                                # last_crawl_iso/kst, crawl_24h_count, crawl_status ...
         "items": items,
     }
 
