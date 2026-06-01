@@ -340,46 +340,27 @@ function renderKpiStrip() {
   });
 
   const total = base.length;
-  const n_top = base.filter((it) => (it.scores.total || 0) >= 90).length;
-  const n_good = base.filter((it) => (it.scores.total || 0) >= 80).length;
-  const n_fair = base.filter((it) => (it.scores.total || 0) >= 60).length;
   const n_today = base.filter((it) => it.posted_at.slice(0, 10) === today).length;
 
   // 필터 적용 여부 (UI 라벨 변경용)
-  const isFiltered = filters.source || filters.search || filters.budgetMode !== "all";
+  const isFiltered = filters.source || filters.search || filters.budgetMode !== "all"
+    || filters.relevance || filters.minScore > 0;
   const totalLabel = isFiltered ? "필터 결과" : "전체";
   const totalSub = isFiltered
     ? `전체 ${DATA.total.toLocaleString()} 중`
     : "보안 통과";
 
-  // 현재 활성 필터 식별 (활성 카드에 'active' 클래스 부여)
-  const active =
-    filters.onlyToday ? "today" :
-    filters.minScore >= 90 ? "top" :
-    filters.minScore >= 80 ? "good" :
-    filters.minScore >= 60 ? "fair" :
-    "all";
+  // [2026-06-01] TOP/GOOD/FAIR 점수등급 카드 제거 (적합성 필터와 중복 — 점수가
+  // 적합성 배율 포함). 점수 필터는 최소점수 슬라이더+정렬로 일원화.
+  // '전체'는 무필터일 때만 활성.
+  const active = filters.onlyToday ? "today"
+    : (filters.minScore > 0 || filters.relevance ? "" : "all");
 
   strip.innerHTML = `
     <div class="kpi-card ${active === "all" ? "active" : ""}" data-kpi="all">
       <div class="kpi-label">${totalLabel}</div>
       <div class="kpi-value">${total.toLocaleString()}<span class="unit"> 건</span></div>
       <div class="kpi-sub">${totalSub}</div>
-    </div>
-    <div class="kpi-card ${active === "top" ? "active" : ""}" data-kpi="top">
-      <div class="kpi-label">🟠 TOP · 90+</div>
-      <div class="kpi-value">${n_top}</div>
-      <div class="kpi-sub">즉시 검토</div>
-    </div>
-    <div class="kpi-card ${active === "good" ? "active" : ""}" data-kpi="good">
-      <div class="kpi-label">🟢 GOOD · 80+</div>
-      <div class="kpi-value">${n_good}</div>
-      <div class="kpi-sub">검토 권장</div>
-    </div>
-    <div class="kpi-card ${active === "fair" ? "active" : ""}" data-kpi="fair">
-      <div class="kpi-label">🟡 FAIR · 60+</div>
-      <div class="kpi-value">${n_fair}</div>
-      <div class="kpi-sub">검토 고려</div>
     </div>
     <div class="kpi-card ${active === "today" ? "active" : ""}" data-kpi="today">
       <div class="kpi-label">🆕 오늘 신규</div>
@@ -398,15 +379,6 @@ function renderKpiStrip() {
       if (kind === "all" || isActive) {
         // 전체 / 토글 해제
         filters.minScore = 0;
-        filters.onlyToday = false;
-      } else if (kind === "top") {
-        filters.minScore = 90;
-        filters.onlyToday = false;
-      } else if (kind === "good") {
-        filters.minScore = 80;
-        filters.onlyToday = false;
-      } else if (kind === "fair") {
-        filters.minScore = 60;
         filters.onlyToday = false;
       } else if (kind === "today") {
         filters.minScore = 0;
