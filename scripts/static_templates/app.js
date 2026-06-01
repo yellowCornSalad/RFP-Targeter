@@ -811,12 +811,21 @@ function renderCard(it) {
   return `
     <div class="card ${gradeCls}">
       <div class="card-band"></div>
-      <div class="card-header">
-        <div class="card-meta-top">
-          <span class="source-badge ${it.source}">${SOURCE_LABELS[it.source] || it.source}</span>
-          <span class="posted-date">${escapeHtml(it.posted_at.slice(0, 10))}</span>
-          ${isNew ? '<span class="new-badge">NEW</span>' : ""}
-          ${relevanceBadge(it)}
+      <div class="card-top">
+        <div class="card-top-main">
+          <div class="card-meta-top">
+            <span class="source-badge ${it.source}">${SOURCE_LABELS[it.source] || it.source}</span>
+            <span class="posted-date">${escapeHtml(it.posted_at.slice(0, 10))}</span>
+            ${isNew ? '<span class="new-badge">NEW</span>' : ""}
+            ${relevanceBadge(it)}
+          </div>
+          <h3 class="card-title">
+            ${it.url ? `<a href="${escapeHtml(it.url)}" target="_blank">${escapeHtml(it.title)}<span class="arrow">↗</span></a>` : escapeHtml(it.title)}
+          </h3>
+          ${it.ai_summary ? `<p class="card-summary">${escapeHtml(it.ai_summary)}</p>` : ""}
+          ${eligLine}
+          ${metaBits.length > 0 ? `<div class="card-meta">${metaBits.join('<span class="sep">·</span>')}</div>` : ""}
+          ${chipsHtml ? `<div class="chips">${chipsHtml}</div>` : ""}
         </div>
         <div class="card-score-block">
           <div class="grade-line">
@@ -826,13 +835,6 @@ function renderCard(it) {
           ${budgetBox}
         </div>
       </div>
-      <h3 class="card-title">
-        ${it.url ? `<a href="${escapeHtml(it.url)}" target="_blank">${escapeHtml(it.title)}<span class="arrow">↗</span></a>` : escapeHtml(it.title)}
-      </h3>
-      ${it.ai_summary ? `<p class="card-summary">${escapeHtml(it.ai_summary)}</p>` : ""}
-      ${eligLine}
-      ${metaBits.length > 0 ? `<div class="card-meta">${metaBits.join('<span class="sep">·</span>')}</div>` : ""}
-      ${chipsHtml ? `<div class="chips">${chipsHtml}</div>` : ""}
       <div class="axes-line">
         <span>키워드<b>${Math.round(it.scores.keyword)}</b></span>
         <span>예산<b>${Math.round(it.scores.budget)}</b></span>
