@@ -55,6 +55,16 @@ async function loadData() {
   try {
     const r = await fetch("data.json", { cache: "no-cache" });
     DATA = await r.json();
+    // [2026-06-01] 표시값 = 판정 기준 통일 — 점수를 정수로 반올림.
+    // 카드 숫자(Math.round)와 등급(gradeOf)·KPI·필터·응찰·막대·레이더가
+    // 모두 같은 정수를 쓰게 해 "80인데 FAIR" 같은 경계 반올림 혼동 제거.
+    (DATA.items || []).forEach((it) => {
+      if (it.scores) {
+        for (const k in it.scores) {
+          if (typeof it.scores[k] === "number") it.scores[k] = Math.round(it.scores[k]);
+        }
+      }
+    });
     document.getElementById("total-count").textContent = DATA.total.toLocaleString();
     document.getElementById("today-new").textContent = countNewToday(null);
     renderCrawlStatus();
