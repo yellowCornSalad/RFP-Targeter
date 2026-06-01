@@ -91,7 +91,8 @@ def assess_announcement(title: str, body: str, max_chars: int = 4000) -> dict | 
         client = anthropic.Anthropic(api_key=api_key)
         msg = client.messages.create(
             model=_MODEL,
-            max_tokens=300,
+            max_tokens=700,  # [2026-06-01] 300→700. 한국어 근거 2개(trl+relevance, 각 ~200자)면
+                             # 300토큰 초과로 JSON 이 잘려 파싱 실패→None (대형 공고 40% 실패 원인).
             system=_SYSTEM,
             messages=[{"role": "user", "content": user}],
         )

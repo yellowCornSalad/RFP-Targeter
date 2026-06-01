@@ -70,30 +70,35 @@ def run(limit: int, force: bool, dry: bool) -> int:
             )
             rows = cur.fetchall()
 
+    import time as _time
     log.info("평가 대상 %d건 (limit=%d, force=%s, dry=%s)", len(rows), limit, force, dry)
     ok, none_cnt = 0, 0
     for r in rows:
         res = assess_announcement(r["title"], r["body"])
         if res is None:
+            # 일시 오류(레이트리밋·간헐 JSON 잘림) 대비 1회 재시도
+            _time.sleep(1.0)
+            res = assess_announcement(r["title"], r["body"])
+        if res is None:
             none_cnt += 1
-            log.warning("  assess None — %s", (r["title"] or "")[:42])
+            log.warning("  assess None(재시도 후도) — %s", (r["title"] or "")[:42])
             continue
         log.info(
             "  [적합성 %-6s · trl %s] %s",
             res["relevance"], res["trl"], (r["title"] or "")[:45],
         )
-        if dry:
-            continue
-        try:
-            with get_conn() as conn:
-                with conn.cursor() as cur:
-                    cur.execute(
-                        "UPDATE announcement SET llm_assess_json=%s WHERE id=%s",
-                        (json.dumps(res, ensure_ascii=False), r["id"]),
-                    )
-            ok += 1
-        except Exception:
-            log.exception("  저장 실패 — %s", r["id"])
+        if not dry:
+            try:
+                with get_conn() as conn:
+                    with conn.cursor() as cur:
+                        cur.execute(
+                            "UPDATE announcement SET llm_assess_json=%s WHERE id=%s",
+                            (json.dumps(res, ensure_ascii=False), r["id"]),
+                        )
+                ok += 1
+            except Exception:
+                log.exception("  저장 실패 — %s", r["id"])
+        _time.sleep(0.2)  # Haiku 레이트리밋 보호 (audit_contents 와 동일)
 
     log.info("완료 — 저장 %d건 / assess 실패(None) %d건", ok, none_cnt)
     return 0
