@@ -675,6 +675,37 @@ function daysLeft(deadline) {
   return Math.floor((d - today) / 86400000);
 }
 
+// 도메인 적합성 배지 (LLM 본문 판단) — 카드 상단 칩. 미평가면 빈 문자열.
+// [2026-06-01] 1단계: 표시만 (점수 미반영). 키워드만으로 못 보는 '실제 관련성'.
+const _REL_MAP = {
+  high:   ["적합성 높음", "rel-high"],
+  medium: ["적합성 보통", "rel-mid"],
+  low:    ["적합성 낮음", "rel-low"],
+  none:   ["적합성 무관", "rel-none"],
+};
+function relevanceBadge(it) {
+  const m = _REL_MAP[(it.llm || {}).relevance];
+  if (!m) return "";
+  const reason = ((it.llm || {}).relevance_reason) || "";
+  return `<span class="rel-badge ${m[1]}" title="${escapeHtml(reason)}">🎯 ${m[0]}</span>`;
+}
+
+// 상세 패널 — LLM 본문 판단 (적합성 + TRL 맥락 + 근거)
+function renderLlmAssess(it) {
+  const llm = it.llm || {};
+  if (!llm.relevance && llm.trl == null && !llm.trl_reason) return "";  // 미평가
+  const relTxt = { high: "높음 ✅", medium: "보통", low: "낮음 ⚠️", none: "무관 🚫" }[llm.relevance] || "미평가";
+  const trlTxt = (llm.trl != null) ? `TRL ${llm.trl}` : "단계 근거 없음 (None)";
+  return `
+    <div class="llm-assess">
+      <h4>🤖 LLM 본문 판단 <span class="llm-tag">Haiku · 표시용</span></h4>
+      <div class="llm-row"><b>도메인 적합성:</b> <span class="llm-rel ${(_REL_MAP[llm.relevance]||['',''])[1]}">${relTxt}</span></div>
+      ${llm.relevance_reason ? `<div class="llm-reason">${escapeHtml(llm.relevance_reason)}</div>` : ""}
+      <div class="llm-row"><b>TRL (맥락 판단):</b> ${trlTxt}</div>
+      ${llm.trl_reason ? `<div class="llm-reason">${escapeHtml(llm.trl_reason)}</div>` : ""}
+    </div>`;
+}
+
 function renderCard(it) {
   const [gradeLabel, gradeCls] = gradeOf(it.scores.total);
   const today = todayKST();
@@ -751,6 +782,7 @@ function renderCard(it) {
           <span class="source-badge ${it.source}">${SOURCE_LABELS[it.source] || it.source}</span>
           <span class="posted-date">${escapeHtml(it.posted_at.slice(0, 10))}</span>
           ${isNew ? '<span class="new-badge">NEW</span>' : ""}
+          ${relevanceBadge(it)}
         </div>
         <div class="card-score-block">
           <div class="grade-line">
@@ -786,6 +818,7 @@ function renderCard(it) {
             ${renderAxesCompact(it.scores)}
           </div>
         </div>
+        ${renderLlmAssess(it)}
         ${renderStrengths(it)}
         <h4>본문</h4>
         <div class="body-pre">${renderBody(it.body)}</div>

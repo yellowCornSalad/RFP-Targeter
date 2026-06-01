@@ -268,7 +268,7 @@ def fetch_data() -> dict:
                           a.budget_mw, a.budget_period,
                           a.budget_excerpt, a.body, a.matched_keywords_json,
                           a.eligibility_status, a.eligibility_note,
-                          a.attachments_json, a.ai_summary,
+                          a.attachments_json, a.ai_summary, a.llm_assess_json,
                           s.keyword_score, s.budget_score, s.consortium_score,
                           s.competitor_score, s.trl_score, s.total_score, s.theme_fit
                    FROM announcement a
@@ -314,6 +314,13 @@ def fetch_data() -> dict:
             ]
         except Exception:
             atts = []
+        # LLM 맥락 판단 (도메인 적합성 + TRL) — 표시용. 점수엔 아직 미반영(1단계).
+        try:
+            llm = json.loads(r["llm_assess_json"] or "{}")
+            if not isinstance(llm, dict):
+                llm = {}
+        except Exception:
+            llm = {}
         items.append({
             "id": r["id"],
             "source": r["source"],
@@ -334,6 +341,12 @@ def fetch_data() -> dict:
             "attachments": atts,
             "eligibility_status": r["eligibility_status"] or "",
             "eligibility_note": r["eligibility_note"] or "",
+            "llm": {
+                "relevance": llm.get("relevance") or "",          # high|medium|low|none
+                "relevance_reason": llm.get("relevance_reason") or "",
+                "trl": llm.get("trl"),                            # 1~9 or null
+                "trl_reason": llm.get("trl_reason") or "",
+            },
             "scores": {
                 "keyword": float(r["keyword_score"] or 0),
                 "budget": float(r["budget_score"] or 0),

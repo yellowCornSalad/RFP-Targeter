@@ -218,6 +218,34 @@ input[type="range"] { flex: 1; max-width: 200px; }
   font-weight: 700; font-size: 10px; letter-spacing: 0.06em;
 }
 
+/* 도메인 적합성 배지 (LLM 본문 판단) — 카드 상단 칩 */
+.rel-badge {
+  padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 700;
+  border: 1px solid transparent; cursor: help; white-space: nowrap;
+}
+.rel-badge.rel-high { color: #15803d; background: #f0fdf4; border-color: #bbf7d0; }
+.rel-badge.rel-mid  { color: #1d4ed8; background: #eff6ff; border-color: #bfdbfe; }
+.rel-badge.rel-low  { color: #b45309; background: #fffbeb; border-color: #fde68a; }
+.rel-badge.rel-none { color: #b91c1c; background: #fef2f2; border-color: #fecaca; }
+
+/* 상세 패널 — LLM 본문 판단 블록 */
+.llm-assess {
+  margin: 12px 0; padding: 12px 14px; border-radius: 6px;
+  background: #f8fafc; border: 1px solid var(--border); border-left: 3px solid #6366f1;
+}
+.llm-assess h4 { margin: 0 0 8px; font-size: 13px; display: flex; align-items: center; gap: 8px; }
+.llm-tag {
+  font-size: 10px; font-weight: 600; color: #6366f1; background: #eef2ff;
+  padding: 1px 7px; border-radius: 999px; letter-spacing: 0.02em;
+}
+.llm-row { font-size: 13px; margin-top: 6px; }
+.llm-rel { font-weight: 700; padding: 1px 7px; border-radius: 4px; }
+.llm-rel.rel-high { color: #15803d; background: #f0fdf4; }
+.llm-rel.rel-mid  { color: #1d4ed8; background: #eff6ff; }
+.llm-rel.rel-low  { color: #b45309; background: #fffbeb; }
+.llm-rel.rel-none { color: #b91c1c; background: #fef2f2; }
+.llm-reason { font-size: 12px; color: var(--text-muted); margin: 2px 0 4px; line-height: 1.5; }
+
 .card-score-block {
   position: absolute; right: 20px; top: 16px;
   text-align: right; min-width: 120px;
