@@ -26,7 +26,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from rfp_targeter.db.models import get_conn  # noqa: E402
+from rfp_targeter.config import settings  # noqa: E402
+from rfp_targeter.db.models import get_conn, recent_zero_yield_sources  # noqa: E402
 
 
 # ─────────────────────────────────────────────────────────────
@@ -247,12 +248,23 @@ def _fetch_crawl_status(now_kst) -> dict:
         except Exception:
             pass
 
+    # source 별 연속 0건(silent 장애) — monitor 와 동일 공유 함수 사용 → 배지가 '비정상' 표시.
+    # 슬랙은 더 이상 이걸로 안 울림(staleness 만). 대신 여기 홈페이지에서 확인 (사용자 결정).
+    down_sources: list[str] = []
+    try:
+        active = [k for k, v in (settings().get("sources") or {}).items()
+                  if isinstance(v, dict) and v.get("enabled")]
+        down_sources = [s for s, _n in recent_zero_yield_sources(active, 3)]
+    except Exception:
+        pass
+
     return {
         "last_crawl_iso": last_iso or "",       # UTC ISO — client 가 조회시점 기준 재계산
         "last_crawl_kst": last_kst,             # 표시용 KST
         "crawl_24h_count": cycles_24h,          # 지난 24시간 크롤 사이클 수
         "crawl_errors_24h": errors_24h,         # 지난 24시간 source 에러 수
         "crawl_status": status,                 # 빌드시점 상태 (client 가 override)
+        "crawl_down_sources": down_sources,     # 연속 0건 source (예: ['mss']) — 배지 비정상
     }
 
 
@@ -260,8 +272,7 @@ def fetch_data() -> dict:
     """Supabase에서 보안 통과 announcement + score 모두 가져와 dict로 반환."""
     with get_conn() as conn:
         with conn.cursor() as cur:
-            # ⚠️ 사용자 명시 7개 source만 + 활성 공고만 (마감 미래 + 60일 내 등록 마감미명시).
-            # 마감 지난 공고는 신청 불가 = 노이즈, 옛 잡 데이터 제외.
+            # ⚠️ 사용자 명시 7개 source만 (NTIS는 비활성화된 source — 옛 데이터 제외)
             cur.execute(
                 """SELECT a.id, a.source, a.external_id, a.title, a.url, a.agency,
                           a.posted_at, a.deadline_at, a.application_start_date,
@@ -275,12 +286,6 @@ def fetch_data() -> dict:
                    LEFT JOIN score s ON s.announcement_id = a.id
                    WHERE a.is_security = TRUE AND a.is_dismissed = FALSE
                      AND a.source IN ('iitp','kisa','krit','nipa','mss','koica')
-                     -- 활성 공고만 (마감 미래 or 60일 내 등록 마감미명시) — v1.0 release branch 정책
-                     AND (
-                       a.deadline_at >= CURRENT_DATE::text
-                       OR (a.deadline_at IS NULL
-                           AND a.posted_at >= (CURRENT_DATE - 60)::text)
-                     )
                      -- [2026-05-29 사용자 결정] KRIT 은 구조적으로 본문 접근이 안 돼서
                      -- (Nexacro popup) 점수 천장이 50점대 → 70+ 만 대시보드 노출.
                      -- 다른 소스는 영향 없음. 슬랙 신규 알림(80+ AND 1억+) 은 별도 변경 무.

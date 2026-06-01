@@ -54,26 +54,38 @@ def get_conn() -> Iterator[psycopg.Connection]:
 
 
 def init_db() -> None:
-    """schema.sql 실행 + 추가 컬럼 마이그레이션."""
+    """schema.sql 실행 + 추가 컬럼/테이블 마이그레이션.
+
+    ⚠️ 각 마이그레이션은 '독립 트랜잭션'(fresh connection)으로 실행.
+    이유: Supabase pgbouncer(transaction pooler)에서 multi-statement
+    cur.execute(schema_sql) 가 트랜잭션을 abort 시키면, 같은 트랜잭션 안의
+    후속 DDL 이 전부 InFailedSqlTransaction 으로 조용히 swallow 되고
+    commit 이 rollback 으로 끝나 새 테이블(meta 등)이 누락되던 버그.
+    DDL 마다 별도 get_conn() 으로 분리해 서로 영향 없게 한다.
+    """
     with get_conn() as conn:
         schema_sql = SCHEMA_PATH.read_text(encoding="utf-8")
-        # psycopg는 multi-statement를 한 번에 execute 가능
         with conn.cursor() as cur:
             cur.execute(schema_sql)
-        # 옛 DB에 컬럼이 없을 때 추가 (이미 있으면 ProgrammingError → 무시)
-        for ddl in [
-            "ALTER TABLE announcement ADD COLUMN IF NOT EXISTS eligibility_status TEXT",
-            "ALTER TABLE announcement ADD COLUMN IF NOT EXISTS eligibility_note TEXT",
-            "ALTER TABLE announcement ADD COLUMN IF NOT EXISTS eligibility_limit INTEGER",
-            "ALTER TABLE announcement ADD COLUMN IF NOT EXISTS budget_period TEXT",
-            "ALTER TABLE announcement ADD COLUMN IF NOT EXISTS budget_excerpt TEXT",
-            "ALTER TABLE announcement ADD COLUMN IF NOT EXISTS budget_confidence TEXT",
-        ]:
-            try:
+    # 옛 DB 대상 개별 마이그레이션 — 각각 독립 트랜잭션 (상호 격리)
+    for ddl in [
+        "ALTER TABLE announcement ADD COLUMN IF NOT EXISTS eligibility_status TEXT",
+        "ALTER TABLE announcement ADD COLUMN IF NOT EXISTS eligibility_note TEXT",
+        "ALTER TABLE announcement ADD COLUMN IF NOT EXISTS eligibility_limit INTEGER",
+        "ALTER TABLE announcement ADD COLUMN IF NOT EXISTS budget_period TEXT",
+        "ALTER TABLE announcement ADD COLUMN IF NOT EXISTS budget_excerpt TEXT",
+        "ALTER TABLE announcement ADD COLUMN IF NOT EXISTS budget_confidence TEXT",
+        # LLM 맥락 판단 결과(도메인 적합성 + TRL 단계) JSON 캐시 — assess_contents.py
+        "ALTER TABLE announcement ADD COLUMN IF NOT EXISTS llm_assess_json TEXT",
+        # meta KV (일일 하트비트 dedup 등) — 새 테이블도 개별 DDL 로 보장
+        "CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)",
+    ]:
+        try:
+            with get_conn() as conn:
                 with conn.cursor() as cur:
                     cur.execute(ddl)
-            except psycopg.Error:
-                pass  # 이미 컬럼 존재 또는 동시 마이그레이션
+        except psycopg.Error:
+            pass  # 이미 컬럼/테이블 존재 또는 동시 마이그레이션
 
 
 # ---------- 도메인 dataclass ----------
@@ -255,6 +267,60 @@ def log_fetch_finish(
         cur.execute(
             "UPDATE fetch_log SET finished_at=%s, new_count=%s, updated_count=%s, error=%s WHERE id=%s",
             (_now(), new_count, updated_count, error, log_id),
+        )
+
+
+def recent_zero_yield_sources(
+    active_sources: list[str], n: int = 3
+) -> list[tuple[str, int]]:
+    """활성 source 중 '최근 n회 크롤이 모두 new+updated=0' 인 것 (silent 장애 감지).
+
+    정상 source 는 기존 공고 재수집으로 매 크롤 updated>0 → 절대 0 안 됨.
+    따라서 연속 0건 = API 한도/파싱 깨짐 등 실질 장애 (예: MSS data.go.kr 429).
+
+    ⚠️ monitor_crawler.py(슬랙·로그)와 build_static.py(홈페이지 배지)가 **공유** —
+    두 곳이 같은 판정을 쓰도록 여기 한 곳에만 둔다 (드리프트 = 상태 불일치 재발).
+
+    Returns: [(source, 연속_0건_횟수), ...]
+    """
+    if not active_sources:
+        return []
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """WITH recent AS (
+                     SELECT source, new_count, updated_count,
+                            ROW_NUMBER() OVER (PARTITION BY source
+                                               ORDER BY started_at DESC) AS rn
+                     FROM fetch_log
+                     WHERE finished_at IS NOT NULL AND source = ANY(%s)
+                   )
+                   SELECT source, COUNT(*) AS n
+                   FROM recent WHERE rn <= %s
+                   GROUP BY source
+                   HAVING COUNT(*) >= %s
+                      AND COALESCE(SUM(new_count + updated_count), 0) = 0
+                   ORDER BY source""",
+                (active_sources, n, n),
+            )
+            return [(r["source"], r["n"]) for r in cur.fetchall()]
+
+
+def meta_get(conn: psycopg.Connection, key: str) -> str | None:
+    """meta KV 조회. 없으면 None."""
+    with conn.cursor() as cur:
+        cur.execute("SELECT value FROM meta WHERE key=%s", (key,))
+        row = cur.fetchone()
+        return row["value"] if row else None
+
+
+def meta_set(conn: psycopg.Connection, key: str, value: str) -> None:
+    """meta KV 저장 (upsert)."""
+    with conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO meta(key, value) VALUES (%s, %s) "
+            "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
+            (key, value),
         )
 
 

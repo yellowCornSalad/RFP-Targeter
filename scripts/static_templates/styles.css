@@ -87,9 +87,10 @@ html, body {
   white-space: nowrap;
 }
 .crawl-status .ago { font-weight: 400; opacity: 0.75; }
-.crawl-status.ok   { color: #15803d; background: #f0fdf4; border-color: #bbf7d0; }
-.crawl-status.warn { color: #b45309; background: #fffbeb; border-color: #fde68a; }
-.crawl-status.bad  { color: #b91c1c; background: #fef2f2; border-color: #fecaca; }
+.crawl-status.ok      { color: #15803d; background: #f0fdf4; border-color: #bbf7d0; }
+.crawl-status.warn    { color: #b45309; background: #fffbeb; border-color: #fde68a; }
+.crawl-status.partial { color: #c2410c; background: #fff7ed; border-color: #fed7aa; }
+.crawl-status.bad     { color: #b91c1c; background: #fef2f2; border-color: #fecaca; }
 
 /* ───── 메인 ───── */
 .main { max-width: 1600px; margin: 0 auto; padding: 0 32px 60px; }
