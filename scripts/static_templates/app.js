@@ -85,7 +85,8 @@ async function loadData() {
 // 크롤(데이터 수집) 상태 배지 — 조회 시점 기준 실시간 신선도 계산.
 // build_static.py 가 data.json 에 last_crawl_iso(UTC) 를 baking.
 // 빌드가 동결돼도 client 가 현재 시각과 비교해 정직하게 색 전환.
-//   <90분  🟢 정상   /  90~180분  🟡 지연   /  >180분  🔴 점검 필요
+//   <70분  🟢 정상   /  70~180분  🟡 지연   /  >180분  🔴 점검 필요
+//   (70분 = monitor GAP_MINUTES_THRESHOLD 와 일치 → 슬랙 staleness 알림과 동시 전환)
 // ────────────────────────────────────────────────────────────
 function renderCrawlStatus() {
   const el = document.getElementById("crawl-status");
@@ -98,14 +99,15 @@ function renderCrawlStatus() {
   if (isNaN(last.getTime())) { el.textContent = ""; return; }
   const mins = Math.max(0, Math.floor((Date.now() - last.getTime()) / 60000));
 
-  // 심각도: 🔴 완전정지(>180분) > 🟠 일부 수집 중단(source 연속 0건) > 🟡 지연(>90분) > 🟢 정상
+  // 심각도: 🔴 완전정지(>180분) > 🟠 일부 수집 중단(source 연속 0건) > 🟡 지연(>70분) > 🟢 정상
+  // 70분 = monitor staleness 임계와 일치 → 슬랙 알림 시점과 배지 전환 시점이 같음.
   // crawl_down_sources = monitor 와 동일 공유 함수 판정 → 홈페이지·슬랙 상태 일치.
   const down = DATA.crawl_down_sources || [];
   const downNames = down.map((s) => SOURCE_LABELS[s] || s.toUpperCase());
   let dot, label, cls;
   if (mins >= 180)      { dot = "🔴"; label = "점검 필요";   cls = "bad"; }
   else if (down.length) { dot = "🟠"; label = `일부 수집 중단 (${downNames.join("·")})`; cls = "partial"; }
-  else if (mins >= 90)  { dot = "🟡"; label = "동기화 지연"; cls = "warn"; }
+  else if (mins >= 70)  { dot = "🟡"; label = "동기화 지연"; cls = "warn"; }
   else                  { dot = "🟢"; label = "크롤링 정상"; cls = "ok"; }
 
   const m = kst.match(/(\d{2}:\d{2})/);

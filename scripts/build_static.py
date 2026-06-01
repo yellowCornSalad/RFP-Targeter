@@ -209,7 +209,7 @@ def _fetch_crawl_status(now_kst) -> dict:
     - started_at/finished_at 는 UTC ISO (_now()).
     - 24h '크롤 N회' = 시간 단위(LEFT 13) distinct 로 근사 (매시 1사이클).
     - 마지막 동기화 = MAX(finished_at).
-    - crawl_status(빌드시점): ok(<90분) / warn(<180분) / bad(그 이상).
+    - crawl_status(빌드시점): ok(<70분) / warn(<180분) / bad(그 이상). 70=monitor staleness 임계.
       ※ 실제 신선도는 client(app.js)가 조회 시각 기준으로 재계산 (빌드 동결 대비).
     """
     from datetime import timedelta
@@ -244,7 +244,7 @@ def _fetch_crawl_status(now_kst) -> dict:
             dt_kst = datetime.fromisoformat(last_iso).astimezone(ZoneInfo("Asia/Seoul"))
             last_kst = dt_kst.strftime("%Y-%m-%d %H:%M KST")
             mins = (now_kst - dt_kst).total_seconds() / 60
-            status = "ok" if mins < 90 else ("warn" if mins < 180 else "bad")
+            status = "ok" if mins < 70 else ("warn" if mins < 180 else "bad")  # 70=monitor 임계
         except Exception:
             pass
 
