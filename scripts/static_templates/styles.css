@@ -228,6 +228,28 @@ input[type="range"] { flex: 1; max-width: 200px; }
 .rel-badge.rel-low  { color: #b45309; background: #fffbeb; border-color: #fde68a; }
 .rel-badge.rel-none { color: #b91c1c; background: #fef2f2; border-color: #fecaca; }
 
+/* 🤖 도메인 적합성 필터 행 (KPI strip 아래) */
+.relevance-filter {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  margin: 0 0 16px; padding: 11px 16px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: 4px;
+}
+.relevance-filter:empty { display: none; }
+.rel-filter-label { font-size: 12px; font-weight: 700; color: var(--text-muted); margin-right: 6px; }
+.rel-chip {
+  font-size: 13px; font-weight: 600; padding: 5px 12px; border-radius: 999px;
+  border: 1px solid var(--border); background: #fff; cursor: pointer;
+  transition: all 0.12s ease; color: var(--text); font-feature-settings: "tnum";
+}
+.rel-chip b { font-weight: 800; margin-left: 3px; }
+.rel-chip:hover { border-color: var(--primary); }
+.rel-chip.active { background: #111; color: #fff; border-color: #111; }
+.rel-chip.rel-high.active { background: #15803d; border-color: #15803d; }
+.rel-chip.rel-mid.active  { background: #1d4ed8; border-color: #1d4ed8; }
+.rel-chip.rel-low.active  { background: #b45309; border-color: #b45309; }
+.rel-chip.rel-none.active { background: #b91c1c; border-color: #b91c1c; }
+.rel-chip.rel-un.active   { background: #555;    border-color: #555; }
+
 /* 상세 패널 — LLM 본문 판단 블록 */
 .llm-assess {
   margin: 12px 0; padding: 12px 14px; border-radius: 6px;

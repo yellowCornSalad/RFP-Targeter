@@ -48,6 +48,7 @@ const filters = {
   onlyToday: false,
   minScore: 0,
   budgetMode: "all",        // all | ge100 (1억+) | lt100 (1억 미만, NULL 제외)
+  relevance: null,          // 🤖 LLM 적합성 필터: null=전체 | high|medium|low|none|unassessed
   sort: "newest",
 };
 
@@ -70,6 +71,7 @@ async function loadData() {
     renderCrawlStatus();
     setInterval(renderCrawlStatus, 60000);  // 1분마다 "N분 전" 갱신 + 정지 시 색 전환
     renderAgencyGrid();
+    renderRelevanceFilter();
     bindFilters();
     applyFilters();
   } catch (e) {
@@ -238,6 +240,7 @@ function bindFilters() {
     filters.search = ""; filters.source = null;
     filters.onlyToday = false; filters.minScore = 0; filters.sort = "newest";
     filters.budgetMode = "all";
+    filters.relevance = null;
     document.getElementById("search").value = "";
     document.getElementById("min-score").value = 0;
     document.getElementById("min-score-val").textContent = "0";
@@ -245,6 +248,7 @@ function bindFilters() {
     document.getElementById("budget-filter").value = "all";
     currentPage = 1;
     renderAgencyGrid();
+    renderRelevanceFilter();
     applyFilters();
   });
   // 페이지 nav
@@ -279,6 +283,10 @@ function applyFilters() {
     if (filters.search) {
       const hay = (it.title + " " + it.agency + " " + it.matched_keywords.join(" ")).toLowerCase();
       if (!hay.includes(filters.search)) return false;
+    }
+    if (filters.relevance) {
+      const r = (it.llm || {}).relevance || "unassessed";
+      if (r !== filters.relevance) return false;
     }
     return true;
   });
@@ -323,6 +331,10 @@ function renderKpiStrip() {
     if (filters.search) {
       const hay = (it.title + " " + it.agency + " " + it.matched_keywords.join(" ")).toLowerCase();
       if (!hay.includes(filters.search)) return false;
+    }
+    if (filters.relevance) {
+      const r = (it.llm || {}).relevance || "unassessed";
+      if (r !== filters.relevance) return false;
     }
     return true;
   });
@@ -683,6 +695,47 @@ const _REL_MAP = {
   low:    ["적합성 낮음", "rel-low"],
   none:   ["적합성 무관", "rel-none"],
 };
+
+// 🤖 도메인 적합성 필터 칩 — 단계별 건수 표시 + 클릭 시 해당 단계만 노출.
+// [사용자 요청 2026-06-01] 건수는 전체(DATA.items) 기준. 다시 누르면 해제.
+function renderRelevanceFilter() {
+  const el = document.getElementById("relevance-filter");
+  if (!el || !DATA) return;
+  const items = DATA.items || [];
+  const counts = {};
+  for (const it of items) {
+    const r = (it.llm || {}).relevance || "unassessed";
+    counts[r] = (counts[r] || 0) + 1;
+  }
+  const defs = [
+    ["high", "🟢 높음", "rel-high"],
+    ["medium", "🔵 보통", "rel-mid"],
+    ["low", "🟠 낮음", "rel-low"],
+    ["none", "🔴 무관", "rel-none"],
+    ["unassessed", "⚪ 미평가", "rel-un"],
+  ];
+  const chips = [
+    `<button class="rel-chip ${filters.relevance === null ? "active" : ""}" data-rel="all">전체 <b>${items.length}</b></button>`,
+  ];
+  for (const [key, label, cls] of defs) {
+    const n = counts[key] || 0;
+    if (n === 0) continue;
+    chips.push(
+      `<button class="rel-chip ${cls} ${filters.relevance === key ? "active" : ""}" data-rel="${key}">${label} <b>${n}</b></button>`
+    );
+  }
+  el.innerHTML = '<span class="rel-filter-label">🤖 도메인 적합성</span>' + chips.join("");
+  el.querySelectorAll(".rel-chip").forEach((c) => {
+    c.addEventListener("click", () => {
+      const k = c.dataset.rel;
+      filters.relevance = (k === "all") ? null : (filters.relevance === k ? null : k);
+      currentPage = 1;
+      renderRelevanceFilter();
+      applyFilters();
+    });
+  });
+}
+
 function relevanceBadge(it) {
   const m = _REL_MAP[(it.llm || {}).relevance];
   if (!m) return "";
