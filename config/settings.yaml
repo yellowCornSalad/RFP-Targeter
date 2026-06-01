@@ -50,7 +50,11 @@ sources:
   mss:
     enabled: true
     base_url: "https://apis.data.go.kr"
-    max_per_source: 50                        # 일 호출 한도 100 보수적 운용
+    # [2026-06-01] 50 → 10. 매시 크롤 × 5페이지(50건) = 120콜/day > 100 →
+    # 오후엔 quota 소진 → 'HTTP 429 API token quota exceeded' → MSS 0건.
+    # 10건 = 1페이지 1콜 × 24크롤 = 24콜/day (재dispatch·retry 여유까지 100 미만).
+    # MSS 일 신규 10건 미만이라 최신 10건 커버면 충분 (옛건 이미 DB).
+    max_per_source: 10
 
   # KOSA — 2026-05-27 비활성화 (사용자 결정).
   # 사유: 활성 20건 평균 본문 907자(가장 짧음), 첨부 통합률 0%, 평균 매칭 7.1개.
