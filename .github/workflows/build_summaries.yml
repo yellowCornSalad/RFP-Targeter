@@ -25,7 +25,9 @@ concurrency:
 jobs:
   generate:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # [2026-06-01] 20→45. 요약+LLM평가 2종이라 대량 백필 시 20분 초과(타임아웃 취소).
+    # 평시 schedule(--limit 50)은 금방 끝남. 1회성 전체 백필 대비 여유.
+    timeout-minutes: 45
 
     steps:
       - name: Checkout main (데이터 생성은 최신 main 코드로 — 크롤과 일관)
