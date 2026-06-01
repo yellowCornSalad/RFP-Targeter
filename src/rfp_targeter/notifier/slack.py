@@ -473,12 +473,13 @@ def dispatch_pending_alerts() -> bool:
         log.info("slack alert: 영업시간 외(%s) — 누적만, 발송 skip", now.strftime("%a %H:%M"))
         return False
 
-    # DB에서 alerted_at IS NULL 보안 통과 row + score 모두 가져오기
-    # ⚠️ 사용자 규칙 (2026-05-26):
-    #   1) 종합 점수 ≥ 80
+    # DB에서 alerted_at IS NULL 보안 통과 row + score 가져오기
+    # ⚠️ 발송 규칙 [2026-06-01 사용자 결정 — '점수 80' → '적합성' 기준 교체]:
+    #   1) 🤖 LLM 도메인 적합성 = high 또는 medium (본문상 우리 분야인 것만)
     #   2) budget_mw ≥ 100 (= 1억 이상). NULL은 제외 (엄격)
     #   3) 활성 공고 (마감 미래 + 최근 60일 내 등록 마감미명시)
-    # 위 3개 모두 만족해야 슬랙 발송
+    # (이전 '종합점수 ≥ 80' 은 LLM 배율 후 점수가 80에 거의 안 닿아 무알림 → 폐기)
+    # 적합성은 llm_assess_json(JSON TEXT)이라 SQL 캐스트 에러 회피 위해 Python 에서 필터.
     try:
         with get_conn() as conn:
             with conn.cursor() as cur:
@@ -486,6 +487,7 @@ def dispatch_pending_alerts() -> bool:
                     """SELECT a.id, a.source, a.external_id, a.title, a.url, a.agency,
                               a.posted_at, a.deadline_at, a.budget_mw, a.budget_period,
                               a.matched_keywords_json, a.eligibility_status, a.eligibility_note,
+                              a.llm_assess_json,
                               s.keyword_score, s.budget_score, s.consortium_score,
                               s.competitor_score, s.trl_score, s.total_score, s.theme_fit
                        FROM announcement a
@@ -494,7 +496,6 @@ def dispatch_pending_alerts() -> bool:
                          AND a.alerted_at IS NULL
                          AND a.is_dismissed = FALSE
                          AND a.source IN ('iitp','kisa','krit','nipa','mss','koica')
-                         AND s.total_score >= 80
                          AND a.budget_mw IS NOT NULL AND a.budget_mw >= 100
                          AND (
                            a.deadline_at >= CURRENT_DATE::text
@@ -507,6 +508,18 @@ def dispatch_pending_alerts() -> bool:
     except Exception:
         log.exception("dispatch_pending_alerts: DB 조회 실패")
         return False
+
+    # 🤖 도메인 적합성 high/medium 만 발송 (미평가/낮음/무관 제외)
+    _ALERT_REL = {"high", "medium"}
+    filtered = []
+    for r in rows:
+        try:
+            rel = (json.loads(r.get("llm_assess_json") or "{}") or {}).get("relevance")
+        except Exception:
+            rel = None
+        if rel in _ALERT_REL:
+            filtered.append(r)
+    rows = filtered
 
     if not rows:
         log.info("slack alert: 영업시간(%s)이지만 미발송 공고 0건 — skip", now.strftime("%H:%M"))
