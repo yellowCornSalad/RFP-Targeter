@@ -35,7 +35,9 @@ _TRL_KEYWORDS: list[tuple[int, list[str]]] = [
     (6, ["파일럿", "Pilot", "베타 테스트", "기능 시험"]),
     (7, ["실증", "테스트베드", "운영 환경 시험", "필드 테스트", "통합 시험"]),
     (8, ["사업화", "시장 진입", "제품화", "양산 준비"]),
-    (9, ["상용화", "상용 서비스", "표준화", "확산", "보급", "인증"]),
+    # [2026-06-01] '인증/보급/확산' 제거 — 정부 공고에 너무 흔해(보안인증·시험인증·
+    # 본인인증·확산사업…) TRL 9 오탐 유발. 진짜 상용화 신호만 유지.
+    (9, ["상용화", "상용 서비스", "표준화"]),
 ]
 
 
@@ -91,9 +93,11 @@ def score_trl(a: Announcement, profile: dict) -> tuple[float, list[str]]:
     text = " ".join(filter(None, [a.title, a.summary, a.body]))
 
     required, source = _extract_required_trl(text)
+    from_default = False
     if required is None:
-        # 발주기관 default 시도
+        # 발주기관 default 시도 (본문 근거 아님 → 아래에서 신뢰도 할인)
         required, source = _agency_default_trl(a.agency or "")
+        from_default = True
 
     techs = profile.get("technologies") or []
     own_trls = sorted({t["trl"] for t in techs if isinstance(t.get("trl"), int)})
@@ -125,8 +129,15 @@ def score_trl(a: Announcement, profile: dict) -> tuple[float, list[str]]:
     else:
         score = 40.0
 
-    return score, [
+    notes = [
         f"공고 요구 TRL ≈ {required} ({source})",
         f"회사 보유 TRL: {own_trls} — 최소 gap = {closest_gap}",
-        f"📐 산정: gap {closest_gap} → **{score:.0f}점**",
     ]
+    # [2026-06-01] 발주기관 default 는 본문 TRL 근거가 아니라 '기관 경향' 추정 →
+    # 만점 불가. 신뢰도 할인(최대 70). 실제 TRL 명시·강한 키워드일 때만 고득점.
+    # (예: 중기부 공고 TRL 명시 無 → default 8 → 회사 8 gap0 = 95 였던 인플레이션 차단)
+    if from_default and score > 70.0:
+        notes.append(f"⚠ 발주기관 default 추정(본문 TRL 신호 없음) → 신뢰도 할인 {score:.0f}→70")
+        score = 70.0
+    notes.append(f"📐 산정: gap {closest_gap} → **{score:.0f}점**")
+    return score, notes
