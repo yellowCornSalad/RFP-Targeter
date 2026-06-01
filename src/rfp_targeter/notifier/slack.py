@@ -475,7 +475,9 @@ def dispatch_pending_alerts() -> bool:
 
     # DB에서 alerted_at IS NULL 보안 통과 row + score 가져오기
     # ⚠️ 발송 규칙 [2026-06-01 사용자 결정 — '점수 80' → '적합성' 기준 교체]:
-    #   1) 🤖 LLM 도메인 적합성 = high 또는 medium (본문상 우리 분야인 것만)
+    #   1) 🤖 LLM 도메인 적합성 = high (명확히 본업 관련) 만. [2026-06-01 재조정]
+    #      medium 은 곁가지(예: AX 바우처 — 엔키가 '수요기업'으로 활용 여지뿐, 본업 무관)
+    #      까지 잡혀 푸시 과다 → medium 은 대시보드에서만 확인, 슬랙은 high 만.
     #   2) budget_mw ≥ 100 (= 1억 이상). NULL은 제외 (엄격)
     #   3) 활성 공고 (마감 미래 + 최근 60일 내 등록 마감미명시)
     # (이전 '종합점수 ≥ 80' 은 LLM 배율 후 점수가 80에 거의 안 닿아 무알림 → 폐기)
@@ -509,8 +511,8 @@ def dispatch_pending_alerts() -> bool:
         log.exception("dispatch_pending_alerts: DB 조회 실패")
         return False
 
-    # 🤖 도메인 적합성 high/medium 만 발송 (미평가/낮음/무관 제외)
-    _ALERT_REL = {"high", "medium"}
+    # 🤖 도메인 적합성 high 만 발송 (medium/낮음/무관/미평가 제외 — medium 은 대시보드만)
+    _ALERT_REL = {"high"}
     filtered = []
     for r in rows:
         try:
