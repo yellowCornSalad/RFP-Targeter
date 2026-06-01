@@ -125,6 +125,9 @@ alert:
   crawl_complete_enabled: false     # 매 사이클 "크롤 완료" 요약 메시지 발송 여부
   # [2026-05-29 사용자 요청] 크롤 실패(소스 에러) 시에는 경보 발사 (성공은 조용).
   crawl_failure_enabled: true       # source 에러 1+ 시 🚨 Slack 경보 (영업시간 가드)
+  # [2026-05-29 사용자 요청] 매일 아침 1회 '정상 가동' 하트비트 (크롤완료 OFF 보완).
+  daily_heartbeat_enabled: true     # 매일 daily_heartbeat_hour 시 첫 사이클에 1회 발송
+  daily_heartbeat_hour: 9           # KST 기준 시각 (기본 09시). meta dedup 으로 하루 1회.
   business_hours:
     start: 9                        # 09시부터
     end: 21                         # 21시까지 (포함) — 사용자 요청 2026-05-28

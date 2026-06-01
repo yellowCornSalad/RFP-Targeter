@@ -388,6 +388,78 @@ def notify_crawl_failure(stats: list) -> bool:
     return _post_webhook({"text": body})
 
 
+def notify_daily_heartbeat() -> bool:
+    """매일 지정 시각(기본 09시 KST) 첫 크롤 사이클에 '정상 가동' 하트비트 1회.
+
+    [사용자 요청 2026-05-29] 크롤 완료 메시지를 끈 뒤 '살아있다' 신호가
+    사라져, 하루 1번 저노이즈 안심 핑을 보냄 (성공/실패 무관 — 가동 자체를 알림).
+    - 발송 조건: slack_enabled + daily_heartbeat_enabled(기본 ON) +
+      현재 KST 시각 == daily_heartbeat_hour(기본 9) + 오늘 미발송(meta dedup).
+    - 내용: 지난 24시간 크롤 N회 · 마지막 동기화 시각 · 실패 건수.
+    매시 크롤이 09시대에 여러 번 돌아도 meta(last_heartbeat_date)로 1회만.
+    settings.alert.daily_heartbeat_enabled=false 로 끌 수 있음.
+    """
+    from datetime import timedelta, timezone as _tz
+
+    from rfp_targeter.db.models import meta_get, meta_set
+
+    cfg = (settings().get("alert") or {})
+    if not cfg.get("slack_enabled", False):
+        return False
+    if not cfg.get("daily_heartbeat_enabled", True):
+        return False
+
+    now = datetime.now(KST)
+    if now.hour != int(cfg.get("daily_heartbeat_hour", 9)):
+        return False
+    today = now.strftime("%Y-%m-%d")
+    since_iso = (now.astimezone(_tz.utc) - timedelta(hours=24)).isoformat(timespec="seconds")
+
+    try:
+        with get_conn() as conn:
+            if meta_get(conn, "last_heartbeat_date") == today:
+                return False  # 오늘 이미 발송
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT COUNT(DISTINCT LEFT(started_at, 13)) AS cycles, "
+                    "COUNT(*) FILTER (WHERE error IS NOT NULL) AS errs, "
+                    "MAX(finished_at) AS last "
+                    "FROM fetch_log WHERE started_at >= %s",
+                    (since_iso,),
+                )
+                r = cur.fetchone() or {}
+            cycles = int(r.get("cycles") or 0)
+            errs = int(r.get("errs") or 0)
+            last = r.get("last")
+    except Exception:
+        log.exception("heartbeat: DB 조회 실패 — skip")
+        return False
+
+    last_txt = ""
+    if last:
+        try:
+            last_txt = datetime.fromisoformat(last).astimezone(KST).strftime("%m-%d %H:%M")
+        except Exception:
+            pass
+
+    icon = "✅" if errs == 0 else "⚠️"
+    dash = cfg.get("dashboard_url") or DEFAULT_DASHBOARD_URL
+    body = (
+        f"{icon} *[크롤 상태 점검]* 지난 24시간 *{cycles}회* 자동 수집"
+        + (f" · 실패 *{errs}건*" if errs else " · 실패 0건")
+        + (f"\n마지막 동기화: *{last_txt} KST*" if last_txt else "")
+        + f"\n<{dash}|대시보드 열기>"
+    )
+    sent = _post_webhook({"text": body})
+    if sent:
+        try:
+            with get_conn() as conn:
+                meta_set(conn, "last_heartbeat_date", today)
+        except Exception:
+            log.exception("heartbeat: meta_set 실패 (드물게 중복 발송 가능)")
+    return sent
+
+
 def dispatch_pending_alerts() -> bool:
     """매 cron 끝에 호출 — 평일 09~21시 KST 면 alerted_at IS NULL 보안 공고 묶음 발송.
 

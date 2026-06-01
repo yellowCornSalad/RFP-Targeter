@@ -420,4 +420,11 @@ def run_once() -> list[RunStats]:
     except Exception:
         log.exception("slack notify_crawl_failure failed (pipeline 계속)")
 
+    # 일일 하트비트 — 매일 09시 KST 첫 사이클에 1회 '정상 가동' 안심 핑. [2026-05-29 사용자 요청]
+    try:
+        from rfp_targeter.notifier.slack import notify_daily_heartbeat
+        notify_daily_heartbeat()
+    except Exception:
+        log.exception("slack notify_daily_heartbeat failed (pipeline 계속)")
+
     return stats

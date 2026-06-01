@@ -54,26 +54,36 @@ def get_conn() -> Iterator[psycopg.Connection]:
 
 
 def init_db() -> None:
-    """schema.sql 실행 + 추가 컬럼 마이그레이션."""
+    """schema.sql 실행 + 추가 컬럼/테이블 마이그레이션.
+
+    ⚠️ 각 마이그레이션은 '독립 트랜잭션'(fresh connection)으로 실행.
+    이유: Supabase pgbouncer(transaction pooler)에서 multi-statement
+    cur.execute(schema_sql) 가 트랜잭션을 abort 시키면, 같은 트랜잭션 안의
+    후속 DDL 이 전부 InFailedSqlTransaction 으로 조용히 swallow 되고
+    commit 이 rollback 으로 끝나 새 테이블(meta 등)이 누락되던 버그.
+    DDL 마다 별도 get_conn() 으로 분리해 서로 영향 없게 한다.
+    """
     with get_conn() as conn:
         schema_sql = SCHEMA_PATH.read_text(encoding="utf-8")
-        # psycopg는 multi-statement를 한 번에 execute 가능
         with conn.cursor() as cur:
             cur.execute(schema_sql)
-        # 옛 DB에 컬럼이 없을 때 추가 (이미 있으면 ProgrammingError → 무시)
-        for ddl in [
-            "ALTER TABLE announcement ADD COLUMN IF NOT EXISTS eligibility_status TEXT",
-            "ALTER TABLE announcement ADD COLUMN IF NOT EXISTS eligibility_note TEXT",
-            "ALTER TABLE announcement ADD COLUMN IF NOT EXISTS eligibility_limit INTEGER",
-            "ALTER TABLE announcement ADD COLUMN IF NOT EXISTS budget_period TEXT",
-            "ALTER TABLE announcement ADD COLUMN IF NOT EXISTS budget_excerpt TEXT",
-            "ALTER TABLE announcement ADD COLUMN IF NOT EXISTS budget_confidence TEXT",
-        ]:
-            try:
+    # 옛 DB 대상 개별 마이그레이션 — 각각 독립 트랜잭션 (상호 격리)
+    for ddl in [
+        "ALTER TABLE announcement ADD COLUMN IF NOT EXISTS eligibility_status TEXT",
+        "ALTER TABLE announcement ADD COLUMN IF NOT EXISTS eligibility_note TEXT",
+        "ALTER TABLE announcement ADD COLUMN IF NOT EXISTS eligibility_limit INTEGER",
+        "ALTER TABLE announcement ADD COLUMN IF NOT EXISTS budget_period TEXT",
+        "ALTER TABLE announcement ADD COLUMN IF NOT EXISTS budget_excerpt TEXT",
+        "ALTER TABLE announcement ADD COLUMN IF NOT EXISTS budget_confidence TEXT",
+        # meta KV (일일 하트비트 dedup 등) — 새 테이블도 개별 DDL 로 보장
+        "CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)",
+    ]:
+        try:
+            with get_conn() as conn:
                 with conn.cursor() as cur:
                     cur.execute(ddl)
-            except psycopg.Error:
-                pass  # 이미 컬럼 존재 또는 동시 마이그레이션
+        except psycopg.Error:
+            pass  # 이미 컬럼/테이블 존재 또는 동시 마이그레이션
 
 
 # ---------- 도메인 dataclass ----------
@@ -255,6 +265,24 @@ def log_fetch_finish(
         cur.execute(
             "UPDATE fetch_log SET finished_at=%s, new_count=%s, updated_count=%s, error=%s WHERE id=%s",
             (_now(), new_count, updated_count, error, log_id),
+        )
+
+
+def meta_get(conn: psycopg.Connection, key: str) -> str | None:
+    """meta KV 조회. 없으면 None."""
+    with conn.cursor() as cur:
+        cur.execute("SELECT value FROM meta WHERE key=%s", (key,))
+        row = cur.fetchone()
+        return row["value"] if row else None
+
+
+def meta_set(conn: psycopg.Connection, key: str, value: str) -> None:
+    """meta KV 저장 (upsert)."""
+    with conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO meta(key, value) VALUES (%s, %s) "
+            "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
+            (key, value),
         )
 
 

@@ -10,7 +10,12 @@ name: Build Static Site
 
 on:
   schedule:
-    - cron: '5 * * * *'      # 매시 5분 (default branch에서 발화)
+    - cron: '5 * * * *'      # 매시 5분 (default branch에서 발화) — 백업 트리거
+  # [2026-05-29] 크롤 완료 직후 자동 빌드 — 대시보드 "마지막 동기화" 신선도 보장.
+  # GitHub schedule(:05)이 자주 지연·스킵되는 문제를 보정 (cron-job.org 아님, 내부 연동).
+  workflow_run:
+    workflows: ["Hourly Crawl"]
+    types: [completed]
   push:
     branches: [v1.0]          # v1.0 변경 시도 빌드
     paths:
@@ -40,11 +45,14 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # workflow_run(크롤 완료) 트리거는 크롤이 '성공'했을 때만 빌드.
+    # 그 외 트리거(schedule/push/dispatch)는 항상 빌드.
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     steps:
       - name: Checkout v1.0 release branch
         uses: actions/checkout@v4
         with:
-          # workflow_dispatch로 다른 ref 지정 가능, 기본은 v1.0
+          # workflow_dispatch로 다른 ref 지정 가능, 기본은 v1.0 (workflow_run/schedule 포함)
           ref: ${{ github.event.inputs.ref || 'v1.0' }}
 
       - name: Setup Python 3.11

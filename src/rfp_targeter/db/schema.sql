@@ -63,3 +63,9 @@ CREATE TABLE IF NOT EXISTS fetch_log (
 );
 
 CREATE INDEX IF NOT EXISTS idx_fetch_log_source ON fetch_log(source);
+
+-- 범용 key-value 메타 (일일 하트비트 중복 방지 등 소량 상태 보존)
+CREATE TABLE IF NOT EXISTS meta (
+    key   TEXT PRIMARY KEY,
+    value TEXT
+);
