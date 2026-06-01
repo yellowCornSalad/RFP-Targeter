@@ -56,7 +56,9 @@ async function loadData() {
     const r = await fetch("data.json", { cache: "no-cache" });
     DATA = await r.json();
     document.getElementById("total-count").textContent = DATA.total.toLocaleString();
-    document.getElementById("today-new").textContent = DATA.today_new;
+    document.getElementById("today-new").textContent = countNewToday(null);
+    renderCrawlStatus();
+    setInterval(renderCrawlStatus, 60000);  // 1분마다 "N분 전" 갱신 + 정지 시 색 전환
     renderAgencyGrid();
     bindFilters();
     applyFilters();
@@ -65,6 +67,42 @@ async function loadData() {
     document.getElementById("cards").innerHTML =
       '<div style="text-align:center;padding:40px;color:#999">데이터 로드 실패 — 빌드 후 다시 시도</div>';
   }
+}
+
+// ────────────────────────────────────────────────────────────
+// 크롤(데이터 수집) 상태 배지 — 조회 시점 기준 실시간 신선도 계산.
+// build_static.py 가 data.json 에 last_crawl_iso(UTC) 를 baking.
+// 빌드가 동결돼도 client 가 현재 시각과 비교해 정직하게 색 전환.
+//   <90분  🟢 정상   /  90~180분  🟡 지연   /  >180분  🔴 점검 필요
+// ────────────────────────────────────────────────────────────
+function renderCrawlStatus() {
+  const el = document.getElementById("crawl-status");
+  if (!el || !DATA) return;
+  const iso = DATA.last_crawl_iso;
+  const kst = DATA.last_crawl_kst || "";
+  if (!iso) { el.textContent = ""; return; }
+
+  const last = new Date(iso);
+  if (isNaN(last.getTime())) { el.textContent = ""; return; }
+  const mins = Math.max(0, Math.floor((Date.now() - last.getTime()) / 60000));
+
+  let dot, label, cls;
+  if (mins < 90)      { dot = "🟢"; label = "크롤링 정상"; cls = "ok"; }
+  else if (mins < 180){ dot = "🟡"; label = "동기화 지연"; cls = "warn"; }
+  else                { dot = "🔴"; label = "점검 필요";   cls = "bad"; }
+
+  const m = kst.match(/(\d{2}:\d{2})/);
+  const hhmm = m ? m[1] : kst;
+  const ago = mins < 60 ? `${mins}분 전` : `${Math.floor(mins / 60)}시간 ${mins % 60}분 전`;
+  const errs = DATA.crawl_errors_24h || 0;
+  const errTxt = errs > 0 ? `  ·  ⚠️ 24h 실패 ${errs}건` : "";
+
+  el.className = "crawl-status " + cls;
+  el.innerHTML =
+    `${dot} ${label}  ·  마지막 동기화 <b>${hhmm}</b> <span class="ago">(${ago})</span>${errTxt}`;
+  el.title =
+    `마지막 데이터 수집: ${kst}\n지난 24시간 크롤 ${DATA.crawl_24h_count || 0}회 · 실패 ${errs}건\n` +
+    `(상태는 조회 시점 기준 실시간 계산 — 빌드가 멈춰도 정확)`;
 }
 
 // ────────────────────────────────────────────────────────────
@@ -79,6 +117,30 @@ const SOURCE_LABELS = {
 //                          정부 API 사망. 부활 가능성 낮음 → UI 카드 숨김
 const SOURCE_ORDER = ["iitp", "kisa", "nipa", "mss", "krit"];
 
+// ────────────────────────────────────────────────────────────
+// '오늘' 신규 판정 — 항상 KST 기준 (공고 posted_at 이 KST 날짜).
+// 서버 baked today_new/today_new_by_src 는 빌드 러너(UTC)·빌드시점 기준이라
+// 새벽/지연 빌드 시 불일치 → UI 는 전부 client 에서 KST 로 재계산해 통일.
+// (toISOString = UTC 라 KST 00~09시에 하루 어긋나던 문제도 해소)
+// ────────────────────────────────────────────────────────────
+function todayKST() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(new Date());
+  const o = {};
+  for (const p of parts) o[p.type] = p.value;
+  return `${o.year}-${o.month}-${o.day}`;  // "2026-06-01"
+}
+
+// 오늘(KST) 신규 공고 수 — src=null 이면 전체, 아니면 해당 소스만.
+// 필터링 통과(data.json items = 보안통과) 공고 중 posted_at 이 오늘인 것.
+function countNewToday(src) {
+  const t = todayKST();
+  return (DATA.items || []).filter(
+    (it) => (src == null || it.source === src) && (it.posted_at || "").slice(0, 10) === t
+  ).length;
+}
+
 function renderAgencyGrid() {
   const grid = document.getElementById("agency-grid");
   // 첫 카드 = "전체" (filters.source === null 일 때 활성)
@@ -88,7 +150,7 @@ function renderAgencyGrid() {
       key: "all",
       label: "전체",
       total: DATA.total,
-      newN: DATA.today_new,
+      newN: countNewToday(null),
       status: "보안 통과",
       isActive: filters.source === null,
       isAll: true,
@@ -99,7 +161,7 @@ function renderAgencyGrid() {
         key: src,
         label: SOURCE_LABELS[src],
         total: total,
-        newN: DATA.today_new_by_src[src] || 0,
+        newN: countNewToday(src),
         // KRIT 는 국방 R&D — 구조적으로 본문(Nexacro popup) 못 받아 점수 천장 50대.
         // [2026-05-29 사용자 정책] KRIT 단독 70+ 만 노출. 0이면 "70+ 0건" 라벨.
         status: total === 0
@@ -193,7 +255,7 @@ function bindFilters() {
 // 필터 적용 + 정렬
 // ────────────────────────────────────────────────────────────
 function applyFilters() {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayKST();
   FILTERED = DATA.items.filter((it) => {
     if (filters.source && it.source !== filters.source) return false;
     if (filters.minScore > 0 && (it.scores.total || 0) < filters.minScore) return false;
@@ -236,7 +298,7 @@ function applyFilters() {
 // ────────────────────────────────────────────────────────────
 function renderKpiStrip() {
   const strip = document.getElementById("kpi-strip");
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayKST();
 
   // ── 모집단(base) — minScore 만 제외하고 다른 필터(source/search/예산) 적용 ──
   // 이유: KPI 카드 클릭이 minScore 토글이므로 minScore 적용 전 모집단 기준
@@ -605,7 +667,7 @@ function daysLeft(deadline) {
 
 function renderCard(it) {
   const [gradeLabel, gradeCls] = gradeOf(it.scores.total);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayKST();
   const isNew = it.posted_at.slice(0, 10) === today;
   const dLeft = daysLeft(it.deadline_at);
   const bud = budgetText(it.budget_mw);
