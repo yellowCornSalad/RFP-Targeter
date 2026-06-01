@@ -30,18 +30,24 @@ log = logging.getLogger("assess_contents")
 
 
 def _ensure_column() -> bool:
-    """llm_assess_json 컬럼 보장 — 명시적·가시적 (init_db 의 swallow-on-error 회피).
-    단일 ALTER 를 자체 트랜잭션으로 실행. 실패하면 로그 + False."""
+    """llm_assess_json 컬럼 '존재 확인'만 (verify-only).
+
+    런타임 ALTER 는 announcement ACCESS EXCLUSIVE 락이 필요 → 크롤/빌드 동시
+    접근(또는 누수 idle-in-transaction) 시 statement timeout 으로 실패. 그래서
+    DDL 은 init_db/수동 1회로만 하고, 여기선 확인만 한다(락 무관). 없으면 명확히 에러."""
     try:
         with get_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "ALTER TABLE announcement ADD COLUMN IF NOT EXISTS llm_assess_json TEXT"
+                    "SELECT 1 FROM information_schema.columns "
+                    "WHERE table_name='announcement' AND column_name='llm_assess_json'"
                 )
-        log.info("llm_assess_json 컬럼 확인/생성 완료")
-        return True
+                ok = cur.fetchone() is not None
+        if not ok:
+            log.error("llm_assess_json 컬럼 없음 — init_db 또는 수동 마이그레이션 필요")
+        return ok
     except Exception:
-        log.exception("llm_assess_json 컬럼 생성 실패")
+        log.exception("컬럼 확인 실패")
         return False
 
 
