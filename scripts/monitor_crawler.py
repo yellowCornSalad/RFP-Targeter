@@ -2,18 +2,18 @@
 
 주간 시간(평일 09~21 KST) 동안 매 30분 자동 실행. 비주간은 즉시 skip.
 
-검증:
-  1. last fetch_log finished_at 이 70분 초과 안 됐는지 (1시간 주기 + 10분 여유)
-  2. GitHub Actions crawl.yml 최근 5 run 에 cancelled 패턴
-  3. 활성 보안 공고 score NULL 0건 (자동 백필 효과 확인)
-  4. 슬랙 누락 후보 0건 (영업시간이면 즉시 dispatch)
-  5. 활성 source 가 최근 3회 크롤 연속 0건 수집 (특정 source silent 장애 —
-     크롤 전체는 성공하므로 1·2번으론 안 잡힘. 예: MSS data.go.kr 일 한도 429)
+검증 (★ = '데이터 지연'이라 슬랙 발송 / 나머지는 정보 — 홈페이지·로그에서만 확인):
+  1. ★ last fetch_log finished_at 70분 초과 (데이터 지연 → 슬랙 + exit 1)
+  2.   GitHub Actions crawl.yml 최근 5 run cancelled 패턴 (정보 — 다음 run 성공 시 자체복구)
+  3.   활성 보안 공고 score NULL (정보 — 자동 백필 대상)
+  4.   슬랙 누락 후보 (영업시간이면 즉시 dispatch — 경고 아닌 액션)
+  5.   활성 source 최근 3회 연속 0건 (정보 — 홈페이지 배지에 '비정상' 표시. 예: MSS 429)
+
+[2026-06-01 사용자 결정 — 슬랙 최소화] 취소·source 0건은 슬랙으로 안 울림.
+크롤이 데이터를 계속 갱신하는 한(홈페이지 정상) 슬랙은 조용. 진짜 멈추면(staleness)만 발사.
 
 이상 발견 시:
-  - exit code 1 (CI 빨간불)
-  - 슬랙 webhook 으로 [모니터] 메시지 발사
-  - 표준출력에 진단 결과
+  - exit code 1 (데이터 지연 시에만), 슬랙 [모니터] 메시지, 표준출력 진단
 
 사용:
   python scripts/monitor_crawler.py            # 1회 점검
@@ -34,7 +34,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from rfp_targeter.config import secrets, settings  # noqa: E402
-from rfp_targeter.db.models import get_conn  # noqa: E402
+from rfp_targeter.db.models import get_conn, recent_zero_yield_sources  # noqa: E402
 
 try:
     from zoneinfo import ZoneInfo
@@ -112,9 +112,16 @@ def dismiss_expired() -> int:
             return cur.rowcount
 
 
-def check() -> tuple[bool, list[str]]:
-    """크롤러 헬스 점검. Returns (정상 여부, 이슈 목록)."""
-    issues: list[str] = []
+def check() -> tuple[list[str], list[str]]:
+    """크롤러 헬스 점검. Returns (슬랙_이슈, 정보_이슈).
+
+    [2026-06-01 사용자 결정 — 슬랙 최소화]
+      · 슬랙_이슈 = '데이터 지연(staleness)' 만 → 슬랙 발송 + exit 1
+      · 정보_이슈 = 취소 패턴 · source 연속 0건 · score NULL 등
+        → 출력/홈페이지 배지에서만 확인, 슬랙 발송 안 함 (홈페이지가 정상이면 슬랙도 조용)
+    """
+    slack_issues: list[str] = []   # 데이터 지연만
+    info_issues: list[str] = []    # 취소·source 0건·score NULL — 홈페이지/로그용
     now_kst = datetime.now(KST)
 
     # 만료 공고 dismiss 는 main()에서 비영업시간도 포함해 미리 호출됨 — 여기서 중복 호출 안 함
@@ -156,33 +163,14 @@ def check() -> tuple[bool, list[str]]:
             )
             pending_alerts = cur.fetchone()["n"]
 
-            # source 별 연속 0건 — 크롤은 성공했는데 특정 source 만 silent 장애
-            # (정상 source 는 기존 공고 재수집으로 updated>0 → 절대 0 안 됨)
-            active_sources = [
-                k for k, v in (settings().get("sources") or {}).items()
-                if isinstance(v, dict) and v.get("enabled")
-            ]
-            zero_yield: list[tuple[str, int]] = []
-            if active_sources:
-                cur.execute(
-                    """WITH recent AS (
-                         SELECT source, new_count, updated_count,
-                                ROW_NUMBER() OVER (PARTITION BY source
-                                                   ORDER BY started_at DESC) AS rn
-                         FROM fetch_log
-                         WHERE finished_at IS NOT NULL AND source = ANY(%s)
-                       )
-                       SELECT source, COUNT(*) AS n
-                       FROM recent WHERE rn <= %s
-                       GROUP BY source
-                       HAVING COUNT(*) >= %s
-                          AND COALESCE(SUM(new_count + updated_count), 0) = 0
-                       ORDER BY source""",
-                    (active_sources, ZERO_YIELD_THRESHOLD, ZERO_YIELD_THRESHOLD),
-                )
-                zero_yield = [(r["source"], r["n"]) for r in cur.fetchall()]
+    # source 별 연속 0건 — 홈페이지 배지와 공유 함수 사용 (판정 일치 보장)
+    active_sources = [
+        k for k, v in (settings().get("sources") or {}).items()
+        if isinstance(v, dict) and v.get("enabled")
+    ]
+    zero_yield = recent_zero_yield_sources(active_sources, ZERO_YIELD_THRESHOLD)
 
-    # 2) 임계 검증
+    # 2) 데이터 지연(staleness) → 슬랙 (사용자 결정: 슬랙은 이것만)
     if last_finished_str:
         # text → datetime (UTC). 다양한 형식 폴백 처리.
         try:
@@ -194,13 +182,13 @@ def check() -> tuple[bool, list[str]]:
                 last_finished = last_finished.replace(tzinfo=timezone.utc)
         except Exception:
             last_finished = None
-            issues.append(f"finished_at 파싱 실패: {last_finished_str}")
+            slack_issues.append(f"finished_at 파싱 실패: {last_finished_str}")
 
         if last_finished:
             gap = now_kst - last_finished
             gap_minutes = gap.total_seconds() / 60
             if gap_minutes > GAP_MINUTES_THRESHOLD:
-                issues.append(
+                slack_issues.append(
                     f"🚨 크롤러 정지 — 마지막 정상 완료 {gap_minutes:.0f}분 전 "
                     f"({last_finished.astimezone(KST).strftime('%Y-%m-%d %H:%M KST')})"
                 )
@@ -213,37 +201,38 @@ def check() -> tuple[bool, list[str]]:
                         capture_output=True, text=True, timeout=20,
                     )
                     if r.returncode == 0:
-                        issues.append("  ↳ [자동조치] gh workflow run crawl.yml 즉시 dispatch")
+                        slack_issues.append("  ↳ [자동조치] gh workflow run crawl.yml 즉시 dispatch")
                     else:
-                        issues.append(f"  ↳ [자동조치 실패] gh dispatch: {r.stderr[:100]}")
+                        slack_issues.append(f"  ↳ [자동조치 실패] gh dispatch: {r.stderr[:100]}")
                 except Exception as e:
-                    issues.append(f"  ↳ [자동조치 실패] {e}")
+                    slack_issues.append(f"  ↳ [자동조치 실패] {e}")
     else:
-        issues.append("⚠ fetch_log 에 finished_at 없음 — 한 번도 정상 완료된 사이클 없음")
+        slack_issues.append("⚠ fetch_log 에 finished_at 없음 — 한 번도 정상 완료된 사이클 없음")
 
-    # 3) GitHub Actions 최근 run 패턴
+    # 3) GitHub Actions 취소/실패 패턴 → 정보(홈페이지/로그). 슬랙 X.
+    #    취소돼도 다음 run 이 성공하면 데이터는 멀쩡 → 슬랙 알릴 일 아님(2번 staleness 가 잡음).
     recent = _gh_recent_runs(limit=5)
     if recent:
         cancelled = sum(1 for r in recent if r.get("conclusion") == "cancelled")
         failures = sum(1 for r in recent if r.get("conclusion") == "failure")
         if cancelled >= CANCELLED_PATTERN_THRESHOLD:
-            issues.append(
+            info_issues.append(
                 f"⚠ GitHub Actions crawl.yml 최근 5 run 중 {cancelled}건 cancelled "
-                f"(timeout 패턴 추정)"
+                f"(timeout 패턴 추정 — 데이터 지연 없으면 자체복구된 것)"
             )
         if failures > 0:
-            issues.append(
+            info_issues.append(
                 f"⚠ GitHub Actions crawl.yml 최근 5 run 중 {failures}건 failure"
             )
 
-    # 4) score NULL — 안전망 효과 확인
+    # 4) score NULL → 정보 (자동 백필 대상)
     if null_score > 0:
-        issues.append(
+        info_issues.append(
             f"⚠ 활성 보안 공고 중 score NULL {null_score}건 "
             f"(`python scripts/backfill_scores.py` 권장)"
         )
 
-    # 5) 슬랙 누락 후보 — 영업시간이면 즉시 dispatch
+    # 5) 슬랙 누락 후보 — 영업시간이면 즉시 dispatch (이건 '경고'가 아니라 '액션')
     if pending_alerts > 0:
         if _is_business_hours(now_kst):
             try:
@@ -251,18 +240,18 @@ def check() -> tuple[bool, list[str]]:
                 sent = dispatch_pending_alerts()
                 print(f"[자동조치] 슬랙 누락 {pending_alerts}건 dispatch — sent={sent}")
             except Exception as e:
-                issues.append(f"⚠ 슬랙 누락 {pending_alerts}건 dispatch 실패: {e}")
+                info_issues.append(f"⚠ 슬랙 누락 {pending_alerts}건 dispatch 실패: {e}")
         else:
             print(f"[참고] 슬랙 누락 {pending_alerts}건 누적 — 비영업시간이라 보류")
 
-    # 6) source 별 연속 0건 — silent 장애 (크롤 전체 성공이라 여태 안 보이던 케이스)
+    # 6) source 별 연속 0건 → 정보. 홈페이지 배지(_fetch_crawl_status)에 표시됨.
     for src, n in zero_yield:
-        issues.append(
-            f"⚠ {src.upper()} 최근 {n}회 크롤 연속 0건 수집 — API 한도/사이트 구조 변경 의심 "
-            f"(크롤 자체는 성공해 그동안 안 보였음. mss=data.go.kr 일 한도 등)"
+        info_issues.append(
+            f"⚠ {src.upper()} 최근 {n}회 크롤 연속 0건 수집 — 홈페이지 배지에 '비정상' 표시됨 "
+            f"(API 한도/구조 변경 의심. mss=data.go.kr 일 한도 등)"
         )
 
-    return len(issues) == 0, issues
+    return slack_issues, info_issues
 
 
 def main() -> int:
@@ -287,20 +276,29 @@ def main() -> int:
         print("비영업시간 (평일 09~21 KST 외) — 점검 skip (dismiss 만 수행됨)")
         return 0
 
-    ok, issues = check()
-    if ok:
-        print("✅ 모든 점검 통과 — 크롤러 정상")
+    slack_issues, info_issues = check()
+
+    # 정보성 이슈(취소·source 0건·score NULL) — 항상 출력하되 슬랙 발송 X.
+    # 홈페이지 배지에서 확인 (사용자 결정 2026-06-01: 슬랙 최소화).
+    if info_issues:
+        print(f"ℹ️ 참고 {len(info_issues)}건 (홈페이지/로그용 — 슬랙 발송 안 함):")
+        for i in info_issues:
+            print(f"  • {i}")
+
+    if not slack_issues:
+        print("✅ 데이터 지연 없음 — 슬랙 알림 대상 아님"
+              + (" (위 참고 이슈는 홈페이지에서 확인)" if info_issues else " · 크롤러 정상"))
         return 0
 
-    print(f"❌ 이슈 {len(issues)}건 감지:")
-    for i in issues:
+    print(f"❌ 데이터 지연 {len(slack_issues)}건:")
+    for i in slack_issues:
         print(f"  • {i}")
 
-    # 슬랙 알림
+    # 슬랙 알림 — 데이터 지연(staleness)만
     if not args.silent:
         msg = (
             f"🚨 *[RFP-Targeter 모니터]* {now_kst.strftime('%Y-%m-%d %H:%M KST')}\n"
-            + "\n".join(f"• {i}" for i in issues)
+            + "\n".join(f"• {i}" for i in slack_issues)
             + "\n\n조치 권장: `gh workflow run crawl.yml --ref main` (수동 트리거)"
         )
         _send_slack_alert(msg)

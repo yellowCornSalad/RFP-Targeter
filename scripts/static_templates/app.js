@@ -98,22 +98,30 @@ function renderCrawlStatus() {
   if (isNaN(last.getTime())) { el.textContent = ""; return; }
   const mins = Math.max(0, Math.floor((Date.now() - last.getTime()) / 60000));
 
+  // 심각도: 🔴 완전정지(>180분) > 🟠 일부 수집 중단(source 연속 0건) > 🟡 지연(>90분) > 🟢 정상
+  // crawl_down_sources = monitor 와 동일 공유 함수 판정 → 홈페이지·슬랙 상태 일치.
+  const down = DATA.crawl_down_sources || [];
+  const downNames = down.map((s) => SOURCE_LABELS[s] || s.toUpperCase());
   let dot, label, cls;
-  if (mins < 90)      { dot = "🟢"; label = "크롤링 정상"; cls = "ok"; }
-  else if (mins < 180){ dot = "🟡"; label = "동기화 지연"; cls = "warn"; }
-  else                { dot = "🔴"; label = "점검 필요";   cls = "bad"; }
+  if (mins >= 180)      { dot = "🔴"; label = "점검 필요";   cls = "bad"; }
+  else if (down.length) { dot = "🟠"; label = `일부 수집 중단 (${downNames.join("·")})`; cls = "partial"; }
+  else if (mins >= 90)  { dot = "🟡"; label = "동기화 지연"; cls = "warn"; }
+  else                  { dot = "🟢"; label = "크롤링 정상"; cls = "ok"; }
 
   const m = kst.match(/(\d{2}:\d{2})/);
   const hhmm = m ? m[1] : kst;
   const ago = mins < 60 ? `${mins}분 전` : `${Math.floor(mins / 60)}시간 ${mins % 60}분 전`;
   const errs = DATA.crawl_errors_24h || 0;
   const errTxt = errs > 0 ? `  ·  ⚠️ 24h 실패 ${errs}건` : "";
+  const downTxt = down.length
+    ? `\n⚠️ 최근 연속 0건(수집 중단): ${downNames.join(", ")} — API 한도/구조 변경 의심`
+    : "";
 
   el.className = "crawl-status " + cls;
   el.innerHTML =
     `${dot} ${label}  ·  마지막 동기화 <b>${hhmm}</b> <span class="ago">(${ago})</span>${errTxt}`;
   el.title =
-    `마지막 데이터 수집: ${kst}\n지난 24시간 크롤 ${DATA.crawl_24h_count || 0}회 · 실패 ${errs}건\n` +
+    `마지막 데이터 수집: ${kst}\n지난 24시간 크롤 ${DATA.crawl_24h_count || 0}회 · 실패 ${errs}건${downTxt}\n` +
     `(상태는 조회 시점 기준 실시간 계산 — 빌드가 멈춰도 정확)`;
 }
 

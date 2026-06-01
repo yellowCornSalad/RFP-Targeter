@@ -270,6 +270,42 @@ def log_fetch_finish(
         )
 
 
+def recent_zero_yield_sources(
+    active_sources: list[str], n: int = 3
+) -> list[tuple[str, int]]:
+    """활성 source 중 '최근 n회 크롤이 모두 new+updated=0' 인 것 (silent 장애 감지).
+
+    정상 source 는 기존 공고 재수집으로 매 크롤 updated>0 → 절대 0 안 됨.
+    따라서 연속 0건 = API 한도/파싱 깨짐 등 실질 장애 (예: MSS data.go.kr 429).
+
+    ⚠️ monitor_crawler.py(슬랙·로그)와 build_static.py(홈페이지 배지)가 **공유** —
+    두 곳이 같은 판정을 쓰도록 여기 한 곳에만 둔다 (드리프트 = 상태 불일치 재발).
+
+    Returns: [(source, 연속_0건_횟수), ...]
+    """
+    if not active_sources:
+        return []
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """WITH recent AS (
+                     SELECT source, new_count, updated_count,
+                            ROW_NUMBER() OVER (PARTITION BY source
+                                               ORDER BY started_at DESC) AS rn
+                     FROM fetch_log
+                     WHERE finished_at IS NOT NULL AND source = ANY(%s)
+                   )
+                   SELECT source, COUNT(*) AS n
+                   FROM recent WHERE rn <= %s
+                   GROUP BY source
+                   HAVING COUNT(*) >= %s
+                      AND COALESCE(SUM(new_count + updated_count), 0) = 0
+                   ORDER BY source""",
+                (active_sources, n, n),
+            )
+            return [(r["source"], r["n"]) for r in cur.fetchall()]
+
+
 def meta_get(conn: psycopg.Connection, key: str) -> str | None:
     """meta KV 조회. 없으면 None."""
     with conn.cursor() as cur:

@@ -69,14 +69,18 @@ if pending > 0 and is_business:
 
 ## 이상 신호 분류
 
+> [2026-06-01 사용자 결정 — 슬랙 최소화] **슬랙은 '데이터 지연(staleness)'만** 발사.
+> 취소 패턴·source 연속 0건·score NULL 은 **출력/홈페이지 배지**에서만 확인 (슬랙 X).
+> 크롤이 데이터를 계속 갱신하는 한(홈페이지 정상) 슬랙은 조용 → 홈페이지와 상태 일치.
+
 | 신호 | 임계 | 조치 |
 |------|------|------|
 | **만료 공고 (deadline < today)** | **1건+** | **`is_dismissed=TRUE` soft delete 자동 처리** |
-| `last_finished` 가 60분 초과 | 1시간 초과 | 슬랙 알림 |
-| `crawl.yml` 최근 5건 중 2건+ cancelled | 패턴화된 timeout | 슬랙 알림 + 어댑터 진단 |
-| `score NULL` 활성 공고 발견 | 1건+ | `python scripts/backfill_scores.py` |
-| 슬랙 누락 후보 (영업시간) | 1건+ | `dispatch_pending_alerts()` 즉시 호출 |
-| 활성 source 연속 0건 수집 | 최근 3회 `new+updated=0` | 슬랙 알림 + 해당 source 어댑터/API 진단 (예: data.go.kr 한도) |
+| `last_finished` 가 70분 초과 | 데이터 지연 | **🔔 슬랙 알림** + `gh workflow run crawl.yml` 자동 dispatch |
+| `crawl.yml` 최근 5건 중 2건+ cancelled | 패턴화된 timeout | 출력만 (슬랙 X — 자체복구 가능, 지연되면 위 항목이 잡음) |
+| `score NULL` 활성 공고 발견 | 1건+ | 출력만 + `python scripts/backfill_scores.py` |
+| 슬랙 누락 후보 (영업시간) | 1건+ | `dispatch_pending_alerts()` 즉시 호출 (액션) |
+| 활성 source 연속 0건 수집 | 최근 3회 `new+updated=0` | **🖥 홈페이지 배지 '일부 수집 중단' 표시** (슬랙 X) — `recent_zero_yield_sources()` 공유 판정 |
 
 ### 만료 공고 자동 dismiss 동작
 

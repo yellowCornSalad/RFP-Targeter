@@ -26,7 +26,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from rfp_targeter.db.models import get_conn  # noqa: E402
+from rfp_targeter.config import settings  # noqa: E402
+from rfp_targeter.db.models import get_conn, recent_zero_yield_sources  # noqa: E402
 
 
 # ─────────────────────────────────────────────────────────────
@@ -247,12 +248,23 @@ def _fetch_crawl_status(now_kst) -> dict:
         except Exception:
             pass
 
+    # source 별 연속 0건(silent 장애) — monitor 와 동일 공유 함수 사용 → 배지가 '비정상' 표시.
+    # 슬랙은 더 이상 이걸로 안 울림(staleness 만). 대신 여기 홈페이지에서 확인 (사용자 결정).
+    down_sources: list[str] = []
+    try:
+        active = [k for k, v in (settings().get("sources") or {}).items()
+                  if isinstance(v, dict) and v.get("enabled")]
+        down_sources = [s for s, _n in recent_zero_yield_sources(active, 3)]
+    except Exception:
+        pass
+
     return {
         "last_crawl_iso": last_iso or "",       # UTC ISO — client 가 조회시점 기준 재계산
         "last_crawl_kst": last_kst,             # 표시용 KST
         "crawl_24h_count": cycles_24h,          # 지난 24시간 크롤 사이클 수
         "crawl_errors_24h": errors_24h,         # 지난 24시간 source 에러 수
         "crawl_status": status,                 # 빌드시점 상태 (client 가 override)
+        "crawl_down_sources": down_sources,     # 연속 0건 source (예: ['mss']) — 배지 비정상
     }
 
 
