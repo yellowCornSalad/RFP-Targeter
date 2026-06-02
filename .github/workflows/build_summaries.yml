@@ -104,6 +104,25 @@ jobs:
           fi
           python scripts/assess_contents.py $ARGS
 
+      - name: Extract deadlines (본문 신청 마감일 → deadline_at)
+        # [2026-06-02] IITP 등 마감일 NULL 공고 본문에서 '신청 제출 마감' LLM 추출.
+        # deadline_checked_at 으로 1회만 시도(재처리 방지). 활성 필터·dismiss 가 '확신'으로 동작.
+        env:
+          DATABASE_URL:      ${{ secrets.DATABASE_URL }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          PYTHONIOENCODING:  utf-8
+        run: |
+          ARGS=""
+          if [ "${{ github.event.inputs.force }}" = "true" ]; then
+            ARGS="--force"
+          fi
+          if [ -n "${{ github.event.inputs.limit }}" ]; then
+            ARGS="$ARGS --limit ${{ github.event.inputs.limit }}"
+          else
+            ARGS="$ARGS --limit 50"
+          fi
+          python scripts/extract_deadlines.py $ARGS
+
       - name: Recompute scores with LLM (적합성·TRL 반영)
         # [2026-06-01] 평가 직후 점수 재계산 — compute_score 가 llm_assess_json 읽어
         # 도메인 적합성 배율(none×0.5 등) + TRL(LLM값) 반영. 순수 계산(API 무관).

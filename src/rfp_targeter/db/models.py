@@ -77,6 +77,9 @@ def init_db() -> None:
         "ALTER TABLE announcement ADD COLUMN IF NOT EXISTS budget_confidence TEXT",
         # LLM 맥락 판단 결과(도메인 적합성 + TRL 단계) JSON 캐시 — assess_contents.py
         "ALTER TABLE announcement ADD COLUMN IF NOT EXISTS llm_assess_json TEXT",
+        # 본문 마감일 LLM 추출 '시도함' 표시 (UTC ISO) — extract_deadlines.py 재처리 방지.
+        # 마감 없음(선정결과 등)으로 판정된 건도 이 값이 차면 다시 안 돌림.
+        "ALTER TABLE announcement ADD COLUMN IF NOT EXISTS deadline_checked_at TEXT",
         # meta KV (일일 하트비트 dedup 등) — 새 테이블도 개별 DDL 로 보장
         "CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)",
     ]:
