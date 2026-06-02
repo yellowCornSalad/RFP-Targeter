@@ -11,6 +11,9 @@
 from __future__ import annotations
 
 import json
+import logging
+import os
+import time
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -24,9 +27,49 @@ from rfp_targeter.config import db_url
 
 SCHEMA_PATH = Path(__file__).with_name("schema.sql")
 
+log = logging.getLogger(__name__)
+
+# Supabase pooler 연결 파라미터 (환경변수로 override 가능)
+#  connect_timeout: libpq 한 호스트당 연결 대기 상한(초). 미설정 시 기본은
+#                   사실상 무한 → pooler 가 느린 시간대에 단계가 오래 매달림.
+#  retries        : ConnectionTimeout/OperationalError 시 재시도 횟수.
+_CONNECT_TIMEOUT = int(os.environ.get("DB_CONNECT_TIMEOUT", "10"))
+_CONNECT_RETRIES = max(1, int(os.environ.get("DB_CONNECT_RETRIES", "3")))
+
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _connect() -> psycopg.Connection:
+    """psycopg.connect 를 짧은 지수 백오프로 재시도.
+
+    Supabase transaction pooler(pgbouncer)가 일시적으로 응답 지연/거부하면
+    psycopg.errors.ConnectionTimeout(OperationalError 하위)이 발생하는데,
+    이전에는 재시도 없이 즉시 실패 → init_db() 첫 연결에서 크롤 전체가
+    터지던 간헐적 장애(예: 2026-06-02 #257/#259)를 완화한다.
+    """
+    last_exc: psycopg.OperationalError | None = None
+    for attempt in range(_CONNECT_RETRIES):
+        try:
+            return psycopg.connect(
+                db_url(),
+                row_factory=dict_row,
+                autocommit=False,
+                prepare_threshold=None,
+                connect_timeout=_CONNECT_TIMEOUT,
+            )
+        except psycopg.OperationalError as exc:
+            last_exc = exc
+            if attempt < _CONNECT_RETRIES - 1:
+                backoff = 2 ** attempt  # 1s, 2s, 4s, ...
+                log.warning(
+                    "DB 연결 실패 (시도 %d/%d): %s — %ds 후 재시도",
+                    attempt + 1, _CONNECT_RETRIES, exc, backoff,
+                )
+                time.sleep(backoff)
+    assert last_exc is not None
+    raise last_exc
 
 
 @contextmanager
@@ -36,13 +79,11 @@ def get_conn() -> Iterator[psycopg.Connection]:
     prepare_threshold=None: Supabase transaction pooler(pgbouncer)는
     prepared statement를 트랜잭션 간 재사용 못함 → DuplicatePreparedStatement
     에러 발생. None으로 prepared 비활성화 (성능 영향 미미).
+
+    연결은 _connect() 가 connect_timeout + 지수 백오프 재시도로 감싼다
+    (pooler 일시 지연에 대한 복원력).
     """
-    conn = psycopg.connect(
-        db_url(),
-        row_factory=dict_row,
-        autocommit=False,
-        prepare_threshold=None,
-    )
+    conn = _connect()
     try:
         yield conn
         conn.commit()
