@@ -49,14 +49,28 @@ _SYSTEM = """당신은 정부 R&D/사업 공고에서 '신청자(지원 기업)�
 _KW = re.compile(r"(신청\s*기간|접수\s*기간|접수\s*마감|신청\s*마감|공모\s*기간|모집\s*기간|제출\s*마감|까지\s*접수)")
 
 
+_DATE_NEAR = re.compile(r"\d{4}\s*[.\-/년]\s*\d{1,2}")
+
+
 def _excerpt(body: str, max_chars: int) -> str:
-    """본문에서 마감 관련 부분을 우선 포함한 발췌 (긴 본문 대비)."""
+    """본문에서 '신청 일정표'(기간 키워드 + 날짜)를 우선 포함한 발췌 (긴 본문 대비).
+
+    긴 IITP 공고는 신청기간 표가 본문 깊숙이(예: 1만자+) 있어, 단순 head 만 보내면
+    마감일을 놓침. '기간/마감' 키워드 바로 뒤에 날짜가 붙은 위치 = 실제 일정표로 보고 그 창을 포함.
+    """
     if len(body) <= max_chars:
         return body
-    head = body[:3000]
-    m = _KW.search(body)
-    if m and m.start() > 2500:
-        w = body[max(0, m.start() - 500): m.start() + 2500]
+    head = body[:2500]
+    pos = None
+    for m in _KW.finditer(body):
+        if _DATE_NEAR.search(body[m.start(): m.start() + 150]):  # 키워드 근처에 날짜 = 일정표
+            pos = m.start()
+            break
+    if pos is None:
+        m = _KW.search(body)
+        pos = m.start() if m else None
+    if pos is not None and pos > 2200:
+        w = body[max(0, pos - 300): pos + 2800]
         return (head + "\n…(중략)…\n" + w)[:max_chars]
     return body[:max_chars]
 
@@ -99,6 +113,7 @@ def extract_deadline(title: str, body: str, posted_at: str | None = None,
             return None
         data = json.loads(text[i:j + 1])
         dl = data.get("deadline")
+        log.info("  └ LLM deadline=%r · %s", dl, str(data.get("reason") or "")[:90])
         if not dl or not isinstance(dl, str):
             return None
         m = re.match(r"(\d{4})-(\d{1,2})-(\d{1,2})", dl.strip())
