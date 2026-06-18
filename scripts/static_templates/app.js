@@ -49,6 +49,7 @@ const filters = {
   minScore: 0,
   budgetMode: "all",        // all | ge100 (1억+) | lt100 (1억 미만, NULL 제외)
   relevance: null,          // 🤖 LLM 적합성 필터: null=전체 | high|medium|low|none|unassessed
+  irisGovd: null,           // 🏛 IRIS 소관부처 필터 (source=iris 일 때만 보임)
   sort: "newest",
 };
 
@@ -72,6 +73,7 @@ async function loadData() {
     setInterval(renderCrawlStatus, 60000);  // 1분마다 "N분 전" 갱신 + 정지 시 색 전환
     renderAgencyGrid();
     renderRelevanceFilter();
+    renderIrisGovdFilter();
     bindFilters();
     applyFilters();
   } catch (e) {
@@ -217,8 +219,11 @@ function renderAgencyGrid() {
         // 같은 카드 다시 누르면 해제 (전체로 복귀)
         filters.source = (filters.source === key) ? null : key;
       }
+      // source 가 iris 가 아니면 부처 필터 해제
+      if (filters.source !== "iris") filters.irisGovd = null;
       currentPage = 1;
       renderAgencyGrid();
+      renderIrisGovdFilter();
       applyFilters();
     });
   });
@@ -252,6 +257,7 @@ function bindFilters() {
     filters.onlyToday = false; filters.minScore = 0; filters.sort = "newest";
     filters.budgetMode = "all";
     filters.relevance = null;
+    filters.irisGovd = null;
     document.getElementById("search").value = "";
     document.getElementById("min-score").value = 0;
     document.getElementById("min-score-val").textContent = "0";
@@ -260,6 +266,7 @@ function bindFilters() {
     currentPage = 1;
     renderAgencyGrid();
     renderRelevanceFilter();
+    renderIrisGovdFilter();
     applyFilters();
   });
   // 페이지 nav
@@ -298,6 +305,12 @@ function applyFilters() {
     if (filters.relevance) {
       const r = (it.llm || {}).relevance || "unassessed";
       if (r !== filters.relevance) return false;
+    }
+    // IRIS 부처 필터 — IRIS source 한정. 같은 govd 만 통과.
+    if (filters.irisGovd) {
+      if (it.source !== "iris") return false;
+      const govd = (it.agency || "").split(" > ")[0].trim();
+      if (govd !== filters.irisGovd) return false;
     }
     return true;
   });
@@ -723,6 +736,63 @@ function renderRelevanceFilter() {
       }
       currentPage = 1;
       renderRelevanceFilter();
+      applyFilters();
+    });
+  });
+}
+
+// ────────────────────────────────────────────────────────────
+// 🏛 IRIS 소관부처 필터 칩 — source=iris 선택 시에만 노출.
+// ITEMS 에서 직접 부처 카운트를 계산 → build_static.py / data.json 변경 불필요.
+// 칩 클릭 → filters.irisGovd = 해당 부처 → applyFilters() 가 그 부처만 통과.
+// ────────────────────────────────────────────────────────────
+function renderIrisGovdFilter() {
+  const el = document.getElementById("iris-govd-filter");
+  if (!el || !DATA) return;
+  // IRIS source 선택된 경우에만 노출 (그 외엔 숨김 + 필터 해제)
+  if (filters.source !== "iris") {
+    el.classList.add("hidden");
+    el.innerHTML = "";
+    return;
+  }
+  // agency = "{부처} > {전담기관}" 형태 → 앞부분만 추출
+  const counts = {};
+  ((DATA && DATA.items) || []).forEach((it) => {
+    if (it.source !== "iris") return;
+    const govd = ((it.agency || "").split(" > ")[0] || "").trim();
+    if (!govd) return;
+    counts[govd] = (counts[govd] || 0) + 1;
+  });
+  const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  const total = entries.reduce((s, [, n]) => s + n, 0);
+  if (total === 0) { el.classList.add("hidden"); el.innerHTML = ""; return; }
+
+  el.classList.remove("hidden");
+  const chips = [
+    `<button class="govd-chip ${filters.irisGovd === null ? "active" : ""}" data-govd="">전체 <b>${total}</b></button>`,
+    ...entries.map(([govd, n]) => {
+      const cls = filters.irisGovd === govd ? "active" : "";
+      // 부처명 짧게 (긴 이름 끊김 방지) — '과학기술정보통신부' → '과기정통부'
+      const short = govd
+        .replace("과학기술정보통신부", "과기정통부")
+        .replace("산업통상부", "산업부")
+        .replace("기후에너지환경부", "기후환경부")
+        .replace("보건복지부", "복지부")
+        .replace("국토교통부", "국토부")
+        .replace("해양수산부", "해수부")
+        .replace("농림축산식품부", "농식품부")
+        .replace("행정안전부", "행안부")
+        .replace("우주항공청", "우주청");
+      return `<button class="govd-chip ${cls}" data-govd="${govd}" title="${govd}">${short} <b>${n}</b></button>`;
+    }),
+  ];
+  el.innerHTML = '<span class="govd-filter-label">🏛 소관부처</span>' + chips.join("");
+  el.querySelectorAll(".govd-chip").forEach((c) => {
+    c.addEventListener("click", () => {
+      const v = c.dataset.govd;
+      filters.irisGovd = (v === "" || filters.irisGovd === v) ? null : v;
+      currentPage = 1;
+      renderIrisGovdFilter();
       applyFilters();
     });
   });

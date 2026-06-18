@@ -377,10 +377,17 @@ def fetch_data() -> dict:
     from zoneinfo import ZoneInfo
     today = datetime.now(ZoneInfo("Asia/Seoul")).date().isoformat()
     today_new_by_src: dict[str, int] = {}
+    # IRIS 부처(소관부처) 분포 — UI 의 부처 필터 칩에 사용
+    # agency 형식: "과학기술정보통신부 > 한국연구재단" → 앞쪽이 부처
+    iris_govd_counts: dict[str, int] = {}
     for it in items:
         sources_counts[it["source"]] = sources_counts.get(it["source"], 0) + 1
         if it["posted_at"][:10] == today:
             today_new_by_src[it["source"]] = today_new_by_src.get(it["source"], 0) + 1
+        if it["source"] == "iris":
+            govd = (it["agency"] or "").split(" > ")[0].strip()
+            if govd:
+                iris_govd_counts[govd] = iris_govd_counts.get(govd, 0) + 1
 
     # 빌드 시각 — GitHub Actions runner는 UTC라 KST 변환해서 사용자에게 표시
     try:
@@ -462,6 +469,7 @@ def fetch_data() -> dict:
         "today_new": sum(today_new_by_src.values()),
         "sources_counts": sources_counts,
         "today_new_by_src": today_new_by_src,
+        "iris_govd_counts": iris_govd_counts,
         "portfolio": portfolio,
         **crawl_meta,                                # last_crawl_iso/kst, crawl_24h_count, crawl_status ...
         "items": items,
