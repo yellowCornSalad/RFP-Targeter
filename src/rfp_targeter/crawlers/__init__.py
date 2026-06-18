@@ -7,6 +7,7 @@ from rfp_targeter.crawlers.base import BaseCrawler
 from rfp_targeter.crawlers.bizinfo import BizinfoCrawler
 from rfp_targeter.crawlers.g2b import G2BCrawler
 from rfp_targeter.crawlers.iitp import IITPCrawler
+from rfp_targeter.crawlers.iris import IRISCrawler
 from rfp_targeter.crawlers.kisa import KISACrawler
 from rfp_targeter.crawlers.koica import KOICACrawler
 from rfp_targeter.crawlers.kosa import KOSACrawler
@@ -20,6 +21,7 @@ CRAWLERS: dict[str, type[BaseCrawler]] = {
     "bizinfo": BizinfoCrawler,
     "g2b": G2BCrawler,           # 신규 — KOICA 등 G2B 통합 채널
     "iitp": IITPCrawler,
+    "iris": IRISCrawler,    # 범부처 R&D 통합 — 2026-06 활성
     "kisa": KISACrawler,
     "koica": KOICACrawler,
     "kosa": KOSACrawler,

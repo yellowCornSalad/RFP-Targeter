@@ -132,12 +132,13 @@ function renderCrawlStatus() {
 // ────────────────────────────────────────────────────────────
 const SOURCE_LABELS = {
   iitp: "IITP", kisa: "KISA", nipa: "NIPA", mss: "중기부",
-  krit: "KRIT",
+  krit: "KRIT", iris: "IRIS",
 };
 // kosa 제거 (2026-05-27) — 영양가 부족
 // koica 제거 (2026-05-27) — apis.data.go.kr 빈 응답 + openapi.koica.go.kr unreachable
 //                          정부 API 사망. 부활 가능성 낮음 → UI 카드 숨김
-const SOURCE_ORDER = ["iitp", "kisa", "nipa", "mss", "krit"];
+// iris 추가 (2026-06) — 범부처 통합 R&D (과기/산업/중기/행안/해수 등 모든 부처)
+const SOURCE_ORDER = ["iitp", "kisa", "nipa", "mss", "krit", "iris"];
 
 // ────────────────────────────────────────────────────────────
 // '오늘' 신규 판정 — 항상 KST 기준 (공고 posted_at 이 KST 날짜).

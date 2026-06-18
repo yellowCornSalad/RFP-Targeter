@@ -33,6 +33,14 @@ sources:
     enabled: true
     base_url: "https://www.kisa.or.kr"
 
+  # IRIS — 범부처통합연구지원시스템 (과기/산업/중기/행안/해수 등 모든 부처 R&D 통합)
+  # JSON API: POST /contents/retrieveBsnsAncmBtinSituList.do (form-encoded → JSON)
+  # 2026-06: 활성. IITP(과기정통부)·MSS(중기부) 와 일부 중복 가능, 별도 dedup 작업 예정
+  iris:
+    enabled: true
+    base_url: "https://www.iris.go.kr"
+    max_per_source: 30
+
   # IITP는 robots.txt 전면 금지. data.go.kr 공식 API 경유 (config/secrets.yaml 에 키 필요)
   iitp:
     enabled: true
