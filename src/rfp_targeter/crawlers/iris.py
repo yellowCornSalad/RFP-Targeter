@@ -36,6 +36,35 @@ LIST_URL = f"{BASE}/contents/retrieveBsnsAncmBtinSituList.do"
 DETAIL_URL = f"{BASE}/contents/retrieveBsnsAncmView.do"
 
 
+# IRIS 자체 키워드 화이트리스트 — 제목·summary 에 하나라도 매칭되어야 yield.
+# [2026-06-18 사용자 결정] IRIS 는 범부처라 환경·복지·해양 등 보안 비관련 R&D 가 많아
+# keywords.yaml 의 광범위 사전(사업공고·공모·연구개발 등) 만으로는 노이즈가 큼.
+# 회사 본업 = 사이버보안 + AI 보안 + 인증/검증 + 개인정보.
+# 너무 좁히면 인접 분야 놓치므로 보안 인접까지 포함 (블록체인·암호·프라이버시).
+IRIS_KEYWORD_WHITELIST = (
+    # 보안 코어
+    "정보보호", "정보보안", "보안", "사이버", "security", "cyber",
+    "침해", "취약점", "해킹", "모의해킹", "모의침투", "침투", "위협",
+    "침입", "멀웨어", "랜섬", "악성코드",
+    # AI / ML — 회사 본업의 OFFen·AI 제품 라인
+    "인공지능", "AI", "머신러닝", "딥러닝",
+    # 인증 / 검증
+    "인증", "ISMS", "ISO27", "신원",
+    # 데이터 / 암호 / 블록체인
+    "암호", "블록체인", "개인정보", "프라이버시",
+    # 기관·표준
+    "KISA",
+)
+
+
+def _matches_whitelist(*texts: str | None) -> bool:
+    """텍스트 중 하나라도 화이트리스트 키워드와 매칭되면 True. 대소문자 무시."""
+    hay = " ".join(t for t in texts if t).lower()
+    if not hay:
+        return False
+    return any(kw.lower() in hay for kw in IRIS_KEYWORD_WHITELIST)
+
+
 def _to_iso_date(s: str | None) -> str | None:
     """IRIS 날짜 (예: "2026.06.17" 또는 "2026-06-17") → "2026-06-17"."""
     if not s:
@@ -52,8 +81,12 @@ class IRISCrawler(BaseCrawler):
 
     def list_announcements(self) -> Iterator[Announcement]:
         rows_per_page = 10
-        max_pages = max(1, (self.max_per_source + rows_per_page - 1) // rows_per_page)
+        # 화이트리스트로 거르면 매 페이지당 통과율이 낮을 수 있어 페이지 한도를 넉넉히.
+        # 보호 상한: max_per_source × 5 페이지 (예: 30개 목표 시 최대 50페이지=500건 스캔)
+        # 정부 사이트 부하 고려해 5배로 제한.
+        max_pages = max(1, self.max_per_source * 5 // rows_per_page)
         seen = 0
+        scanned = 0
 
         # 세션 워밍업: 첫 GET 으로 쿠키 받기 (일부 정부 사이트는 referer 등 필요)
         try:
@@ -100,16 +133,20 @@ class IRISCrawler(BaseCrawler):
                 a = self._parse_item(item)
                 if a is None:
                     continue
+                scanned += 1
+                # 화이트리스트: 제목+summary+부처/기관명 매칭 안되면 스킵 (디테일 fetch 절약)
+                if not _matches_whitelist(a.title, a.summary, a.agency):
+                    continue
                 yield a
                 seen += 1
                 page_yielded += 1
                 if seen >= self.max_per_source:
                     break
 
-            if seen >= self.max_per_source or page_yielded == 0:
+            if seen >= self.max_per_source or not items:
                 break
 
-        log.info("iris: %d건 수집", seen)
+        log.info("iris: %d건 수집 (스캔 %d건)", seen, scanned)
 
     def _parse_item(self, item: dict) -> Announcement | None:
         ancm_id = item.get("ancmId")
