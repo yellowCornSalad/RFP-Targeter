@@ -65,6 +65,43 @@ def _matches_whitelist(*texts: str | None) -> bool:
     return any(kw.lower() in hay for kw in IRIS_KEYWORD_WHITELIST)
 
 
+# 본문 매칭용 엄격 키워드 셋 — 제목/요약은 짧아 단일어("AI", "보안") 로 잡지만,
+# 본문은 길어 일반어 한 번 등장으로 통과시키면 노이즈 큼 (광범위 R&D 본문에 흔히 등장).
+# → 본문 전용은 합성어/고유어/약어만 (사이버보안·AI 보안·모의해킹·ISMS 등).
+IRIS_BODY_WHITELIST = (
+    # 보안 합성어
+    "정보보호", "정보보안", "사이버보안", "사이버 보안", "사이버위협", "사이버 위협",
+    "침해대응", "침해 대응", "침투시험", "모의해킹", "모의 해킹",
+    "악성코드", "멀웨어", "랜섬웨어", "공격표면", "공급망 보안", "공급망보안",
+    "취약점 분석", "취약점 검증", "보안성 검증", "보안 자동화",
+    # 도메인 합성어
+    "클라우드 보안", "클라우드보안", "OT 보안", "OT보안", "ICS 보안",
+    "IoT 보안", "IoT보안", "AI 보안", "AI보안", "차량 보안", "모빌리티 보안",
+    "5G 보안", "6G 보안", "블록체인 보안", "핀테크 보안", "금융보안",
+    # 암호·인증 합성어 (단, "전자서명"은 신청서 절차 안내에 흔히 등장 → 제외)
+    "양자내성암호", "동형암호", "양자 키 분배", "QKD",
+    "디지털 신원", "디지털신원", "PKI",
+    "제로트러스트", "Zero Trust",
+    # 약어·표준
+    "ISMS", "ISO27001", "ISO 27001", "CVSS", "CWSS", "OVAL", "STIX",
+    "EDR", "XDR", "NDR", "SOC", "SIEM", "SOAR", "DLP", "SBOM",
+    "APT", "DDoS",
+    # 영문
+    "cybersecurity", "cyber security", "information security",
+    "penetration test", "threat intelligence",
+    # 기관
+    "KISA",
+)
+
+
+def _matches_body(*texts: str | None) -> bool:
+    """본문 매칭용 엄격 화이트리스트."""
+    hay = " ".join(t for t in texts if t).lower()
+    if not hay:
+        return False
+    return any(kw.lower() in hay for kw in IRIS_BODY_WHITELIST)
+
+
 def _to_iso_date(s: str | None) -> str | None:
     """IRIS 날짜 (예: "2026.06.17" 또는 "2026-06-17") → "2026-06-17"."""
     if not s:
@@ -129,14 +166,24 @@ class IRISCrawler(BaseCrawler):
                 break
 
             page_yielded = 0
+            body_recovered = 0
             for item in items:
                 a = self._parse_item(item)
                 if a is None:
                     continue
                 scanned += 1
-                # 화이트리스트: 제목+summary+부처/기관명 매칭 안되면 스킵 (디테일 fetch 절약)
+                # 1차: 제목+summary+부처/기관 매칭 (디테일 fetch 절약)
                 if not _matches_whitelist(a.title, a.summary, a.agency):
-                    continue
+                    # 1차 미통과 → 디테일 fetch + 본문에서 엄격 셋 매칭 (합성어/약어).
+                    # IRIS 첨부는 javascript: 라 다운로드 불가 → 본문 HTML 만 매칭 대상.
+                    try:
+                        a = self.fetch_detail(a)
+                    except Exception as e:
+                        log.debug("iris pre-filter detail fail %s: %s", a.external_id, e)
+                        continue
+                    if not _matches_body(a.body):
+                        continue
+                    body_recovered += 1
                 yield a
                 seen += 1
                 page_yielded += 1
@@ -146,7 +193,10 @@ class IRISCrawler(BaseCrawler):
             if seen >= self.max_per_source or not items:
                 break
 
-        log.info("iris: %d건 수집 (스캔 %d건)", seen, scanned)
+        log.info(
+            "iris: %d건 수집 (스캔 %d건, 본문매칭 회수 %d건)",
+            seen, scanned, body_recovered,
+        )
 
     def _parse_item(self, item: dict) -> Announcement | None:
         ancm_id = item.get("ancmId")
@@ -187,7 +237,13 @@ class IRISCrawler(BaseCrawler):
         )
 
     def fetch_detail(self, a: Announcement) -> Announcement:
-        """상세 페이지에서 본문·첨부·예산 추가 추출."""
+        """상세 페이지에서 본문·첨부·예산 추가 추출.
+
+        Idempotent: list_announcements 의 1.5단계 본문매칭이 미리 호출했을 수 있어
+        a.body 가 이미 채워져 있으면 네트워크 재요청을 건너뛴다.
+        """
+        if a.body:
+            return a
         try:
             r = self.fetch(a.url)
         except Exception as e:
