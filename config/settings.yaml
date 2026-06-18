@@ -37,6 +37,15 @@ sources:
     # 50×~20초 ≈ 21분 → 25분 timeout cancelled 만성화. 최신 30건만 (옛건 이미 DB).
     max_per_source: 30
 
+  # IRIS — 범부처통합연구지원시스템 (과기/산업/중기/행안/해수 등 모든 부처 R&D 통합)
+  # JSON API: POST /contents/retrieveBsnsAncmBtinSituList.do (form-encoded → JSON)
+  # 신규 활성 — feat/iris-adapter 머지 시 머지 후 사용자가 enabled=true 로 변경
+  # IITP(과기정통부)·MSS(중기부) 와 일부 중복 가능, 별도 dedup 작업 예정
+  iris:
+    enabled: false
+    base_url: "https://www.iris.go.kr"
+    max_per_source: 30
+
   # IITP는 robots.txt 전면 금지. data.go.kr 공식 API 경유 (config/secrets.yaml 에 키 필요)
   iitp:
     enabled: true
