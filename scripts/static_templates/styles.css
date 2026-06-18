@@ -252,6 +252,26 @@ input[type="range"] { flex: 1; max-width: 200px; }
 .rel-chip.rel-today { margin-left: auto; }   /* 행 우측 끝으로 */
 .rel-chip.rel-today.active { background: var(--danger); border-color: var(--danger); color: #fff; }
 
+/* 🏛 IRIS 소관부처 필터 — relevance 행과 동일 스타일, IRIS 선택 시에만 */
+.iris-govd-filter {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  margin: 0 0 16px; padding: 11px 16px;
+  background: #f4f1eb;                           /* IRIS 강조용 살짝 다른 톤 */
+  border: 1px solid #d4ccba; border-radius: 4px;
+}
+.iris-govd-filter.hidden, .iris-govd-filter:empty { display: none; }
+.govd-filter-label {
+  font-size: 12px; font-weight: 700; color: var(--text-muted); margin-right: 6px;
+}
+.govd-chip {
+  font-size: 13px; font-weight: 600; padding: 5px 12px; border-radius: 999px;
+  border: 1px solid #c9bf9f; background: #fff; cursor: pointer;
+  transition: all 0.12s ease; color: var(--text); font-feature-settings: "tnum";
+}
+.govd-chip b { font-weight: 800; margin-left: 3px; }
+.govd-chip:hover { border-color: #8a6d3b; }
+.govd-chip.active { background: #6b5b2f; color: #fff; border-color: #6b5b2f; }
+
 /* 상세 패널 — LLM 본문 판단 블록 */
 .llm-assess {
   margin: 12px 0; padding: 12px 14px; border-radius: 6px;
