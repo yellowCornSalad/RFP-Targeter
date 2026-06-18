@@ -159,18 +159,23 @@ class IRISCrawler(BaseCrawler):
 
         soup = BeautifulSoup(r.text, "lxml")
 
-        # 첨부파일 — IRIS 첨부 다운로드 패턴 (한 번 정찰로 확정 후 수정)
+        # 첨부파일 — IRIS는 javascript:f_bsnsAncm_downloadAtchFile() 호출 방식.
+        # 직접 다운로드 불가 → url 은 상세 페이지로 대체(사용자가 거기서 다운로드).
+        # downloader 가 javascript: 시도 안 하도록 url 자체를 detail page 로.
         attachments: list[dict] = []
         for atag in soup.find_all("a", href=True):
             href = atag["href"]
-            # 일반적인 정부 사이트 첨부 패턴
-            if not any(k in href for k in ("fileDownload", "atchFile", "download", "FileDown")):
+            # IRIS 첨부 인식: js 호출 (downloadAtchFile) 또는 일반 패턴
+            is_js_attach = "downloadAtchFile" in href or "f_bsnsAncm_download" in href
+            is_normal_attach = any(k in href for k in ("fileDownload", "atchFileSeq", "FileDown"))
+            if not (is_js_attach or is_normal_attach):
                 continue
             name = atag.get_text(" ", strip=True)
             if not name or len(name) < 3:
                 continue
             from urllib.parse import urljoin
-            full_url = urljoin(BASE, href)
+            # js 호출은 다운로드 불가 — url 을 상세 페이지로 (사용자가 IRIS 가서 받음)
+            full_url = a.url if is_js_attach else urljoin(BASE, href)
             # 카테고리 추정 (NIPA 패턴 재사용)
             if any(k in name for k in ("공고서", "공고문", "[공고", "통합공고")):
                 cat = "notice"
@@ -188,10 +193,11 @@ class IRISCrawler(BaseCrawler):
         if attachments:
             a.attachments = attachments
 
-        # 본문 — IRIS 상세 페이지의 컨텐츠 영역 셀렉터 (정찰 후 확정)
-        # 일반적인 후보들 시도
+        # 본문 — div.content 가 깔끔 (정찰 후 확정, 2026-06)
+        # 소관부처/전문기관/공고번호/공고명/기간/예산 등 메타 데이터 포함
         main = (
-            soup.select_one("div.boardView")
+            soup.select_one("div.content")
+            or soup.select_one("div.boardView")
             or soup.select_one("div.view-content")
             or soup.select_one("div.cont-area")
             or soup.select_one("div.cont")
@@ -218,9 +224,14 @@ class IRISCrawler(BaseCrawler):
             if dm is not None:
                 a.duration_months = dm
 
-        # 첨부 본문 통합 (공통 헬퍼)
-        from rfp_targeter.crawlers.base import enrich_body_with_attachments
-        a = enrich_body_with_attachments(a, referer=BASE + "/")
+        # 첨부 본문 통합 (공통 헬퍼) — IRIS 는 js 다운로드라 url 이 detail page.
+        # downloader 가 어차피 PDF 추출 못 함. 본문(div.content) 만으로 충분.
+        # enrich 호출 자체를 skip (warning 노이즈 차단).
+        if any((at.get("url") or "").startswith("https://www.iris.go.kr/contents/retrieveBsnsAncmView") is False
+               and ".pdf" in (at.get("url") or "").lower()
+               for at in (a.attachments or [])):
+            from rfp_targeter.crawlers.base import enrich_body_with_attachments
+            a = enrich_body_with_attachments(a, referer=BASE + "/")
         if a.body:
             from rfp_targeter.attachments.budget_extract import extract_budget_mw, extract_duration_months
             mw2 = extract_budget_mw(a.body)
