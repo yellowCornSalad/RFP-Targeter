@@ -184,17 +184,13 @@ class MSSCrawler(BaseCrawler):
                 raw_posted = scraped
         except Exception:
             pass
-        if not raw_posted:
-            # 본문 등록일 파싱 실패 → applicationStartDate(신청 시작일)로 근사.
-            # 단 미래 날짜는 게시일이 아니므로 버린다(None). 절대 '오늘'로 폴백하지 않음.
-            # ⚠️ [2026-06-25 버그 수정] 이전엔 fetch 실패 시 today_iso 로 폴백했는데,
-            #   upsert 가 posted_at 을 무조건 덮어써서(아래 models.py 도 수정) 매 크롤마다
-            #   6/24 공고가 크롤 실행일(6/25)로 둔갑 → "오늘 신규" 가 거짓으로 부풀었다.
-            #   None 을 반환하면 upsert COALESCE 가 기존 값을 보존한다.
-            cand = _pick(item, _FIELD_MAP["posted_at"])
-            if cand and cand <= today_iso:
-                raw_posted = cand  # 신청 시작일이 과거면 게시일 근사값으로 허용
-            # else: raw_posted = None (신규면 None, 기존이면 upsert 가 보존)
+        # ⚠️ [2026-06-25 버그 수정] 본문 등록일 파싱 실패 시 posted_at 은 None 으로 둔다.
+        #   applicationStartDate(신청 시작일)는 게시일과 무관(게시 전/후 모두 가능)하므로
+        #   근사값으로도 쓰지 않는다. 예: 방산챌린지(1069207)는 신청시작 06-02 / 실제 게시
+        #   06-22 로 20일 어긋남. 이전엔 today_iso 폴백 → 6/24 공고가 크롤일로 둔갑하기도 했다.
+        #   None → upsert COALESCE 가 기존 정확값 보존(신규면 None, 다음 크롤 fetch 성공 시 채움).
+        #   (raw_posted 는 _scrape_posted_date 성공값만 신뢰)
+        _ = today_iso  # (미래 비교용 변수 — 현재 미사용, 향후 가드용 보존)
 
         return Announcement(
             source=self.source,
