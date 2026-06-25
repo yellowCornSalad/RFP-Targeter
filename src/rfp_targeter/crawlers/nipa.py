@@ -142,6 +142,15 @@ class NIPACrawler(BaseCrawler):
 
         soup = BeautifulSoup(r.text, "lxml")
 
+        # ⚠️ [2026-06-25] 게시일 보정 — 상세 페이지의 .infoDt(작성일)가 권위 소스.
+        #   목록 작성일 컬럼은 재공고 등에서 상세와 어긋난다(16814: 목록 6/16 vs 상세 6/15).
+        #   사용자가 '클릭해 들어간 상세 페이지 날짜' 기준이라 .infoDt 로 맞춘다.
+        info = soup.select_one(".infoDt")
+        if info:
+            mdt = re.search(r"(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})", info.get_text())
+            if mdt:
+                a.posted_at = f"{mdt.group(1)}-{int(mdt.group(2)):02d}-{int(mdt.group(3)):02d}"
+
         # 첨부파일 — /comm/getFile?srvcId=BBSTY1&upperNo=XXX 패턴
         # ⚠️ NIPA 특이: 첨부가 <header><nav> 안에 있음. decompose 전에 먼저 추출!
         attachments: list[dict] = []

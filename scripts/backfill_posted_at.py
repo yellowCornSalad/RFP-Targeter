@@ -28,6 +28,13 @@ for src in ["mss", "nipa"]:
     with get_conn() as conn:
         cur = conn.cursor()
         for a in items:
+            # NIPA 는 fetch_detail 에서 상세 .infoDt 로 posted_at 보정 → 정확값 확보.
+            # MSS 는 list 단계에서 이미 본문 등록일 파싱하므로 fetch_detail 불필요.
+            if a.source == "nipa":
+                try:
+                    a = crawler.fetch_detail(a)
+                except Exception:
+                    pass
             if not a.posted_at:
                 continue
             cur.execute("SELECT posted_at FROM announcement WHERE id=%s", (a.id,))
