@@ -19,6 +19,8 @@ env/
 data/*.db
 data/*.db-journal
 data/attachments/
+# 회사 기밀 원본 (제안서·특허·인증) — 절대 commit 금지
+data/raw/
 drafts/
 templates/*/
 !templates/.gitkeep
