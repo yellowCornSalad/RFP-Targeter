@@ -184,7 +184,9 @@ def upsert_announcement(conn: psycopg.Connection, a: Announcement) -> bool:
         cur.execute(
             """
             UPDATE announcement SET
-                title=%s, agency=%s, url=%s, posted_at=%s, deadline_at=%s,
+                title=%s, agency=%s, url=%s,
+                posted_at=COALESCE(%s, posted_at),
+                deadline_at=COALESCE(%s, deadline_at),
                 application_start_date=COALESCE(%s, application_start_date),
                 budget_mw=COALESCE(%s, budget_mw),
                 duration_months=COALESCE(%s, duration_months),

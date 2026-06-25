@@ -105,13 +105,21 @@ class NIPACrawler(BaseCrawler):
                 h = _hashlib.sha1(title.encode("utf-8")).hexdigest()[:12]
                 external_id = f"nipa-{key}-h{h}"
 
-        # 날짜 추출 — 모든 셀에서 YYYY-MM-DD 패턴
-        cell_texts = [td.get_text(" ", strip=True) for td in tr.find_all("td")]
-        dates = []
-        for t in cell_texts:
-            for dm in re.finditer(r"(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})", t):
-                dates.append(f"{dm.group(1)}-{int(dm.group(2)):02d}-{int(dm.group(3)):02d}")
-        posted_at = dates[0] if dates else None
+        # 게시일(작성일) 추출 — 작성일은 통상 맨 오른쪽 컬럼.
+        # ⚠️ [2026-06-25 버그 수정] board 2-2(사업공고)는 제목 셀에 신청기간
+        #   ('2026-06-15 09:00 ~ 2026-07-15 13:00')이 임베드돼 있어, 행 전체 첫 날짜
+        #   (dates[0])를 쓰면 작성일이 아닌 '신청 시작일'을 게시일로 오집었다
+        #   (예: /home/2-2/16817 작성일 6-16 → posted_at 6-15).
+        #   → 마지막 td 부터 역순 탐색하되, 범위('~') 든 셀(신청기간)은 건너뛴다.
+        posted_at = None
+        for td in reversed(tr.find_all("td")):
+            txt = td.get_text(" ", strip=True)
+            if "~" in txt:  # 신청기간 범위 셀 — 작성일 아님
+                continue
+            dm = re.search(r"(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})", txt)
+            if dm:
+                posted_at = f"{dm.group(1)}-{int(dm.group(2)):02d}-{int(dm.group(3)):02d}"
+                break
 
         # D-XX 패턴이 있으면 거기서 마감일 추정 (오늘 + N일)
         # 단순화: 본문에서 더 정확히 추출되도록 list에선 None 유지
