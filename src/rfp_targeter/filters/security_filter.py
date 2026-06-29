@@ -82,9 +82,13 @@ class SecurityFilter:
         self._must_any = cfg.get("must_any", [])
         self._boost = cfg.get("boost", [])
         self._exclude = cfg.get("exclude", [])
-        # exclude_strict — 무조건 탈락 (must_any 매칭 무관). 박사후/장학금 등
-        # 회사가 절대 신청 불가능한 명확한 잡음만 등재.
+        # exclude_strict — 무조건 탈락 (must_any 매칭 무관). 박사후/장학금/사칭 등
+        # 회사가 절대 신청 불가능한 명확한 잡음. 제목·본문 어디든 나오면 탈락.
         self._exclude_strict = cfg.get("exclude_strict", [])
+        # exclude_strict_title — 제목에만 매칭하는 강제 제외. 결과발표/합격자 공고.
+        # ⚠️ 본문 합산 금지: 정상 모집공고 본문의 '○월 선정결과 발표 예정' 일정 안내가
+        #   '선정결과' 매칭을 일으켜 마약류/치안 같은 보안 공고까지 죽이던 오탈락 방지.
+        self._exclude_strict_title = cfg.get("exclude_strict_title", [])
         self._must_any_agency = cfg.get("must_any_agency", [])
 
     def check(self, *texts: str | None, agency: str | None = None) -> FilterResult:
@@ -101,7 +105,14 @@ class SecurityFilter:
         """
         haystack = _normalize(" ".join(t for t in texts if t))
 
-        # exclude_strict — 무조건 탈락 (회사 신청 불가능한 명확한 잡음)
+        # exclude_strict_title — 제목(첫 인자)에만 매칭. 결과발표/합격자 공고 차단.
+        # 본문은 보지 않음 → 정상 모집공고의 '선정결과 발표 일정' 안내에 오탈락 안 됨.
+        title_norm = _normalize(texts[0]) if texts and texts[0] else ""
+        title_killed = [k for k in self._exclude_strict_title if _normalize(k) in title_norm]
+        if title_killed:
+            return FilterResult(False, [], [], title_killed)
+
+        # exclude_strict — 무조건 탈락 (회사 신청 불가능한 명확한 잡음). 제목·본문 모두.
         excluded_hard = [k for k in self._exclude_strict if _normalize(k) in haystack]
         if excluded_hard:
             return FilterResult(False, [], [], excluded_hard)
