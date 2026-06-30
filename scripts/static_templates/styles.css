@@ -624,3 +624,31 @@ input[type="range"] { flex: 1; max-width: 200px; }
   .body-pre { padding: 16px 18px; font-size: 14px; }
   .footer { flex-direction: column; gap: 8px; text-align: center; }
 }
+
+/* ── 🙈 필터링돼 안 보이는 공고 (토글 펼침) ── */
+.hidden-feed { max-width: 1280px; margin: 24px auto 8px; padding: 0 24px; }
+.hidden-toggle {
+  width: 100%; padding: 12px 18px; background: #f0f0f0; border: 1px solid #d8d8d8;
+  border-radius: 4px; color: #555; font-size: 13px; font-weight: 600; cursor: pointer;
+  text-align: left; transition: background .15s;
+}
+.hidden-toggle:hover { background: #e8e8e8; }
+.hidden-toggle b { color: #c0392b; }
+.hidden-toggle .arrow { float: right; color: #999; }
+.hidden-list { margin-top: 10px; }
+.hidden-list.hidden { display: none; }
+.hidden-group { margin-bottom: 14px; }
+.hidden-group-title {
+  font-size: 12px; font-weight: 700; color: #777; padding: 6px 4px;
+  border-bottom: 1px solid #e0e0e0; margin-bottom: 4px;
+}
+.hidden-group-title span {
+  display: inline-block; margin-left: 6px; padding: 1px 7px; background: #e0e0e0;
+  border-radius: 10px; color: #666; font-size: 11px;
+}
+.hidden-item {
+  display: block; padding: 6px 8px; color: #555; font-size: 13px; text-decoration: none;
+  border-radius: 3px; line-height: 1.5;
+}
+.hidden-item:hover { background: #f5f5f5; color: #111; }
+.hidden-item .ext { color: #aaa; font-size: 11px; }

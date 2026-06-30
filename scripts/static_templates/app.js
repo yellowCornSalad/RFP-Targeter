@@ -74,6 +74,7 @@ async function loadData() {
     renderAgencyGrid();
     renderRelevanceFilter();
     renderIrisGovdFilter();
+    renderHiddenFeed();
     bindFilters();
     applyFilters();
   } catch (e) {
@@ -795,6 +796,39 @@ function renderIrisGovdFilter() {
       renderIrisGovdFilter();
       applyFilters();
     });
+  });
+}
+
+// ────────────────────────────────────────────────────────────
+// 🙈 필터링돼 안 보이는 공고 — 버튼 클릭 시 사유별 제목+링크 펼침.
+// build_static 의 excluded_items (제목·url·사유) 사용. 링크만 클릭 가능(상세보기 X).
+// ────────────────────────────────────────────────────────────
+function renderHiddenFeed() {
+  const items = (DATA && DATA.excluded_items) || [];
+  const countEl = document.getElementById("hidden-count");
+  const listEl = document.getElementById("hidden-list");
+  const toggle = document.getElementById("hidden-toggle");
+  if (!countEl || !listEl || !toggle) return;
+  countEl.textContent = items.length;
+  if (items.length === 0) { toggle.style.display = "none"; return; }
+
+  // 사유별 그룹 (건수 많은 순)
+  const groups = {};
+  items.forEach((it) => { (groups[it.reason] = groups[it.reason] || []).push(it); });
+  const order = Object.entries(groups).sort((a, b) => b[1].length - a[1].length);
+  listEl.innerHTML = order.map(([reason, lst]) => `
+    <div class="hidden-group">
+      <div class="hidden-group-title">${escapeHtml(reason)} <span>${lst.length}</span></div>
+      ${lst.map((it) => `
+        <a class="hidden-item" href="${escapeHtml(it.url)}" target="_blank" rel="noopener">
+          ${escapeHtml(it.title)} <span class="ext">↗</span>
+        </a>`).join("")}
+    </div>`).join("");
+
+  toggle.addEventListener("click", () => {
+    const isHidden = listEl.classList.toggle("hidden");
+    toggle.querySelector(".arrow") &&
+      (toggle.querySelector(".arrow").textContent = isHidden ? "▾" : "▴");
   });
 }
 
