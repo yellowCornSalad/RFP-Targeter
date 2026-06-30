@@ -390,6 +390,42 @@ def fetch_data() -> dict:
             },
         })
 
+    # ── 중복 제거 [2026-06-30 사용자 결정: '정보 많은 것' 우선] ──
+    # 같은 사업이 여러 기관(KISA/IITP/NIPA 등)에 게시되면 첨부·본문이 더 풍부한 1건만 노출.
+    # 점수도 source별 본문 추출 차이로 달라져(예: 모바일전자증명 KISA 69 vs IITP 66) 혼동 → 합침.
+    import re as _re
+
+    def _dedup_key(t: str) -> str:
+        t = t or ""
+        t = _re.sub(r"^[\[\(【][^\]\)】]*[\]\)】]\s*", "", t)   # 앞 [재공고] 등
+        t = _re.sub(r"[\(\[【][^\)\]】]*[\)\]】]", "", t)        # 괄호 내용
+        t = _re.sub(r"(공고문|재공고|공고|공모전|공모|모집공고|모집|신청|선정계획|선정공고)\s*$",
+                    "", t.strip())
+        return _re.sub(r"\s+", "", t).lower()
+
+    def _info_rank(it: dict):
+        # 첨부 많은 것 → 본문 긴 것 → 점수 높은 것 (사용자 선택: 정보 풍부 우선)
+        return (len(it.get("attachments") or []), len(it.get("body") or ""),
+                (it.get("scores") or {}).get("total") or 0)
+
+    _best: dict[str, dict] = {}
+    for it in items:
+        k = _dedup_key(it.get("title") or "")
+        if k not in _best or _info_rank(it) > _info_rank(_best[k]):
+            _best[k] = it
+    _emitted: set[str] = set()
+    _deduped = []
+    for it in items:   # 원래 정렬(posted_at desc) 유지하며 각 사업의 best 1건만
+        k = _dedup_key(it.get("title") or "")
+        if k in _emitted:
+            continue
+        if it is _best[k]:
+            _deduped.append(it)
+            _emitted.add(k)
+    if len(_deduped) < len(items):
+        print(f"중복 제거: {len(items)} -> {len(_deduped)}건")
+    items = _deduped
+
     # 사이드바 필터 옵션 미리 계산
     sources_counts: dict[str, int] = {}
     # ⚠️ '오늘'은 KST 기준 — GitHub Actions 러너는 UTC라 datetime.now()를 쓰면
