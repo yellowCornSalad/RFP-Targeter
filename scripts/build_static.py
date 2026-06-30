@@ -297,14 +297,26 @@ def fetch_data() -> dict:
                      AND (a.deadline_at >= CURRENT_DATE::text
                           OR (a.deadline_at IS NULL
                               AND a.posted_at >= (CURRENT_DATE - 60)::text))
-                     -- [2026-06-29 사용자 요청] LLM 의미 게이트 — 단순 키워드가 아니라
-                     -- '회사가 제안서 써서 응찰 가능한 과제인가'로 노출 차단.
-                     --   · relevance='none'  : 회사 수행 불가 도메인 (제조·시설·농수산 등)
-                     --   · biddable=false    : 시상·공지·인력모집·행사 등 응찰 불가 유형
-                     -- 미평가(llm_assess_json NULL)는 보수적으로 통과 → 평가 후 재판정.
+                     -- [2026-06-30 사용자 결정: '수요기업/인접 R&D 살리기'] LLM 의미 게이트.
+                     --   · relevance='none'        : 회사 수행 불가 도메인(제조·바이오·반도체·조선) 제외
+                     --   · doc_type award/hr/event : 시상·인력모집·행사 제외 (명백 응찰 불가)
+                     --   · doc_type notice         : 공지 제외 — 단 '수요/공급/참여기업·사업자 모집'은
+                     --                                회사가 공급·컨소시엄으로 참여 여지 있어 예외 노출
+                     -- biddable=false 라도 인접 R&D(rnd_project)·용역(service_bid)은 노출(컨소시엄 여지).
+                     -- 미평가(NULL)는 보수적 통과 → 평가 후 재판정.
                      AND (a.llm_assess_json IS NULL
                           OR (COALESCE(a.llm_assess_json::jsonb->>'relevance','') <> 'none'
-                              AND COALESCE(a.llm_assess_json::jsonb->>'biddable','') <> 'false'))
+                              AND (COALESCE(a.llm_assess_json::jsonb->>'doc_type','')
+                                       NOT IN ('award','hr','event','notice')
+                                   OR a.title LIKE '%수요기업%'
+                                   OR a.title LIKE '%공급기업%'
+                                   OR a.title LIKE '%참여기업%'
+                                   OR a.title LIKE '%사업자 모집%')
+                              -- 약한 신호 양쪽(응찰 불가 + 본업과 거리 멈) 조합은 제외:
+                              -- 물품구매·데이터라벨링·성과분석 용역 등. 수요기업(rel high/med)·
+                              -- 인접 R&D(biddable=true)는 이 조건에 안 걸려 살아남.
+                              AND NOT (COALESCE(a.llm_assess_json::jsonb->>'biddable','') = 'false'
+                                       AND COALESCE(a.llm_assess_json::jsonb->>'relevance','') = 'low')))
                    ORDER BY a.posted_at DESC NULLS LAST,
                             s.total_score DESC NULLS LAST"""
             )
