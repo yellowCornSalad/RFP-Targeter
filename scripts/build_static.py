@@ -518,10 +518,48 @@ def fetch_data() -> dict:
         },
     }
 
+    # ── 필터링돼 안 보이는 공고 (홈페이지 '안 보이는 공고' 버튼용) ──
+    # 노출 후보(활성·60일내) 중 실제 노출(items)에 없는 것 = LLM 게이트/중복으로 빠진 것.
+    visible_ids = {it["id"] for it in items}
+    excluded_items = []
+    with get_conn() as _c:
+        _cur = _c.cursor()
+        _cur.execute(
+            """SELECT id, title, url, llm_assess_json, posted_at FROM announcement
+               WHERE is_security=TRUE AND is_dismissed=FALSE
+                 AND source IN ('iitp','kisa','krit','nipa','mss','koica','iris')
+                 AND (deadline_at >= CURRENT_DATE::text
+                      OR (deadline_at IS NULL AND posted_at >= (CURRENT_DATE - 60)::text))
+               ORDER BY posted_at DESC NULLS LAST"""
+        )
+        for _r in _cur.fetchall():
+            if _r["id"] in visible_ids:
+                continue
+            _j = json.loads(_r["llm_assess_json"]) if _r["llm_assess_json"] else {}
+            _dt, _rel, _bd = _j.get("doc_type"), _j.get("relevance"), _j.get("biddable")
+            if _rel == "none":
+                _reason = "본업 무관 분야 (제조·바이오·반도체 등)"
+            elif _dt == "award":
+                _reason = "시상·표창"
+            elif _dt == "hr":
+                _reason = "인력·연수 모집"
+            elif _dt == "event":
+                _reason = "행사·경진대회"
+            elif _dt == "notice":
+                _reason = "공지·안내"
+            elif _bd is False and _rel == "low":
+                _reason = "응찰 불가 용역 (물품구매·성과분석 등)"
+            else:
+                _reason = "중복·기타"
+            excluded_items.append({
+                "title": _r["title"] or "", "url": _r["url"] or "", "reason": _reason,
+            })
+
     return {
         "build_time": build_time_kst,                # 사용자 표시용 KST
         "build_time_iso": datetime.now().isoformat(timespec="seconds"),  # 디버그용 UTC
         "total": len(items),
+        "excluded_items": excluded_items,            # 필터링돼 안 보이는 공고 (제목+링크+사유)
         "today_new": sum(today_new_by_src.values()),
         "sources_counts": sources_counts,
         "today_new_by_src": today_new_by_src,
