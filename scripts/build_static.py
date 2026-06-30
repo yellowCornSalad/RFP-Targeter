@@ -297,6 +297,14 @@ def fetch_data() -> dict:
                      AND (a.deadline_at >= CURRENT_DATE::text
                           OR (a.deadline_at IS NULL
                               AND a.posted_at >= (CURRENT_DATE - 60)::text))
+                     -- [2026-06-29 사용자 요청] LLM 의미 게이트 — 단순 키워드가 아니라
+                     -- '회사가 제안서 써서 응찰 가능한 과제인가'로 노출 차단.
+                     --   · relevance='none'  : 회사 수행 불가 도메인 (제조·시설·농수산 등)
+                     --   · biddable=false    : 시상·공지·인력모집·행사 등 응찰 불가 유형
+                     -- 미평가(llm_assess_json NULL)는 보수적으로 통과 → 평가 후 재판정.
+                     AND (a.llm_assess_json IS NULL
+                          OR (COALESCE(a.llm_assess_json::jsonb->>'relevance','') <> 'none'
+                              AND COALESCE(a.llm_assess_json::jsonb->>'biddable','') <> 'false'))
                    ORDER BY a.posted_at DESC NULLS LAST,
                             s.total_score DESC NULLS LAST"""
             )

@@ -46,22 +46,36 @@ def _company_context() -> str:
 _SYSTEM = """당신은 정부 R&D/사업 공고를 '특정 회사' 관점에서 평가하는 분석가입니다.
 반드시 공고 본문에 근거해서만 판단하세요. 추정·외부지식·할루시네이션 금지. 근거가 약하면 보수적으로.
 
-두 가지를 평가해 JSON 으로만 답합니다:
+네 가지를 평가해 JSON 으로만 답합니다:
 
-1) trl (이 공고가 '대상으로 하는 기술의 성숙도 단계', TRL 1~9):
-   - 단어가 한 번 등장했다고 그 단계가 아닙니다. 공고가 실제로 지원하는 단계를 보세요.
-     (기초연구=2~3, 응용/원천=4~5, 시제품/파일럿=6, 실증=7, 사업화=8, 상용화/확산=9)
-   - 예: '사업화 권한을 보유한 기업'처럼 자격요건 안의 단어는 단계 근거가 아님.
-   - 본문에 단계를 가늠할 실제 근거가 없으면 null.
+1) doc_type (이 공고의 '성격' — 제목과 본문의 실제 목적으로 판단):
+   - rnd_project: 연구개발 과제·기술개발사업·신규과제 공모 (제안서/연구개발계획서로 응찰)
+   - service_bid: 용역·입찰 (조사·분석·운영·구축·컨설팅 용역 — 제안서로 수주)
+   - award: 시상·표창·포상·추천·공로·유공·우수사례·공모전 수상
+   - hr: 인력·연수생·교육생·후보생·인턴·장학생 모집/선발/교육
+   - event: 행사·세미나·포럼·설명회·박람회·워크숍·전시·컨퍼런스
+   - notice: 단순 공지·안내·주의·정정·변경·연기·휴무·결과발표·선정결과
+   - other: 위에 안 맞는 기타
 
-2) relevance (이 공고를 위 회사가 실제로 신청·수행할 수 있는 사업인지 = 도메인 적합성):
+2) biddable (위 회사가 '제안서·사업계획서를 작성해 응찰하거나 수주·수행'할 수 있는 사업인가):
+   - true: rnd_project 이거나, 회사가 수행 가능한 기술 분야(보안/AI/SW/데이터/ICT)의 service_bid
+   - false: award·hr·event·notice 유형 전부 (제안서로 따낼 사업이 아님),
+            또는 회사가 수행 불가능한 분야(제조·시설·건설·농수산·바이오실험 등)의 용역
+   ★ 분야가 보안이어도 '시상/공지/인력모집'이면 biddable=false. 핵심은 '응찰해서 수행하는 사업인가'.
+
+3) relevance (도메인 적합성 — 회사 본업과의 거리):
    - high: 보안·취약점·침투·모의해킹·정보보호·AI보안·관제 등 본업 직결
    - medium: 일반 AI/SW/데이터/클라우드 R&D (보안과 인접, 컨소시엄 참여 여지)
    - low: 본업과 거리가 먼 분야지만 일부 IT 요소 존재
    - none: 제조·수출·하드웨어·스마트공장·시설·농수산 등 회사가 수행 불가
 
+4) trl (이 공고가 '대상으로 하는 기술의 성숙도 단계', TRL 1~9):
+   - 단어가 한 번 등장했다고 그 단계가 아닙니다. 공고가 실제로 지원하는 단계를 보세요.
+     (기초연구=2~3, 응용/원천=4~5, 시제품/파일럿=6, 실증=7, 사업화=8, 상용화/확산=9)
+   - 본문에 단계를 가늠할 실제 근거가 없으면 null.
+
 출력은 아래 JSON 한 줄만. 다른 텍스트·코드펜스·설명 금지:
-{"trl": <1~9 정수 또는 null>, "trl_reason": "<한 줄 근거, 본문 인용 위주>", "relevance": "high|medium|low|none", "relevance_reason": "<한 줄 근거>"}"""
+{"doc_type": "<rnd_project|service_bid|award|hr|event|notice|other>", "biddable": <true 또는 false>, "biddable_reason": "<한 줄 근거>", "relevance": "high|medium|low|none", "relevance_reason": "<한 줄 근거>", "trl": <1~9 정수 또는 null>, "trl_reason": "<한 줄 근거>"}"""
 
 
 def assess_announcement(title: str, body: str, max_chars: int = 4000) -> dict | None:
@@ -91,8 +105,7 @@ def assess_announcement(title: str, body: str, max_chars: int = 4000) -> dict | 
         client = anthropic.Anthropic(api_key=api_key)
         msg = client.messages.create(
             model=_MODEL,
-            max_tokens=700,  # [2026-06-01] 300→700. 한국어 근거 2개(trl+relevance, 각 ~200자)면
-                             # 300토큰 초과로 JSON 이 잘려 파싱 실패→None (대형 공고 40% 실패 원인).
+            max_tokens=1000,  # [2026-06-29] 700→1000. doc_type/biddable 필드 추가로 근거 4개.
             system=_SYSTEM,
             messages=[{"role": "user", "content": user}],
         )
@@ -113,11 +126,21 @@ def assess_announcement(title: str, body: str, max_chars: int = 4000) -> dict | 
         rel = data.get("relevance")
         if rel not in ("high", "medium", "low", "none"):
             rel = None
+        dt = data.get("doc_type")
+        if dt not in ("rnd_project", "service_bid", "award", "hr", "event", "notice", "other"):
+            dt = None
+        # biddable — 명시적 bool 만 신뢰. 누락/형변환 실패 시 None(=미판정, 게이트는 보수적으로 통과)
+        bd = data.get("biddable")
+        if not isinstance(bd, bool):
+            bd = None
         return {
             "trl": trl,
             "trl_reason": str(data.get("trl_reason") or "")[:200],
             "relevance": rel,
             "relevance_reason": str(data.get("relevance_reason") or "")[:200],
+            "doc_type": dt,
+            "biddable": bd,
+            "biddable_reason": str(data.get("biddable_reason") or "")[:200],
         }
     except Exception as e:
         log.debug("assess fail: %s", e)
