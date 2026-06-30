@@ -57,9 +57,11 @@ def run(limit: int, force: bool, dry: bool) -> int:
     # [2026-06-29] NULL 뿐 아니라 'biddable 키 없는 옛 형식' 캐시도 재평가 대상에 포함.
     #   biddable/doc_type 추가 전 코드로 평가된 캐시가 남아 게이트(biddable)가 못 거르던 빈틈.
     #   force 면 전체, 아니면 (NULL 또는 biddable 미포함) 만.
+    # psycopg3: LIMIT %s 파라미터가 있는 쿼리에서 리터럴 % 는 반드시 %% 로 이스케이프
+    # (안 하면 '%b' 를 플레이스홀더로 오해 → ProgrammingError 로 쿼리 전체 실패).
     where_extra = (
         "" if force
-        else "AND (llm_assess_json IS NULL OR llm_assess_json NOT LIKE '%biddable%')"
+        else "AND (llm_assess_json IS NULL OR llm_assess_json NOT LIKE '%%biddable%%')"
     )
     with get_conn() as conn:
         with conn.cursor() as cur:
