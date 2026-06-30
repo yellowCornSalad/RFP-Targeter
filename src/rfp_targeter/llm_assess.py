@@ -79,8 +79,16 @@ _SYSTEM = """당신은 정부 R&D/사업 공고를 '특정 회사' 관점에서 
 
 
 def assess_announcement(title: str, body: str, max_chars: int = 4000) -> dict | None:
-    """본문 맥락 기반 TRL 단계 + 도메인 적합성 판단. 실패 시 None."""
-    if not body or len(body) < 100:
+    """본문 맥락 기반 TRL 단계 + 도메인 적합성 + 응찰가능성 판단. 실패 시 None.
+
+    [2026-06-29] 본문이 짧거나 없어도 제목으로 평가한다 — '우수성과 50선 모집'(시상),
+    '○○ 후보생 선발'(인력) 같은 노이즈는 제목만으로도 doc_type/biddable 판정 가능.
+    이전엔 body<100 이면 None 반환 → 본문 짧은 공고가 '미평가'로 게이트를 통과해
+    노이즈가 노출되던 빈틈. 제목조차 없으면 평가 불가.
+    """
+    title = (title or "").strip()
+    body = (body or "").strip()
+    if not title:
         return None
     try:
         import anthropic
@@ -94,11 +102,12 @@ def assess_announcement(title: str, body: str, max_chars: int = 4000) -> dict | 
         log.debug("anthropic api_key 미설정 — assess 건너뜀")
         return None
 
+    body_section = body[:max_chars] if body else "(본문 미제공 — 제목으로 판단)"
     user = (
         f"[평가 대상 회사]\n{_company_context()}\n\n"
         f"[공고 제목]\n{title}\n\n"
-        f"[공고 본문]\n{body[:max_chars]}\n\n"
-        "위 회사 관점에서 trl 과 relevance 를 평가해 JSON 으로만 답하세요."
+        f"[공고 본문]\n{body_section}\n\n"
+        "위 회사 관점에서 doc_type/biddable/relevance/trl 을 평가해 JSON 으로만 답하세요."
     )
 
     try:

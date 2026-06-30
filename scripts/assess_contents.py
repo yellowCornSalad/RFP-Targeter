@@ -60,7 +60,8 @@ def run(limit: int, force: bool, dry: bool) -> int:
             cur.execute(
                 f"""SELECT id, title, body FROM announcement
                     WHERE is_security = TRUE AND is_dismissed = FALSE
-                      AND body IS NOT NULL AND length(body) > 200
+                      -- [2026-06-29] body>200 조건 제거 — 본문 짧은 공고도 제목으로 평가해야
+                      -- '우수성과 50선 모집'(시상) 같은 노이즈가 '미평가'로 게이트를 통과 안 함.
                       AND (deadline_at >= CURRENT_DATE::text
                            OR (deadline_at IS NULL AND posted_at >= (CURRENT_DATE - 60)::text))
                       {where_extra}
