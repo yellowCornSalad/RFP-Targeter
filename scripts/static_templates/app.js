@@ -815,7 +815,20 @@ function renderHiddenFeed() {
   // 사유별 그룹 (건수 많은 순)
   const groups = {};
   items.forEach((it) => { (groups[it.reason] = groups[it.reason] || []).push(it); });
-  const order = Object.entries(groups).sort((a, b) => b[1].length - a[1].length);
+  // 그룹 순서 = 우선순위(회사 볼 가치 높은 순). 건수순 아님. 각 그룹 내부는 최근 등록순 유지.
+  const REASON_ORDER = [
+    "공지·안내",                              // 수요기업 모집 등 참여 여지
+    "응찰 불가 용역 (물품구매·성과분석 등)",   // IT 인접이나 회사 부적합
+    "인력·연수 모집",
+    "행사·경진대회",
+    "시상·표창",
+    "중복·기타",                              // 같은 사업 타 기관 버전 (이미 노출됨)
+    "본업 무관 분야 (제조·바이오·반도체 등)",  // 완전 무관 — 맨 아래
+  ];
+  const order = Object.entries(groups).sort((a, b) => {
+    const ia = REASON_ORDER.indexOf(a[0]), ib = REASON_ORDER.indexOf(b[0]);
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+  });
   listEl.innerHTML = order.map(([reason, lst]) => `
     <div class="hidden-group">
       <div class="hidden-group-title">${escapeHtml(reason)} <span>${lst.length}</span></div>
