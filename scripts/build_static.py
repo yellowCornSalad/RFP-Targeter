@@ -297,13 +297,14 @@ def fetch_data() -> dict:
                      AND (a.deadline_at >= CURRENT_DATE::text
                           OR (a.deadline_at IS NULL
                               AND a.posted_at >= (CURRENT_DATE - 60)::text))
-                     -- [2026-06-30 사용자 결정: '수요기업/인접 R&D 살리기'] LLM 의미 게이트.
-                     --   · relevance='none'        : 회사 수행 불가 도메인(제조·바이오·반도체·조선) 제외
-                     --   · doc_type award/hr/event : 시상·인력모집·행사 제외 (명백 응찰 불가)
-                     --   · doc_type notice         : 공지 제외 — 단 '수요/공급/참여기업·사업자 모집'은
-                     --                                회사가 공급·컨소시엄으로 참여 여지 있어 예외 노출
-                     -- biddable=false 라도 인접 R&D(rnd_project)·용역(service_bid)은 노출(컨소시엄 여지).
-                     -- 미평가(NULL)는 보수적 통과 → 평가 후 재판정.
+                     -- [2026-07-03 사용자 결정: 홈페이지는 관대, 슬랙만 엄격] LLM 의미 게이트(느슨).
+                     --   홈페이지는 '명백히 응찰 불가한 것'만 제외 — 애매/인접/저득점은 다 노출.
+                     --   · relevance='none'               : 회사 수행 불가(제조·바이오·반도체·조선) 제외
+                     --   · doc_type award/hr/event/notice : 시상·인력·행사·공지 제외
+                     --       (단 '수요/공급/참여기업·사업자 모집'은 참여 여지 있어 예외 노출)
+                     --   그 외(service_bid/rnd_project)는 biddable·점수 무관 전부 노출.
+                     --   ★ 엄격한 발송 게이트는 slack.py (high+biddable+예산1억+60점) — 슬랙만 엄격.
+                     --   미평가(NULL)는 보수적 통과.
                      AND (a.llm_assess_json IS NULL
                           OR (COALESCE(a.llm_assess_json::jsonb->>'relevance','') <> 'none'
                               AND (COALESCE(a.llm_assess_json::jsonb->>'doc_type','')
@@ -311,12 +312,7 @@ def fetch_data() -> dict:
                                    OR a.title LIKE '%수요기업%'
                                    OR a.title LIKE '%공급기업%'
                                    OR a.title LIKE '%참여기업%'
-                                   OR a.title LIKE '%사업자 모집%')
-                              -- 약한 신호 양쪽(응찰 불가 + 본업과 거리 멈) 조합은 제외:
-                              -- 물품구매·데이터라벨링·성과분석 용역 등. 수요기업(rel high/med)·
-                              -- 인접 R&D(biddable=true)는 이 조건에 안 걸려 살아남.
-                              AND NOT (COALESCE(a.llm_assess_json::jsonb->>'biddable','') = 'false'
-                                       AND COALESCE(a.llm_assess_json::jsonb->>'relevance','') = 'low')))
+                                   OR a.title LIKE '%사업자 모집%')))
                    ORDER BY a.posted_at DESC NULLS LAST,
                             s.total_score DESC NULLS LAST"""
             )
