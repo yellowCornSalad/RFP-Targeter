@@ -511,16 +511,29 @@ def dispatch_pending_alerts() -> bool:
         log.exception("dispatch_pending_alerts: DB 조회 실패")
         return False
 
-    # 🤖 도메인 적합성 high 만 발송 (medium/낮음/무관/미평가 제외 — medium 은 대시보드만)
+    # 🤖 [2026-07-03 버그픽스] 홈페이지 노출 게이트와 동일 기준으로 발송.
+    #   이전엔 relevance=high 만 봐서, 시상·공지·인력모집(doc_type)이 high 면
+    #   슬랙으로 나갔다(홈페이지엔 biddable/doc_type 게이트로 안 보이는데 슬랙만 뜸).
+    #   조건: ① relevance=high  ② biddable != false  ③ doc_type 시상·인력·행사·공지 제외
+    #        (단 수요/공급/참여기업·사업자 모집은 회사 참여 여지 있어 예외)
     _ALERT_REL = {"high"}
+    _NOISE_DT = {"award", "hr", "event", "notice"}
     filtered = []
     for r in rows:
         try:
-            rel = (json.loads(r.get("llm_assess_json") or "{}") or {}).get("relevance")
+            j = json.loads(r.get("llm_assess_json") or "{}") or {}
         except Exception:
-            rel = None
-        if rel in _ALERT_REL:
-            filtered.append(r)
+            j = {}
+        rel, dt, bd = j.get("relevance"), j.get("doc_type"), j.get("biddable")
+        if rel not in _ALERT_REL:
+            continue
+        if bd is False:                    # 응찰 불가(물품구매·성과분석 등)
+            continue
+        if dt in _NOISE_DT:                # 시상·인력·행사·공지
+            title = r.get("title") or ""
+            if not any(k in title for k in ("수요기업", "공급기업", "참여기업", "사업자 모집")):
+                continue
+        filtered.append(r)
     rows = filtered
 
     if not rows:
