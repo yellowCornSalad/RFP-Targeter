@@ -480,7 +480,9 @@ def dispatch_pending_alerts() -> bool:
     #      까지 잡혀 푸시 과다 → medium 은 대시보드에서만 확인, 슬랙은 high 만.
     #   2) budget_mw ≥ 100 (= 1억 이상). NULL은 제외 (엄격)
     #   3) 활성 공고 (마감 미래 + 최근 60일 내 등록 마감미명시)
-    # (이전 '종합점수 ≥ 80' 은 LLM 배율 후 점수가 80에 거의 안 닿아 무알림 → 폐기)
+    #   4) [2026-07-03 사용자 결정] 종합점수 ≥ 60. adjacency high 여도 다른 축(예산/경쟁/
+    #      trl)이 낮아 55점 같은 LOW 등급(예: 수출지향형 R&D)이 뜨던 걸 차단. 80은 과했지만
+    #      60은 '우량' 하한. + doc_type/biddable 게이트(아래 Python)로 시상·공지·운영기관 제외.
     # 적합성은 llm_assess_json(JSON TEXT)이라 SQL 캐스트 에러 회피 위해 Python 에서 필터.
     try:
         with get_conn() as conn:
@@ -499,6 +501,7 @@ def dispatch_pending_alerts() -> bool:
                          AND a.is_dismissed = FALSE
                          AND a.source IN ('iitp','kisa','krit','nipa','mss','koica')
                          AND a.budget_mw IS NOT NULL AND a.budget_mw >= 100
+                         AND s.total_score IS NOT NULL AND s.total_score >= 60
                          AND (
                            a.deadline_at >= CURRENT_DATE::text
                            OR (a.deadline_at IS NULL
