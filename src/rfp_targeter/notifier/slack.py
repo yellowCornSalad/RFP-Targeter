@@ -410,6 +410,11 @@ def notify_daily_heartbeat() -> bool:
         return False
 
     now = datetime.now(KST)
+    # [2026-07-03 사용자 요청] 주말엔 하트비트 미발송 (주말 슬랙 노이즈 차단).
+    # settings.alert.business_hours.weekdays_only 존중.
+    weekdays_only = bool(((cfg.get("business_hours") or {}).get("weekdays_only", True)))
+    if weekdays_only and now.weekday() >= 5:  # 5=토, 6=일
+        return False
     if now.hour != int(cfg.get("daily_heartbeat_hour", 9)):
         return False
     today = now.strftime("%Y-%m-%d")
