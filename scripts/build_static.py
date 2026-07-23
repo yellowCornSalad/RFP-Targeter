@@ -515,8 +515,12 @@ def fetch_data() -> dict:
     }
 
     # ── 필터링돼 안 보이는 공고 (홈페이지 '안 보이는 공고' 버튼용) ──
-    # 노출 후보(활성·60일내) 중 실제 노출(items)에 없는 것 = LLM 게이트/중복으로 빠진 것.
+    # 노출 후보(활성·60일내) 중 실제 노출(items)에 없는 것 = LLM 게이트로 빠진 것.
+    # ★ [2026-07-23] 중복 제거분(같은 사업이 이미 대표로 노출 중)은 숨김 목록에서 제외 —
+    #   '우량 공고가 숨겨졌다'는 오해 방지 (예: 사이버보안 AI 파운데이션이 IITP로 노출되는데
+    #   NIPA 중복이 숨김에 떠서 놓친 줄 오해). 게이트로 진짜 빠진 것만 숨김 목록에.
     visible_ids = {it["id"] for it in items}
+    visible_keys = {_dedup_key(it.get("title") or "") for it in items}
     excluded_items = []
     with get_conn() as _c:
         _cur = _c.cursor()
@@ -530,6 +534,9 @@ def fetch_data() -> dict:
         )
         for _r in _cur.fetchall():
             if _r["id"] in visible_ids:
+                continue
+            # 중복 제거분(같은 사업이 이미 대표로 노출) → 숨김 목록에서도 제외
+            if _dedup_key(_r["title"] or "") in visible_keys:
                 continue
             _j = json.loads(_r["llm_assess_json"]) if _r["llm_assess_json"] else {}
             _dt, _rel, _bd = _j.get("doc_type"), _j.get("relevance"), _j.get("biddable")
