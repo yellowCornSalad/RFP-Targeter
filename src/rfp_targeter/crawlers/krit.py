@@ -29,6 +29,7 @@ DOM 구조 (probe 결과):
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 import re
 from typing import Iterator
@@ -39,6 +40,15 @@ from rfp_targeter.db.models import Announcement
 log = logging.getLogger(__name__)
 
 LIST_URL = "https://pms.krit.re.kr/kritpmsi/nxui/kritpms/index.jsp"
+
+# [2026-07-23] 게시일(posted_at) 확보:
+#   홈 캐러셀 카드 DOM 엔 게시일이 안 그려져 posted_at=None 이었음(전수 NULL).
+#   그러나 카드를 채우는 POST 응답(getMainPssrPbancList.do)의 JSON 에는
+#   pstgBgnDe(게시시작일)·pstgEndde(게시종료일)·pssrpPbancId(공고ID) 가 다 있음.
+#   → 페이지 로드 시 이 응답을 가로채(page.on("response")) 제목→게시일 맵을 만들어
+#     _make_announcement 에서 posted_at 채움. DOM 스크래핑(카테고리·마감·배지·군용필터)은 유지.
+#   Nexacro 전용 POST 포맷이라 직접 httpx 호출은 404/500 → SPA 가 만든 요청의 응답만 읽음.
+PBANC_API_MARKER = "getMainPssrPbancList.do"
 
 # Playwright 가 cron 환경에서 안정적으로 작동하려면 chromium 설치 필요.
 # crawl.yml 에 `python -m playwright install chromium --with-deps` 단계 추가됨.
@@ -116,6 +126,7 @@ class KRITCrawler(BaseCrawler):
 
         seen_titles: set[str] = set()
         seen = 0
+        self._posted_map: dict[str, str] = {}
 
         try:
             with sync_playwright() as p:
@@ -124,8 +135,21 @@ class KRITCrawler(BaseCrawler):
                     viewport={"width": 1280, "height": 900},
                     locale="ko-KR",
                 )
+                # 캐러셀을 채우는 공고목록 POST 응답 수집 → 게시일(pstgBgnDe) 확보.
+                # sync Playwright 재진입 방지: 핸들러는 Response 객체만 모으고
+                # 본문은 로드 대기 후(핸들러 밖) 읽는다.
+                _pbanc_responses: list = []
+                page.on(
+                    "response",
+                    lambda resp: (
+                        _pbanc_responses.append(resp)
+                        if PBANC_API_MARKER in resp.url
+                        else None
+                    ),
+                )
                 page.goto(LIST_URL, wait_until="domcontentloaded")
                 page.wait_for_timeout(PAGE_INIT_WAIT_MS)
+                self._posted_map = self._build_posted_map(_pbanc_responses)
 
                 # 캐러셀 순회 — page indicator(현재/전체)로 마지막 페이지 자동 감지
                 page_idx = 0
@@ -229,6 +253,43 @@ class KRITCrawler(BaseCrawler):
         except Exception:
             return (0, 0)
 
+    @staticmethod
+    def _clean_date(s: str) -> str | None:
+        """'2026-07-02 15:00' / '2026-07-02' → '2026-07-02'. 못 찾으면 None."""
+        m = re.search(r"(\d{4})-(\d{1,2})-(\d{1,2})", s or "")
+        if not m:
+            return None
+        return f"{m.group(1)}-{int(m.group(2)):02d}-{int(m.group(3)):02d}"
+
+    def _build_posted_map(self, responses: list) -> dict[str, str]:
+        """공고목록 POST 응답(JSON)에서 {제목: 게시일(pstgBgnDe)} 맵 구성.
+
+        홈 카드 DOM 엔 게시일이 없어, 카드를 채운 API 응답에서 가져온다.
+        응답 본문은 여기(핸들러 밖)에서 읽어야 sync Playwright 재진입 안전.
+        """
+        posted: dict[str, str] = {}
+        for resp in responses:
+            try:
+                body = resp.text()
+            except Exception as e:
+                log.warning("krit_pms: 공고목록 응답 본문 읽기 실패: %s", e)
+                continue
+            try:
+                data = json.loads(body)
+            except Exception:
+                continue
+            for ds in data.get("Datasets", []) or []:
+                for row in ds.get("Rows", []) or []:
+                    nm = (row.get("pssrpPbancNm") or "").strip()
+                    bgn = self._clean_date(row.get("pstgBgnDe") or "")
+                    if nm and bgn:
+                        posted[nm] = bgn
+        if posted:
+            log.info("krit_pms: 게시일 맵 %d건 (API 가로채기)", len(posted))
+        else:
+            log.warning("krit_pms: 게시일 맵 0건 — API 미포착, posted_at NULL 유지")
+        return posted
+
     def _make_announcement(self, card: dict) -> Announcement | None:
         title = (card.get("title") or "").strip()
         if not title:
@@ -280,7 +341,8 @@ class KRITCrawler(BaseCrawler):
             title=title,
             url=LIST_URL,  # 상세 페이지는 Nexacro SPA 라 직접 URL 추출 어려움 — 홈으로 fallback
             agency="국방기술진흥연구소",
-            posted_at=None,  # PMS 홈 카드엔 게시일 미노출
+            # 게시일 맵(API 가로채기)에서 조회, 없으면 None (맵 미구성 시에도 안전)
+            posted_at=getattr(self, "_posted_map", {}).get(title),
             deadline_at=deadline_at,
             summary=summary,
         )
