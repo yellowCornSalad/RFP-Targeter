@@ -1339,7 +1339,7 @@ _appbar_html = f"""
         RFP 공고 탐색 &amp; 점수 비교
       </h1>
       <div style="color:#666;font-size:0.95rem;margin-top:8px;line-height:1.5;max-width:680px">
-        7개 정부기관(IITP·KISA·NIPA·MSS·KOSA·KRIT·KOICA)에서 발주한 RFP 공고를
+        6개 채널(IITP·KISA·NIPA·MSS·KRIT·IRIS 범부처)에서 발주한 RFP 공고를
         엔키화이트햇 본업 적합도 5축으로 자동 점수화.
       </div>
     </div>
