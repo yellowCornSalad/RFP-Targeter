@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>RFP-Targeter | 엔키화이트햇</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+</head>
+<body>
+  <!-- 비밀번호 게이트 (클라이언트 JS) -->
+  <div id="auth-gate" class="auth-gate">
+    <div class="auth-box">
+      <h1>🛡 RFP-Targeter</h1>
+      <p class="auth-sub">엔키화이트햇 내부 대시보드</p>
+      <input type="password" id="auth-pw" placeholder="비밀번호" autofocus>
+      <button id="auth-btn">접속</button>
+      <p id="auth-err" class="auth-err"></p>
+    </div>
+  </div>
+
+  <div id="app" class="app hidden">
+    <!-- 헤더 -->
+    <header class="header">
+      <div class="header-inner">
+        <div>
+          <div class="crumb">대시보드 · RFP-Targeter</div>
+          <h1 class="title">RFP 공고 탐색 & 점수 비교</h1>
+          <p class="subtitle">6개 채널(IITP·KISA·NIPA·MSS·KRIT·IRIS<span title="범부처통합연구지원시스템 — 과기·산업·중기·행안·해수 등 부처 R&D 통합">*</span>) 발주 RFP를 엔키화이트햇 본업 적합도 5축으로 자동 점수화</p>
+        </div>
+        <div class="header-right">
+          <div class="total"><span id="total-count">22</span><span class="unit">건</span></div>
+          <div class="header-meta">
+            <span class="dot-new"></span> 오늘 +<span id="today-new">0</span>건
+            <span class="sep">·</span>
+            <span title="마지막 빌드(대시보드 갱신) 시각">2026-09-07 06:17 KST</span>
+          </div>
+          <div class="crawl-status" id="crawl-status" title="크롤(데이터 수집) 상태 — 조회 시점 기준 실시간 계산">· 상태 확인 중…</div>
+        </div>
+      </div>
+    </header>
+
+    <main class="main">
+      <!-- 발주기관 카드 그리드 -->
+      <section class="agency-grid" id="agency-grid">
+        <!-- JS가 동적 생성 -->
+      </section>
+
+      <!-- 통계 strip (필터 바 위로 — 전체/등급별 카운트가 큰 시각 단서) -->
+      <!-- 🤖 LLM 도메인 적합성 필터 — 클릭 시 해당 단계만 노출, 칩에 건수 표시.
+           [2026-06-01] KPI strip(필터결과·오늘신규 박스) 제거 — 필터결과는 카드
+           목록 헤더와 중복, 오늘신규는 이 행 우측 칩으로 통합. -->
+      <section class="relevance-filter" id="relevance-filter">
+        <!-- JS가 동적 생성 -->
+      </section>
+
+      <!-- 🏛 IRIS 소관부처 필터 — IRIS source 선택 시에만 노출 -->
+      <section class="iris-govd-filter hidden" id="iris-govd-filter">
+        <!-- JS가 동적 생성 -->
+      </section>
+
+      <!-- 필터 바 — 점수 슬라이더(위) + 검색·정렬(아래) -->
+      <section class="filters">
+        <div class="filter-row second-row">
+          <span class="filter-label">최소 점수</span>
+          <input type="range" id="min-score" min="0" max="100" value="0" step="5">
+          <span id="min-score-val">0</span>
+        </div>
+        <div class="filter-row">
+          <input type="search" id="search" placeholder="🔍 제목·기관·키워드 검색">
+          <select id="budget-filter" title="예산 규모 필터 — 1억 = 회사 긍정 평가 시작점">
+            <option value="all">💰 예산 전체</option>
+            <option value="ge100">💰 1억 이상만</option>
+            <option value="lt100">💰 1억 미만만</option>
+          </select>
+          <select id="sort">
+            <option value="newest">📅 최신 등록순</option>
+            <option value="score">🌟 점수 높은순</option>
+            <option value="deadline">⏰ 마감 임박순</option>
+          </select>
+          <button id="reset-btn" class="ghost">전체 해제</button>
+        </div>
+      </section>
+
+      <!-- 🙈 필터링돼 안 보이는 공고 — 버튼 클릭 시 제목+링크 펼침 -->
+      <section class="hidden-feed">
+        <button id="hidden-toggle" class="hidden-toggle">
+          🙈 필터링돼 안 보이는 공고 <b id="hidden-count">0</b>건 보기 <span class="arrow">▾</span>
+        </button>
+        <div id="hidden-list" class="hidden-list hidden"><!-- JS 동적 생성 --></div>
+      </section>
+
+      <!-- 카드 그리드 -->
+      <section class="cards-info">
+        <span id="visible-count">0건 표시 중</span>
+        <span class="cards-page-nav">
+          <button id="page-prev" disabled>◀ 이전</button>
+          <span id="page-info">1 / 1</span>
+          <button id="page-next" disabled>다음 ▶</button>
+        </span>
+      </section>
+
+      <section class="cards" id="cards">
+        <!-- JS가 동적 생성 -->
+      </section>
+
+      <section class="cards-info bottom">
+        <span class="cards-page-nav">
+          <button id="page-prev2" disabled>◀ 이전</button>
+          <span id="page-info2">1 / 1</span>
+          <button id="page-next2" disabled>다음 ▶</button>
+        </span>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span>RFP-Targeter v1.0 · 엔키화이트햇</span>
+      <span>매시 정각 자동 갱신 · 마지막 빌드 2026-09-07 06:17 KST</span>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
